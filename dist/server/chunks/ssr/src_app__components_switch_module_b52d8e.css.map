@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": [],
-  "sections": [
-    {"offset": {"line": 1, "column": 0}, "map": {"version":3,"sources":["turbopack://[project]/src/app/_components/switch.module.css"],"sourcesContent":[".switch {\n  all: unset;\n  position: absolute;\n  right: 20px;\n  top: 70px;\n  display: inline-block;\n  color: currentColor;\n  border-radius: 50%;\n  border: 1px dashed currentColor;\n  cursor: pointer;\n  --size: 24px;\n  height: var(--size);\n  width: var(--size);\n  transition: all 0.3s ease-in-out 0s !important;\n}\n\n[data-mode=\"system\"] .switch::after {\n  position: absolute;\n  height: 100%;\n  width: 100%;\n  top: 0;\n  left: 0;\n  font-weight: 600;\n  font-size: calc(var(--size) / 2);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  content: \"A\";\n}\n\n[data-mode=\"light\"] .switch {\n  box-shadow: 0 0 50px 10px yellow;\n  background-color: yellow;\n  border: 1px solid orangered;\n}\n\n[data-mode=\"dark\"] .switch {\n  box-shadow: calc(var(--size) / 4) calc(var(--size) / -4) calc(var(--size) / 8)\n    inset #fff;\n  border: none;\n  background: transparent;\n  animation: n linear 0.5s;\n}\n\n@keyframes n {\n  40% {\n    transform: rotate(-15deg);\n  }\n  80% {\n    transform: rotate(10deg);\n  }\n  0%,\n  100% {\n    transform: rotate(0deg);\n  }\n}\n"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;;AAgBA;;;;;;;;;;;;;;AAcA;;;;;;AAMA;;;;;;;AAQA"}},
-    {"offset": {"line": 57, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}}]
-}
