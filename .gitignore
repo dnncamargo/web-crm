@@ -20,6 +20,7 @@
 
 # production
 /build
+nofolder
 
 # misc
 .DS_Store
@@ -41,4 +42,15 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-dist/
+\dist\*
+dist/app-build-manifest.json
+dist/build-manifest.json
+dist/cache/.rscinfo
+dist/react-loadable-manifest.json
+dist/server/app-paths-manifest.json
+dist/server/app/page.js
+dist/server/app/page_client-reference-manifest.js
+dist/server/middleware-build-manifest.js
+dist/server/middleware-react-loadable-manifest.js
+dist/server/server-reference-manifest.json
+dist/trace
