@@ -1,0 +1,60 @@
+/* [project]/src/app/_components/switch.module.css [app-client] (css) */
+.switch-module__DSibBW__switch {
+  all: unset;
+  position: absolute;
+  right: 20px;
+  top: 70px;
+  display: inline-block;
+  color: currentColor;
+  border-radius: 50%;
+  border: 1px dashed;
+  cursor: pointer;
+  --size: 24px;
+  height: var(--size);
+  width: var(--size);
+  transition: all .3s ease-in-out !important;
+}
+
+[data-mode="system"] .switch-module__DSibBW__switch:after {
+  position: absolute;
+  height: 100%;
+  width: 100%;
+  top: 0;
+  left: 0;
+  font-weight: 600;
+  font-size: calc(var(--size) / 2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  content: "A";
+}
+
+[data-mode="light"] .switch-module__DSibBW__switch {
+  box-shadow: 0 0 50px 10px #ff0;
+  background-color: #ff0;
+  border: 1px solid #ff4500;
+}
+
+[data-mode="dark"] .switch-module__DSibBW__switch {
+  box-shadow: calc(var(--size) / 4) calc(var(--size) / -4) calc(var(--size) / 8) inset #fff;
+  border: none;
+  background: none;
+  animation: .5s linear switch-module__DSibBW__n;
+}
+
+@keyframes switch-module__DSibBW__n {
+  40% {
+    transform: rotate(-15deg);
+  }
+
+  80% {
+    transform: rotate(10deg);
+  }
+
+  0%, 100% {
+    transform: rotate(0);
+  }
+}
+
+
+/*# sourceMappingURL=src_app__components_switch_module_40b958.css.map*/
