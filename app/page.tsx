@@ -1,54 +1,72 @@
-import Image from "next/image";
+'use client';
 
-import Link from 'next/link';
-
-<Link href="pages/add-client">
-  <button className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded">
-    Adicionar Cliente
-  </button>
-</Link>
+import Link from "next/link";
+import CustomerCard from "./components/CustomerCard";
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from './utils/firebaseConfig';
+import { deleteDoc, doc } from 'firebase/firestore';
+import { useEffect, useState } from "react";
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
-  // Mock de dados de clientes
-  const clientes = [
-    { id: 1, nome: 'Ana Porto', telefone: '(21) 99999-0000', email: 'ana@porto.com' },
-    { id: 2, nome: 'Carlos Silva', telefone: '(21) 98888-1111', email: 'carlos@exemplo.com' },
-  ];
 
+  const router = useRouter();
+  const [clientes, setClientes] = useState<any[]>([]);
+
+  const fetchClientes = async () => {
+    const querySnapshot = await getDocs(collection(db, 'clientes'));
+    const dados = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setClientes(dados);
+  };
+
+  useEffect(() => {
+    fetchClientes();
+  }, []);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'clientes', id));
+      await fetchClientes(); // agora funciona sem erro de escopo
+    } catch (error) {
+      console.error('Erro ao excluir cliente:', error);
+    }
+  };
+  
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-4">
-      <h1 className="text-4xl font-bold mb-6">Delícias do Porto CRM</h1>
+    <main>
 
-      <div className="mb-4 flex justify-end">
-        <button className="bg-gray-700 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded">
-          Adicionar Cliente
-        </button>
+      <h1>CRM</h1>
+
+      <CustomerCard />
+
+      <div>
+        <Link href="/add-client">Adicionar Cliente</Link>
       </div>
 
-      <table className="w-full border-collapse">
+      <table>
         <thead>
           <tr>
-            <th className="border border-gray-600 p-2">Nome</th>
-            <th className="border border-gray-600 p-2">Telefone</th>
-            <th className="border border-gray-600 p-2">Email</th>
-            <th className="border border-gray-600 p-2">Ações</th>
+            <th>Nome</th>
+            <th>Telefone</th>
+            <th>Email</th>
+            <th>Ações</th>
           </tr>
         </thead>
         <tbody>
           {clientes.map(cliente => (
             <tr key={cliente.id}>
-              <td className="border border-gray-700 p-2">{cliente.nome}</td>
-              <td className="border border-gray-700 p-2">{cliente.telefone}</td>
-              <td className="border border-gray-700 p-2">{cliente.email}</td>
-              <td className="border border-gray-700 p-2 flex gap-2">
-                <button className="bg-gray-600 hover:bg-gray-500 text-white py-1 px-3 rounded text-sm">Editar</button>
-                <button className="bg-red-600 hover:bg-red-500 text-white py-1 px-3 rounded text-sm">Excluir</button>
+              <td>{cliente.nome}</td>
+              <td>{cliente.telefone}</td>
+              <td>{cliente.email}</td>
+              <td>
+                <Link href={`/edit-client/${cliente.id}`}>Editar</Link>
+                <button onClick={() => handleDelete(cliente.id)}>Excluir</button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </div>
+    </main>
   );
 }
