@@ -40,33 +40,33 @@ export default function Home() {
 
       <CustomerCard />
 
-      <div>
+      <div className="table-container">
         <Link href="/add-client">Adicionar Cliente</Link>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Nome</th>
-            <th>Telefone</th>
-            <th>Email</th>
-            <th>Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {clientes.map(cliente => (
-            <tr key={cliente.id}>
-              <td>{cliente.nome}</td>
-              <td>{cliente.telefone}</td>
-              <td>{cliente.email}</td>
-              <td>
-                <Link href={`/edit-client/${cliente.id}`}>Editar</Link>
-                <button onClick={() => handleDelete(cliente.id)}>Excluir</button>
-              </td>
+      
+        <table className="table-base">
+          <thead>
+            <tr>
+              <th className="th-base">Nome</th>
+              <th className="th-base">Telefone</th>
+              <th className="th-base">Email</th>
+              <th className="th-base">Ações</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {clientes.map(cliente => (
+              <tr key={cliente.id}>
+                <td className="td-base">{cliente.nome}</td>
+                <td className="td-base">{cliente.telefone}</td>
+                <td className="td-base">{cliente.email}</td>
+                <td className="td-base">
+                  <Link href={`/edit-client/${cliente.id}`}>Editar</Link>
+                  <button onClick={() => handleDelete(cliente.id)}>Excluir</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </main>
   );
 }

@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import './styles/tables.css';
+
 
 :root {
   --background: #ffffff;

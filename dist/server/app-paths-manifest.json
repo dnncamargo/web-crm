@@ -1,5 +1,5 @@
 {
   "/page": "app/page.js",
-  "/add-client/page": "app/add-client/page.js",
-  "/edit-client/[id]/page": "app/edit-client/[id]/page.js"
+  "/edit-client/[id]/page": "app/edit-client/[id]/page.js",
+  "/add-client/page": "app/add-client/page.js"
 }

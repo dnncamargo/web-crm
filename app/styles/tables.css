@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind utilities;
+
+/* Estilo da tabela */
+.table-container {
+  @apply overflow-x-auto;
+}
+
+.table-base {
+  @apply w-full border-collapse border border-gray-600;
+}
+
+.th-base {
+  @apply border border-gray-600 p-2;
+}
+
+.td-base {
+  @apply border border-gray-600 p-2;
+}
