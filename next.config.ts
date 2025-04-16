@@ -1,13 +1,7 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  /* lidar com o caminho base e o prefixo do ativo */
-  //output: 'export',
-  distDir: 'dist',
+  reactStrictMode: true,
+}
 
-  images: {
-    unoptimized: true,
-  },
-};
-
-export default nextConfig;
+export default nextConfig
