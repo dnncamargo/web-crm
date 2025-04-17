@@ -4,11 +4,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebaseConfig';
+import AddEventModal from '@/app/components/AddEventModal';
+import { PlusCircleIcon } from '@heroicons/react/24/outline';
 
 export default function EditClient() {
   const { id } = useParams();
   const router = useRouter();
-
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [email, setEmail] = useState('');
@@ -20,6 +21,7 @@ export default function EditClient() {
   const [cidade, setCidade] = useState('');
   const [uf, setUf] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
+  const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
 
   const buscarEnderecoPorCep = async (cep: string) => {
     if (cep.length === 8) {
@@ -102,9 +104,28 @@ export default function EditClient() {
       console.error('Erro ao atualizar cliente:', error);
     }
   };
+
+  const openAddEventModal = () => {
+    setIsAddEventModalOpen(true);
+  };
+
+  const closeAddEventModal = () => {
+    setIsAddEventModalOpen(false);
+  };
+
   return (
     <div className="p-6 max-w-md mx-auto bg-white shadow-md rounded-lg">
       <h1 className="title">Editar Cliente</h1>
+
+      <div className="mb-4">
+        <button
+          onClick={openAddEventModal}
+          className="btn-primary flex items-center space-x-2"
+        >
+          <PlusCircleIcon className="h-5 w-5" aria-hidden="true" />
+          <span>Adicionar Evento</span>
+        </button>
+      </div>
 
       <form onSubmit={handleSubmit}>
         <div>
@@ -195,6 +216,11 @@ export default function EditClient() {
           Salvar Alterações
         </button>
       </form>
+
+      {isAddEventModalOpen && (
+        <AddEventModal clientId={id as string} onClose={closeAddEventModal} />
+      )}
+
     </div>
   );
 }

@@ -13,6 +13,7 @@
     "@fullcalendar/interaction": "^6.1.17",
     "@fullcalendar/react": "^6.1.17",
     "@heroicons/react": "^2.2.0",
+    "date-fns": "^4.1.0",
     "firebase": "^11.6.0",
     "link": "^2.1.1",
     "next": "15.3.0",
