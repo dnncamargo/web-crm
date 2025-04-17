@@ -36,8 +36,7 @@ export default function Home() {
   return (
     <main className="main-container">
 
-      <h1 className="text-4xl font-bold text-gray-200" >CRM</h1>
-
+      <h1 className="title">CRM</h1>
       <CustomerCard />
 
       <div className="table-container">

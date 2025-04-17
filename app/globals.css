@@ -2,10 +2,10 @@
 @tailwind utilities;
 @tailwind components;
 
-@import '/app/styles/tables.css';
-@import '/app/styles/buttons.css';
-@import '/app/styles/forms.css';
-@import '/app/styles/layout.css';
+@import '../app/styles/tables.css';
+@import '../app/styles/buttons.css';
+@import '../app/styles/forms.css';
+@import '../app/styles/layout.css';
 
 body {
   background: var(styles/--color-bg);
