@@ -34,9 +34,9 @@ export default function Home() {
   
 
   return (
-    <main>
+    <main className="main-container">
 
-      <h1>CRM</h1>
+      <h1 className="text-4xl font-bold text-gray-200" >CRM</h1>
 
       <CustomerCard />
 

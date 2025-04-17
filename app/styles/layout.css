@@ -1,0 +1,15 @@
+/*regras de layout e grid*/
+
+.title {
+    @apply text-4xl font-bold text-gray-200 mb-6;
+}
+  
+.main-container {
+    @apply max-w-6xl mx-auto p-6;
+}
+  
+@media (max-width: 640px) {
+    .title {
+      @apply text-2xl;
+    }
+  }

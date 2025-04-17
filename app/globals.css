@@ -1,13 +1,14 @@
-@import "tailwindcss";
-@import './styles/tables.css';
+@tailwind base;
+@tailwind utilities;
+@tailwind components;
 
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import '/app/styles/tables.css';
+@import '/app/styles/buttons.css';
+@import '/app/styles/forms.css';
+@import '/app/styles/layout.css';
 
 body {
-  background: var(--background);
+  background: var(styles/--color-bg);
   padding: 1rem;
 }

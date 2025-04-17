@@ -1,0 +1,15 @@
+/*paleta custom*/
+
+:root {
+    --color-primary: #f59e0b;
+    --color-bg: #111827;
+  }
+  
+  .bg-primary {
+    background-color: var(--color-primary);
+  }
+  
+  .text-primary {
+    color: var(--color-primary);
+  }
+  

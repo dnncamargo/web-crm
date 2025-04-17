@@ -1,6 +1,6 @@
 # web-crm
 
-The page is live at http://dnncamargo.github.io/web-crm/
+The page is live at https://web-crm-nine.vercel.app/
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 

@@ -1,19 +1,19 @@
-@tailwind base;
-@tailwind utilities;
+/*tabelas responsivas*/
 
-/* Estilo da tabela */
 .table-container {
   @apply overflow-x-auto;
 }
 
 .table-base {
-  @apply w-full border-collapse border border-gray-600;
+  @apply w-full border-collapse border border-gray-600 text-sm;
 }
 
-.th-base {
-  @apply border border-gray-600 p-2;
-}
+@media (max-width: 640px) {
+  .table-base {
+    @apply text-xs;
+  }
 
-.td-base {
-  @apply border border-gray-600 p-2;
+  .table-container {
+    @apply overflow-x-auto;
+  }
 }
