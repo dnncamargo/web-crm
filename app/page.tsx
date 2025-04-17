@@ -83,8 +83,8 @@ export default function Home() {
 
   
   return (
-    <main className="p-4 md:p-8 lg:p-10 flex flex-col gap-4">
-      <h1 className="title">CRM</h1>
+    <main>
+      
       <MainMenu />
 
         <div className="mb-4">
