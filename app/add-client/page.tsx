@@ -35,12 +35,13 @@ export default function AddClient() {
 
       <form onSubmit={handleSubmit}>
         <div>
-          <label>Nome</label>
+          <label htmlFor="nome" className="form-label">Nome</label>
           <input
             type="text"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
             required
+            className="form-input"
           />
         </div>
 

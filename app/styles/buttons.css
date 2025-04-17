@@ -1,1 +1,15 @@
 /*botões customizados*/
+
+.button-primary {
+    display: inline-block;
+    background-color: #3b82f6; /* Cor azul do Tailwind bg-blue-500 */
+    color: #ffffff; /* Cor branca do Tailwind text-white */
+    font-weight: bold; /* Negrito do Tailwind font-bold */
+    padding: 0.5rem 1rem; /* Padding do Tailwind py-2 px-4 */
+    border-radius: 0.25rem; /* Borda arredondada do Tailwind rounded */
+    transition: background-color 0.15s ease-in-out; /* Adiciona uma transição suave para o hover */
+  }
+  
+  .button-primary:hover {
+    background-color: #2563eb; /* Cor azul mais escura do Tailwind hover:bg-blue-700 */
+  }

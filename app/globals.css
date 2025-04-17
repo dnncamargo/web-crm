@@ -2,7 +2,6 @@
 @tailwind utilities;
 @tailwind components;
 
-
 @import '/app/styles/tables.css';
 @import '/app/styles/buttons.css';
 @import '/app/styles/forms.css';

@@ -41,7 +41,7 @@ export default function Home() {
       <CustomerCard />
 
       <div className="table-container">
-        <Link href="/add-client">Adicionar Cliente</Link>
+        <Link href="/add-client" className="button-primary">Adicionar Cliente</Link>
       
         <table className="table-base">
           <thead>
