@@ -1,19 +1,41 @@
 /*tabelas responsivas*/
 
 .table-container {
-  @apply overflow-x-auto;
+  overflow-x: auto;
 }
 
 .table-base {
-  @apply w-full border-collapse border border-gray-600 text-sm;
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
 }
 
-@media (max-width: 640px) {
-  .table-base {
-    @apply text-xs;
-  }
 
-  .table-container {
-    @apply overflow-x-auto;
+.td-base {
+  padding: 0.75rem 1rem;
+  text-align: left;
+
+}
+
+
+.th-base {
+  font-weight: bold;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  font-size: 0.875rem;
+}
+
+.actions-cell {
+  padding-bottom: 0.75rem; /* Ajuste este valor para alinhar visualmente */
+}
+
+/* Estilos para responsividade (exemplo) */
+@media (max-width: 640px) {
+  .th-base:nth-child(n+3), /* Esconde a terceira coluna e seguintes em telas pequenas */
+  .td-base:nth-child(n+3) {
+    display: none;
   }
 }

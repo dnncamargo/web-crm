@@ -1,15 +1,23 @@
 /*regras de layout e grid*/
 
+.container {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.main-container {
+  @apply flex min-h-screen flex-col items-center p-24
+}
+
+@media (min-width: 768px) {
+  .main-container {
+    grid-template-columns: 25% 1fr; /* Sidebar e conteúdo */
+  }
+}
+
 .title {
   @apply text-4xl font-bold text-gray-200 mb-6;
 }
-  
-.main-container {
-  @apply max-w-6xl mx-auto p-6;
-}
-  
-@media (max-width: 640px) {
-    .title {
-      @apply text-2xl;
-    }
-  }

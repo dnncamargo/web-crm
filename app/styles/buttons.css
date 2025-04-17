@@ -1,15 +1,18 @@
 /*botões customizados*/
 
-.button-primary {
-    display: inline-block;
-    background-color: #3b82f6; /* Cor azul do Tailwind bg-blue-500 */
-    color: #ffffff; /* Cor branca do Tailwind text-white */
-    font-weight: bold; /* Negrito do Tailwind font-bold */
-    padding: 0.5rem 1rem; /* Padding do Tailwind py-2 px-4 */
-    border-radius: 0.25rem; /* Borda arredondada do Tailwind rounded */
-    transition: background-color 0.15s ease-in-out; /* Adiciona uma transição suave para o hover */
-  }
-  
-  .button-primary:hover {
-    background-color: #2563eb; /* Cor azul mais escura do Tailwind hover:bg-blue-700 */
-  }
+.btn-primary {
+  @apply inline-flex items-center justify-center rounded-md border border-transparent bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2;
+}
+
+/* Estilos para ícones em botões (se usar) */
+.btn-icon {
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+}
