@@ -19,5 +19,9 @@
 }
 
 .title {
-  @apply text-4xl font-bold text-gray-200;
+  @apply text-4xl font-bold text-gray-200 mb-6;
+}
+
+.brand {
+  @apply text-4xl font-bold text-gray-200 hover:text-cyan-50;
 }

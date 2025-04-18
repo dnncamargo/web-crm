@@ -211,9 +211,16 @@ export default function EditClient() {
 
         <button
           type="submit"
-          className="button-primary"
+          className="btn-primary mt-4"
         >
           Salvar Alterações
+        </button>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="btn-secondary ml-2"
+        >
+          Voltar
         </button>
       </form>
 

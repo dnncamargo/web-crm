@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import Link from 'next/link';
+import MainMenu from '../components/MainMenu';
 
 export default function AddClient() {
   const router = useRouter();
@@ -76,6 +77,8 @@ export default function AddClient() {
   };
 
   return (
+    <main className="p-4">
+      <MainMenu />
     <div className="p-6 max-w-md mx-auto bg-white shadow-md rounded-lg">
       <h1 className="title">Adicionar Cliente</h1>
 
@@ -163,11 +166,19 @@ export default function AddClient() {
 
         <button
           type="submit"
-          className="button-primary"
+          className="btn-primary mt-4"
         >
           Cadastrar
         </button>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="btn-secondary ml-2"
+        >
+          Voltar
+        </button>
       </form>
     </div>
+    </main>
   );
 }

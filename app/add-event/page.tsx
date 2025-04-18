@@ -95,7 +95,7 @@ const AddEventPage = () => {
         try {
             await addDoc(collection(db, 'events'), {
                 clientId,
-                data: new Date(data),
+                data,
                 hora,
                 endereco,
                 observacoes,
@@ -109,7 +109,7 @@ const AddEventPage = () => {
 
     return (
         <div className="p-6 max-w-md mx-auto bg-white shadow-md rounded-lg">
-            <h1 className="text-xl font-semibold mb-4 text-gray-800">Adicionar Novo Evento</h1>
+            <h1 className="title">Adicionar Novo Evento</h1>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                     <label htmlFor="clientId" className="form-label">Cliente</label>
@@ -170,9 +170,19 @@ const AddEventPage = () => {
                         className="form-input"
                     />
                 </div>
-                <button type="submit" className="btn-primary">
+                <button
+                    type="submit"
+                    className="btn-primary mt-4"
+                    >
                     Adicionar Evento
                 </button>
+                <button
+                    type="button"
+                    onClick={() => router.back()}
+                    className="btn-secondary ml-2"
+                    >
+                    Voltar
+                    </button>
             </form>
         </div>
     );
