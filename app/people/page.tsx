@@ -1,18 +1,27 @@
 'use client';
 
-import { Person } from '../utils/interfaces';
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { Person } from '../utils/interfaces';
+
 import MainMenu from '../components/MainMenu';
+import PersonCard from '../components/PersonCard';
+import AddEventModal from '../components/AddEventModal';
+import AddPersonModal from '../components/AddPersonModal';
+import EditPersonModal from '../components/EditPersonModal';
 
 const People = () => {
   const router = useRouter();
+
+  // state de controle
   const [person, setPerson] = useState<Person[]>([]);
-  const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
   const [selectedClientIdForEvent, setSelectedClientIdForEvent] = useState('');
+  const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
+  const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
 
   const fetchPeople = async () => {
     const querySnapshot = await getDocs(collection(db, 'clientes'));
@@ -34,24 +43,46 @@ const People = () => {
     setSelectedClientIdForEvent('');
   };
 
+  const openEditPersonModal = (person: Person) => {
+    setSelectedPerson(person);
+    setIsEditModalOpen(true);
+  };
+
   return (
     <main className="p-4">
       <MainMenu />
       <h1 className="text-xl font-semibold mb-4">Diretório de Pessoas</h1>
 
+      <button onClick={() => setIsAddPersonModalOpen(true)} className="btn-primary mb-4">Adicionar Pessoa</button>
+
       <div className="space-y-3">
-        {person.map(cliente => (
-          <div key={cliente.id} className="bg-white p-4 rounded-lg shadow flex flex-col gap-2">
-            <h2 className="text-lg font-semibold">{cliente.nome}</h2>
-            <p className="text-gray-500">{cliente.telefone}</p>
-            <div className="flex gap-2">
-              <button onClick={() => openAddEventModal(cliente.id)} className="btn-primary">+ Evento</button>
-              <button onClick={() => router.push(`/edit-client/${cliente.id}`)} className="btn-secondary">Editar</button>
-            </div>
-          </div>
+        {person.map(p => (
+          <PersonCard key={p.id} person={p}
+            onAddEvent={openAddEventModal}
+            onEditPerson={openEditPersonModal}
+          />
         ))}
+
+        {isEditModalOpen && selectedPerson && (
+          <EditPersonModal
+            personId={selectedPerson.id}
+            initialData={selectedPerson}
+            onClose={() => setIsEditModalOpen(false)}
+            onUpdated={fetchPeople}
+          />
+        )}
       </div>
 
+      {isAddPersonModalOpen && (
+        <AddPersonModal
+          onClose={() => setIsAddPersonModalOpen(false)}
+          onAdded={fetchPeople}
+        />
+      )}
+
+      {isAddEventModalOpen && (
+        <AddEventModal clientId={selectedClientIdForEvent} onClose={closeAddEventModal} />
+      )}
     </main>
   );
 };

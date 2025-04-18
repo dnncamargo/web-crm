@@ -54,8 +54,6 @@ const MainMenu = () => {
         <div className="md:hidden mt-2 px-2 space-y-1">
           <Link href="/people" className={`block py-2 px-3 rounded ${pathname === '/people' ? 'bg-gray-800 text-white' : 'text-gray-700 hover:bg-gray-100'}`} onClick={toggleMenu}>Clientes</Link>
           <Link href="/events-history" className={`block py-2 px-3 rounded ${pathname === '/events-history' ? 'bg-gray-800 text-white' : 'text-gray-700 hover:bg-gray-100'}`} onClick={toggleMenu}>Eventos</Link>
-          <Link href="/add-client" className={`block py-2 px-3 rounded ${pathname === '/add-client' ? 'bg-gray-800 text-white' : 'text-gray-700 hover:bg-gray-100'}`} onClick={toggleMenu}>+ Cliente</Link>
-          <Link href="/add-event" className={`block py-2 px-3 rounded ${pathname === '/add-event' ? 'bg-gray-800 text-white' : 'text-gray-700 hover:bg-gray-100'}`} onClick={toggleMenu}>+ Evento</Link>
         </div>
       )}
     </nav>

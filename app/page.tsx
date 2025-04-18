@@ -1,13 +1,13 @@
 'use client';
 
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-
 import { db } from './utils/firebaseConfig';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { useEffect, useState } from "react";
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
 import MainMenu from "./components/MainMenu";
 
 
@@ -34,6 +34,7 @@ export default function Home() {
   const router = useRouter();
   const [clientes, setClientes] = useState<any[]>([]);
   const [eventosFuturos, setEventosFuturos] = useState<Event[]>([]);
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
 
 
   const fetchClientes = async () => {
