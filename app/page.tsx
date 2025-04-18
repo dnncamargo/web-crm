@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+
 import { db } from './utils/firebaseConfig';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { useEffect, useState } from "react";
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { PencilSquareIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { PencilSquareIcon, TrashIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 import MainMenu from "./components/MainMenu";
 
 interface Event {
@@ -83,11 +84,10 @@ export default function Home() {
 
   
   return (
-    <main>
-      
+    <main className="p-4 md:p-8 lg:p-10 flex flex-col gap-4">
       <MainMenu />
 
-        <div className="mb-4">
+      <div className="mb-4">
         <h2 className="text-xl font-semibold mb-2 text-gray-700">Próximos Eventos</h2>
         {eventosFuturos.length > 0 ? (
           <ul className="list-disc pl-5">
@@ -101,41 +101,68 @@ export default function Home() {
           <p>Nenhum evento futuro agendado.</p>
         )}
       </div>
-      
+
       <div className="overflow-x-auto">
         <table className="table-base">
           <thead>
             <tr>
               <th className="th-base">Nome</th>
               <th className="th-base">Telefone</th>
-              <th className="th-base">Email</th>
+              <th className="th-base md:table-cell hidden">Email</th>
               <th className="th-base">Ações</th>
             </tr>
           </thead>
           <tbody>
             {clientes.map(cliente => (
-              <tr key={cliente.id}>
+              <tr
+                key={cliente.id}
+                className="hover:bg-gray-100 cursor-pointer group"
+                onClick={() => router.push(`/edit-client/${cliente.id}`)}
+              >
                 <td className="td-base">{cliente.nome}</td>
                 <td className="td-base">{cliente.telefone}</td>
-                <td className="td-base">{cliente.email}</td>
-                <td className="td-base flex items-center justify-end space-x-2 actions-cell">
-                  <Link href={`/edit-client/${cliente.id}`}
-                    className="text-indigo-600 hover:text-indigo-900 flex items-center">
+                <td className="td-base md:table-cell hidden">{cliente.email}</td>
+                <td className="td-base flex items-center justify-end space-x-2">
+                  <div className="group-hover:opacity-100 opacity-0 transition-opacity duration-200">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // Impedir que o clique na ação navegue para editar cliente
+                        openAddEventModal(cliente.id);
+                      }}
+                      className="text-green-600 hover:text-green-900 flex items-center space-x-1"
+                    >
+                      <PlusCircleIcon className="h-5 w-5" aria-hidden="true" />
+                      <span className="sr-only">Adicionar Evento</span>
+                    </button>
+                    <Link
+                      href={`/edit-client/${cliente.id}`}
+                      className="text-indigo-600 hover:text-indigo-900 flex items-center"
+                      onClick={(e) => e.stopPropagation()} // Impedir que o clique navegue duas vezes
+                    >
                       <PencilSquareIcon className="h-5 w-5" aria-hidden="true" />
                       <span className="sr-only">Editar</span>
-                  </Link>
-                <button onClick={
-                      () => handleDelete(cliente.id)
-                      }
-                      className="text-red-600 hover:text-red-900 flex items-center">
+                    </Link>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // Impedir que o clique na ação navegue para editar cliente
+                        handleDelete(cliente.id);
+                      }}
+                      className="text-red-600 hover:text-red-900 flex items-center"
+                    >
                       <TrashIcon className="h-5 w-5" aria-hidden="true" />
-                  </button>
+                      <span className="sr-only">Excluir</span>
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {isAddEventModalOpen && (
+        <AddEventModal clientId={selectedClientIdForEvent} onClose={closeAddEventModal} />
+      )}
     </main>
   );
 }
