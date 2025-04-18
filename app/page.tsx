@@ -87,6 +87,8 @@ export default function Home() {
     <main className="p-4 md:p-8 lg:p-10 flex flex-col gap-4">
       <MainMenu />
 
+      {/* ... seção de próximos eventos ... */}
+
       <div className="mb-4">
         <h2 className="text-xl font-semibold mb-2 text-gray-700">Próximos Eventos</h2>
         {eventosFuturos.length > 0 ? (
@@ -101,6 +103,8 @@ export default function Home() {
           <p>Nenhum evento futuro agendado.</p>
         )}
       </div>
+
+      {/* ... seção de diretório de pessoas ... */}
 
       <div className="overflow-x-auto">
         <table className="table-base">
