@@ -11,6 +11,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PencilSquareIcon, TrashIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 import MainMenu from "./components/MainMenu";
+import AddEventModal from "./components/AddEventModal";
 
 interface Event {
   id?: string;
