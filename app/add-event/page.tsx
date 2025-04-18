@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, addDoc, getDocs, getDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, getDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 
 interface Cliente {
@@ -95,11 +95,11 @@ const AddEventPage = () => {
         try {
             await addDoc(collection(db, 'events'), {
                 clientId,
-                data,
+                data: new Date(data),
                 hora,
                 endereco,
                 observacoes,
-                createdAt: new Date(),
+                createdAt: serverTimestamp(),
             });
             router.push('/'); // Redireciona para a página inicial após adicionar o evento
         } catch (error) {
