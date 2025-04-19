@@ -91,6 +91,7 @@ const PeopleDirectory = () => {
         <AddPersonModal
           onClose={() => setIsAddPersonModalOpen(false)}
           onAdded={fetchPeople}
+          isOpen={isAddPersonModalOpen}
         />
       )}
 
