@@ -43,8 +43,17 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose, isOpen
 
     if (isOpen) {
       fetchPeople();
+  
+      // se vier personId, associa automaticamente
+      if (personId) {
+        setAssociatePerson(true);
+        setSelectedPersonId(personId);
+      } else {
+        setAssociatePerson(false);
+        setSelectedPersonId('');
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, personId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
