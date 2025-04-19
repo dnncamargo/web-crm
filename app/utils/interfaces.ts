@@ -6,8 +6,6 @@ export interface Person {
   phone: string;
   email: string;
 
-  birthday?: string | Timestamp;
-
   // Endereço (opcional)
   address?: string;
   number?: string;
@@ -18,6 +16,8 @@ export interface Person {
   zipcode?: string;
 
   // Outros
+  note?: string;
+  birthday?: string;
   createdAt?: Date | Timestamp;
 }
 

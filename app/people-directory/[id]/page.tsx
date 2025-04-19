@@ -41,7 +41,7 @@ const PersonDetails = () => {
         <p><strong>Cidade:</strong> {person.city}</p>
         <p><strong>UF:</strong> {person.state}</p>
         <p><strong>Data de Nascimento:</strong> {person.birthday}</p>
-        //todo: verificar se birthday é uma data ou timestamp e formatar corretamente
+        <p><strong>Observações:</strong> {person.note}</p>
 
         <button onClick={() => router.back()} className="btn-secondary mt-4">Voltar</button>
       </div>

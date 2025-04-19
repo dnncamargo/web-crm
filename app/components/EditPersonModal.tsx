@@ -25,6 +25,7 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, onDeleted 
   const [city, setCity] = useState(initialData.city || '');
   const [state, setState] = useState(initialData.state || '');
   const [birthday, setBirthday] = useState(initialData.birthday || '');
+  const [note, setNote] = useState(initialData.note || '');
 
   const buscarEnderecoPorCep = async (cep: string) => {
     if (cep.length === 8) {
@@ -59,6 +60,7 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, onDeleted 
         city,
         state,
         birthday,
+        note,
       });
       onUpdated();
       onClose();
@@ -94,8 +96,8 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, onDeleted 
           <input value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="Bairro" className="form-input" />
           <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Cidade" className="form-input" />
           <input value={state} onChange={(e) => setState(e.target.value)} placeholder="UF" className="form-input" />
-          <input value={birthday} onChange={(e) => setBirthday(e.target.value)} placeholder="Data de Nascimento" className="form-input" />
-            //todo: verificar se birthday é uma data ou timestamp e formatar corretamente
+          <input value={birthday} type="date" onChange={(e) => setBirthday(e.target.value)} placeholder="Data de Nascimento" className="form-input mb-2" />
+          <textarea value={initialData.note} onChange={(e) => setNote(e.target.value)} placeholder="Observações" className="form-input mb-2"></textarea>
 
           <div className="flex justify-end gap-2">
             <button onClick={handleDelete} className="btn-tertiary">Excluir Cadastro</button>
