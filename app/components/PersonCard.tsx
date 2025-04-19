@@ -15,7 +15,10 @@ const PersonCard = ({ person, onAddEvent, onEditPerson, openMenuId, toggleMenu }
   const router = useRouter();
 
   return (
-    <div className="bg-white rounded-xl shadow p-4 flex justify-between items-start">
+    <div 
+      onClick={() => router.push(`/people-directory/${person.id}`)}
+      className="bg-white rounded-xl shadow p-4 flex justify-between items-start">
+      
       <div>
         <h2 className="text-lg font-medium">{person.name}</h2>
         <p className="text-sm text-gray-500">{person.phone}</p>
@@ -24,20 +27,28 @@ const PersonCard = ({ person, onAddEvent, onEditPerson, openMenuId, toggleMenu }
 
       {/* Menu de opções */}
       <div className="relative">
-        <button onClick={() => toggleMenu(person.id)} className="text-gray-400 hover:text-gray-600">
+        <button onClick={(e) => {
+            e.stopPropagation();
+            toggleMenu(person.id);
+          }} className="text-gray-400 hover:text-gray-600">
           ⋯
         </button>
 
         {openMenuId === person.id && (
           <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border">
             <button
-              onClick={() => onEditPerson(person)}
-              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditPerson(person);
+              }} className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
             >
               ✏️ Editar
             </button>
             <button
-              onClick={() => onAddEvent(person.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddEvent(person.id);
+              }}
               className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
             >
               📆 Novo evento
