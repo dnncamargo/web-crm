@@ -51,8 +51,8 @@ const MainMenu = () => {
       {/* Menu mobile */}
       {isOpen && (
         <div className="md:hidden mt-2 px-2 space-y-1">
-          <Link href="/people-directory" className={`block py-2 px-3 rounded ${pathname === '/people-directory' ? 'bg-gray-800 text-white' : 'text-gray-700 hover:bg-gray-100'}`} onClick={toggleMenu}>Pessoas</Link>
-          <Link href="/events-history" className={`block py-2 px-3 rounded ${pathname === '/events-history' ? 'bg-gray-800 text-white' : 'text-gray-700 hover:bg-gray-100'}`} onClick={toggleMenu}>Eventos</Link>
+          <Link href="/people-directory" className={`block py-2 px-3 rounded ${pathname === '/people-directory' ? 'bg-green-500 text-white' : 'text-gray-700 hover:bg-green-600'}`} onClick={toggleMenu}>Pessoas</Link>
+          <Link href="/events-history" className={`block py-2 px-3 rounded ${pathname === '/events-history' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`} onClick={toggleMenu}>Eventos</Link>
         </div>
       )}
     </nav>

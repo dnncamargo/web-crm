@@ -52,13 +52,14 @@ export default function Home() {
   };
 
   return (
-    <main className="p-4 md:p-8 lg:p-10 flex flex-col gap-4">
+
+    <main className="p-4 space-y-4 bg-gray-50 min-h-screen">
       <MainMenu />
+      <h1 className="text-2xl font-bold mb-4">Próximos Eventos</h1>
 
       {/* ... seção de próximos eventos ... */}
 
       <div className="mb-4">
-        <h2 className="text-xl font-semibold mb-2 text-gray-700">Próximos Eventos</h2>
         {eventosFuturos.length > 0 ? (
           <ul className="list-disc pl-5">
             {eventosFuturos.map(event => {
