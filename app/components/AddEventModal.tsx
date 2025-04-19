@@ -1,96 +1,33 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
-import { Person } from '../utils/interfaces';
-import { CalendarIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { motion } from 'framer-motion';
+import clsx from 'clsx';
 
 interface AddEventModalProps {
-  personId?: string;
   onClose: () => void;
   isOpen: boolean;
   onAdded: () => void;
 }
 
-const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose, isOpen, onAdded }) => {
+const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded }) => {
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0]; // YYYY-MM-DD
-  });
+  const [location, setLocation] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [hour, setHour] = useState('12:00');
   const [allDay, setAllDay] = useState(false);
   const [useAddressAPI, setUseAddressAPI] = useState(false);
   const [zipcode, setZipcode] = useState('');
   const [address, setAddress] = useState('');
   const [number, setNumber] = useState('');
-  const [complement, setComplement] = useState('');
   const [district, setDistrict] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [description, setDescription] = useState('');
-  const [associatePerson, setAssociatePerson] = useState(false);
-  const [selectedPersonId, setSelectedPersonId] = useState('');
-  const [person, setPerson] = useState<Person[]>([]);
 
   if (!isOpen) return null;
-
-  useEffect(() => {
-    const fetchPeople = async () => {
-      const querySnapshot = await getDocs(collection(db, 'people-directory'));
-      const peopleData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Person[];
-      setPerson(peopleData);
-    };
-
-    if (isOpen) {
-      fetchPeople();
-
-      // se vier personId, associa automaticamente
-      if (personId) {
-        setAssociatePerson(true);
-        setSelectedPersonId(personId);
-      } else {
-        setAssociatePerson(false);
-        setSelectedPersonId('');
-      }
-    }
-  }, [isOpen, personId]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await addDoc(collection(db, 'events-history'), {
-        ...(associatePerson && selectedPersonId && { personId: selectedPersonId }),
-        title,
-        date,
-        hour,
-        zipcode,
-        address,
-        number,
-        complement,
-        district,
-        city,
-        state,
-        description,
-        createdAt: new Date(),
-      });
-      onAdded();
-      onClose();
-    } catch (error) {
-      console.error('Erro ao adicionar evento:', error);
-    }
-  };
-
-  const toggleAllDay = () => {
-    if (!allDay) {
-      setHour('');
-    }
-    setAllDay(!allDay);
-  };
 
   const searchAddress = async (cep: string) => {
     if (cep.length === 8) {
@@ -107,89 +44,169 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose, isOpen
         }
       } catch (error) {
         console.error('Erro ao buscar CEP:', error);
-        alert('Erro ao buscar CEP.');
       }
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, 'events-history'), {
+        title,
+        date,
+        hour: allDay ? '' : hour,
+        location,
+        zipcode,
+        address,
+        number,
+        district,
+        city,
+        state,
+        description,
+        createdAt: new Date(),
+      });
+      onAdded();
+      onClose();
+    } catch (error) {
+      console.error('Erro ao adicionar evento:', error);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-10">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <h3 className="text-lg font-semibold mb-4">Adicionar Evento</h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="text" placeholder="Título" value={title} onChange={(e) => setTitle(e.target.value)} required className="form-input" />
+    <motion.div
+      className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
+      drag="y"
+      dragConstraints={{ top: 0, bottom: 0 }}
+      onDragEnd={(event, info) => {
+        if (info.point.y > 150) onClose();
+      }}
+      initial={{ y: '100%' }}
+      animate={{ y: 0 }}
+      exit={{ y: '100%' }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+    >
+      <div className="p-4">
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={onClose} className="text-blue-500 text-lg">Cancelar</button>
+          <h3 className="text-lg font-semibold">Novo Evento</h3>
+          <button onClick={handleSubmit} className="text-blue-500 text-lg">Salvar</button>
+        </div>
 
-          <label className="flex items-center space-x-2">
-            <input type="checkbox" checked={allDay} onChange={toggleAllDay} />
+        {/* Seção: Título e Local */}
+        <div className="bg-gray-50 rounded-lg overflow-hidden border">
+          <input
+            type="text"
+            placeholder="Título"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className={clsx(
+              "w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none",
+              !useAddressAPI && "w-full p-4 bg-transparent focus:outline-none"
+            )}
+
+          />
+          {!useAddressAPI && (
+            <input
+              type="text"
+              placeholder="Local ou chamada de vídeo"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="w-full p-4 bg-transparent focus:outline-none"
+            />
+          )}
+        </div>
+
+        {/* Seção: All-day e Data */}
+
+        <div className="border-t border-gray-200 pt-4 mb-6">
+          <div className="flex justify-between items-center mb-2">
             <span>Dia inteiro</span>
-          </label>
-
-          {allDay && (
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-input" />
-          )}
-          
-          {!allDay && (
-            <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 flex-1">
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className="form-input flex-1" />
-            </div>
-
-            <div className="flex items-center gap-1 flex-1">
-              <input type="time" value={hour} onChange={(e) => setHour(e.target.value)} required className="form-input flex-1" />
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAllDay(!allDay);
+                if (!allDay) setHour('');
+                else setHour('12:00');
+              }}
+              className={clsx(
+                'w-12 h-6 rounded-full transition flex items-center p-1',
+                allDay ? 'bg-blue-500' : 'bg-gray-300'
+              )}
+            >
+              <div
+                className={clsx(
+                  'bg-white w-4 h-4 rounded-full shadow transform transition',
+                  allDay ? 'translate-x-6' : 'translate-x-0'
+                )}
+              />
+            </button>
           </div>
-          )}
 
-          <label className="flex items-center space-x-2">
+          <div className="flex space-x-2">
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-input bg-gray-50 rounded-lg overflow-hidden border flex-1" />
+            {!allDay && (
+              <input type="time" value={hour} onChange={(e) => setHour(e.target.value)} className="form-input bg-gray-50 rounded-lg overflow-hidden border w-28" />
+            )}
+          </div>
+        </div>
+
+        {/* Seção: Endereço */}
+
+        <div className="border-t border-gray-200 pt-4 mb-6">
+          <div className="flex items-center space-x-2 mb-2">
             <input type="checkbox" checked={useAddressAPI} onChange={() => setUseAddressAPI(!useAddressAPI)} />
             <span>Usar CEP</span>
-          </label>
-
-          {!useAddressAPI && (
-            <input type='text' placeholder='Local' value={address} onChange={(e) => setAddress(e.target.value)} className="form-input" />
-          )}
+          </div>
 
           {useAddressAPI && (
             <>
-              <input type="text" placeholder="CEP" value={zipcode} onChange={(e) => setZipcode(e.target.value)} onBlur={() => searchAddress(zipcode)} className="form-input" />
-              <input type="text" placeholder="Endereço" value={address} onChange={(e) => setAddress(e.target.value)} className="form-input" />
-              <input type="text" placeholder="Número" value={number} onChange={(e) => setNumber(e.target.value)} className="form-input" />
-              <input type="text" placeholder="Complemento" value={complement} onChange={(e) => setComplement(e.target.value)} className="form-input" />
-              <input type="text" placeholder="Bairro" value={district} onChange={(e) => setDistrict(e.target.value)} className="form-input" />
-              <input type="text" placeholder="Cidade" value={city} onChange={(e) => setCity(e.target.value)} className="form-input" />
+              <div className="bg-gray-50 rounded-lg overflow-hidden border">
+                <input
+                  type="text"
+                  placeholder="Endereço"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Número"
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Bairro"
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="Cidade"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full p-4 bg-transparent focus:outline-none"
+                />
+              </div>
             </>
           )}
+        </div>
 
-          <textarea placeholder="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} className="form-input"></textarea>
-          <label className="flex items-center space-x-2">
-            <input type="checkbox" checked={associatePerson} onChange={() => setAssociatePerson(!associatePerson)} />
-            <span>Associar a uma pessoa</span>
-          </label>
+        {/* Seção: Descrição */}
+        <div className="bg-gray-50 rounded-lg overflow-hidden border">
+          <textarea
+            placeholder="Notas"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full p-4 bg-transparent focus:outline-none resize-none"
+            rows={4}
+          />
+        </div>
 
-          {associatePerson && (
-            <select
-              value={selectedPersonId}
-              onChange={(e) => setSelectedPersonId(e.target.value)}
-              className="form-input"
-              required
-            >
-              <option value="">Selecione a pessoa</option>
-              {person.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                </option>
-              ))}
-            </select>
-          )}
-          //todo: adicionar o endereço do cadastro da pessoa
-
-          <div className="flex justify-end space-x-2">
-            <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
-            <button type="submit" className="btn-primary">Salvar Evento</button>
-          </div>
-        </form>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
