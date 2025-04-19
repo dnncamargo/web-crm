@@ -29,6 +29,13 @@ const PeopleDirectory = () => {
     setPerson(data);
   };
 
+  const fetchEvents = async () => {
+    const querySnapshot = await getDocs(collection(db, 'events-history'));
+    const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log(data);
+  };
+
+
   useEffect(() => {
     fetchPeople();
   }, []);
@@ -91,7 +98,8 @@ const PeopleDirectory = () => {
         <AddEventModal 
           personId={selectedClientIdForEvent} 
           isOpen={isAddEventModalOpen}
-          onClose={closeAddEventModal} />
+          onClose={closeAddEventModal}
+          onAdded={fetchEvents} />
       )}
     </main>
   );
