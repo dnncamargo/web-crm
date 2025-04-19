@@ -11,9 +11,10 @@ interface AddEventModalProps {
   onClose: () => void;
   isOpen: boolean;
   onAdded: () => void;
+  initialPersonId?: string;
 }
 
-const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded }) => {
+const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded, initialPersonId }) => {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [hour, setHour] = useState('12:00');
@@ -27,7 +28,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
   const [state, setState] = useState('');
   const [description, setDescription] = useState('');
   const [associatePerson, setAssociatePerson] = useState(false);
-  const [selectedPersonId, setSelectedPersonId] = useState('');
+  const [selectedPersonId, setSelectedPersonId] = useState(initialPersonId || '');
   const [people, setPeople] = useState<Person[]>([]);
 
   if (!isOpen) return null;
@@ -41,8 +42,15 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
   
     if (isOpen) {
       fetchPeople();
+      if (initialPersonId) {
+        setAssociatePerson(true);
+        setSelectedPersonId(initialPersonId);
+      } else {
+        setAssociatePerson(false);
+        setSelectedPersonId('');
+      }
     }
-  }, [isOpen]);  
+  }, [isOpen, initialPersonId]);
 
   const searchAddress = async (zipCode: string) => {
     if (zipCode.length === 8) {
