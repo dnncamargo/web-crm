@@ -96,7 +96,6 @@ const PeopleDirectory = () => {
 
       {isAddEventModalOpen && (
         <AddEventModal 
-          personId={selectedClientIdForEvent} 
           isOpen={isAddEventModalOpen}
           onClose={closeAddEventModal}
           onAdded={fetchEvents} />
