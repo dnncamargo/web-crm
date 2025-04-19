@@ -1,96 +1,117 @@
-import React, { useState } from 'react';
-import { collection, addDoc } from 'firebase/firestore';
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { Person } from '../utils/interfaces';
 
 interface AddEventModalProps {
   personId?: string;
   onClose: () => void;
   isOpen: boolean;
+  onAdded: () => void;
 }
 
-const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose }) => {
-  const [useZipCodeAPI, setUseZipCodeAPI] = useState(false);
+const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose, isOpen, onAdded }) => {
+  const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [hour, setHour] = useState('');
-  const [address, setAddress] = useState('');
+  const [useAddressAPI, setUseAddressAPI] = useState(false);
   const [zipcode, setZipcode] = useState('');
+  const [address, setAddress] = useState('');
   const [number, setNumber] = useState('');
   const [complement, setComplement] = useState('');
   const [district, setDistrict] = useState('');
   const [city, setCity] = useState('');
-  const [notes, setNotes] = useState('');
+  const [state, setState] = useState('');
+  const [description, setDescription] = useState('');
+  const [associatePerson, setAssociatePerson] = useState(false);
+  const [selectedPersonId, setSelectedPersonId] = useState('');
+  const [person, setPerson] = useState<Person[]>([]);
+
+  if (!isOpen) return null;
+
+  useEffect(() => {
+    const fetchPeople = async () => {
+      const querySnapshot = await getDocs(collection(db, 'people-directory'));
+      const peopleData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Person[];
+      setPerson(peopleData);
+    };
+
+    if (isOpen) {
+      fetchPeople();
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await addDoc(collection(db, 'events-history'), {
-        ...(personId && { personId }),
+        ...(associatePerson && selectedPersonId && { personId: selectedPersonId }),
+        title,
         date,
         hour,
+        zipcode,
         address,
-        notes,
+        number,
+        complement,
+        district,
+        city,
+        state,
+        description,
         createdAt: new Date(),
       });
-
-      onClose(); // Fechar o modal
+      onAdded();
+      onClose();
     } catch (error) {
       console.error('Erro ao adicionar evento:', error);
     }
   };
 
-  const searchAddress = async (zipcode: string) => {
-    if (zipcode.length === 8) {
+  const searchAddress = async (cep: string) => {
+    if (cep.length === 8) {
       try {
-        const response = await fetch(`https://viacep.com.br/ws/${zipcode}/json/`)
-        const data = await response.json()
+        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await response.json();
         if (!data.erro) {
-          setAddress(data.logradouro)
+          setAddress(data.logradouro);
+          setDistrict(data.bairro);
+          setCity(data.localidade);
+          setState(data.uf);
         } else {
-          alert('CEP não encontrado.')
-          setAddress('')
+          alert('CEP não encontrado.');
         }
       } catch (error) {
-        console.error('Erro ao buscar CEP:', error)
-        alert('Erro ao buscar CEP.')
+        console.error('Erro ao buscar CEP:', error);
+        alert('Erro ao buscar CEP.');
       }
-    } else if (zipcode.length > 8) {
-      alert('CEP inválido.')
-      setZipcode(zipcode.slice(0, 8))
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-10">
       <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <h3 className="text-lg font-semibold mb-4">Adicionar Evento</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="date" placeholder="Data" value={date} onChange={(e) => setDate(e.target.value)} required className="form-input" />
-          <input type="time" placeholder="Hora" value={hour} onChange={(e) => setHour(e.target.value)} required className="form-input" />
+          <input type="text" placeholder="Título" value={title} onChange={(e) => setTitle(e.target.value)} required className="form-input" />
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className="form-input" />
+          <input type="time" value={hour} onChange={(e) => setHour(e.target.value)} required className="form-input" />
 
           <label className="flex items-center space-x-2">
-            <input type="checkbox" checked={useZipCodeAPI} onChange={() => setUseZipCodeAPI(!useZipCodeAPI)} />
+            <input type="checkbox" checked={useAddressAPI} onChange={() => setUseAddressAPI(!useAddressAPI)} />
             <span>Usar CEP</span>
           </label>
-          
-          {!useZipCodeAPI && (
+
+          {!useAddressAPI && (
             <input type='text' placeholder='Local' value={address} onChange={(e) => setAddress(e.target.value)} className="form-input" />
           )}
 
-          {useZipCodeAPI && (
+          {useAddressAPI && (
             <>
-              <input
-                type="text"
-                placeholder="CEP"
-                value={zipcode}
-                onChange={(e) => setZipcode(e.target.value)}
-                onBlur={() => searchAddress(zipcode)}
-                className="form-input"
-              />
-            </>
-          )}
-
-          {useZipCodeAPI && (
-            <>
+              <input type="text" placeholder="CEP" value={zipcode} onChange={(e) => setZipcode(e.target.value)} onBlur={() => searchAddress(zipcode)} className="form-input" />
               <input type="text" placeholder="Endereço" value={address} onChange={(e) => setAddress(e.target.value)} className="form-input" />
               <input type="text" placeholder="Número" value={number} onChange={(e) => setNumber(e.target.value)} className="form-input" />
               <input type="text" placeholder="Complemento" value={complement} onChange={(e) => setComplement(e.target.value)} className="form-input" />
@@ -99,7 +120,32 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose }) => {
             </>
           )}
 
-          <textarea placeholder="Observações" value={notes} onChange={(e) => setNotes(e.target.value)} className="form-input"></textarea>
+          <textarea placeholder="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} className="form-input"></textarea>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={associatePerson}
+              onChange={() => setAssociatePerson(!associatePerson)}
+            />
+            <span>Associar a uma pessoa</span>
+          </label>
+
+          {associatePerson && (
+            <select
+              value={selectedPersonId}
+              onChange={(e) => setSelectedPersonId(e.target.value)}
+              className="form-input"
+              required
+            >
+              <option value="">Selecione a pessoa</option>
+              {person.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+          )}
+          //todo: adicionar o endereço do cadastro da pessoa
 
           <div className="flex justify-end space-x-2">
             <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>

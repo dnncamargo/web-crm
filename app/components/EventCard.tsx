@@ -16,9 +16,10 @@ const EventCard = ({ event, onEditEvent }: EventCardProps) => {
       className="bg-white p-4 rounded-lg shadow flex flex-col gap-2 cursor-pointer"
       onClick={() => router.push(`/events-history/${event.id}`)}
     >
-      <h2 className="text-lg font-semibold">{event.address}</h2>
+      <h2 className="text-lg font-semibold">{event.title}</h2>
+      <p className="text-gray-500">{event.address}</p>
       <p className="text-gray-500">{event.date} às {event.hour}</p>
-      <p>{event.notes}</p>
+      <p>{event.description}</p>
 
       <div className="flex gap-2">
         <button

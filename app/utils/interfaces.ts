@@ -5,6 +5,10 @@ export interface Person {
   name: string;
   phone: string;
   email: string;
+
+  birthday?: string | Timestamp;
+
+  // Endereço (opcional)
   address?: string;
   number?: string;
   complement?: string;
@@ -12,15 +16,18 @@ export interface Person {
   city?: string;
   state?: string;
   zipcode?: string;
-  birthday?: string | Timestamp;
+
+  // Outros
   createdAt?: Date | Timestamp;
 }
 
 export interface Event {
   id: string;
-  personId: string;
+  title: string;
   date: string;
   hour: string;
+  
+  // Endereço (opcional)
   zipcode?: string;
   address?: string;
   number?: string;
@@ -28,6 +35,9 @@ export interface Event {
   district?: string;
   city?: string;
   state?: string;
-  notes?: string;
+  
+  // Outros
+  personId?: string;
+  description?: string;
   createdAt?: Date;
 }

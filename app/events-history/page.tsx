@@ -53,6 +53,7 @@ const EventsHistory = () => {
         <AddEventModal
           onClose={() => setIsAddEventModalOpen(false)}
           isOpen={isAddEventModalOpen}  
+          onAdded={fetchEvents}
           />
       )}
 
