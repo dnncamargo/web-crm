@@ -77,8 +77,9 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
       className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
       drag="y"
       dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={0.2}
       onDragEnd={(event, info) => {
-        if (info.point.y > 150) onClose();
+        if (info.point.y > 400) onClose();
       }}
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
