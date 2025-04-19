@@ -1,19 +1,19 @@
 export interface Person {
     id: string;
-    nome: string;
-    telefone: string;
+    name: string;
+    phone: string;
     email: string;
-    endereco?: string;
+    address?: string;
     createdAt?: Date;
   }
   
   export interface Event {
     id: string;
-    clientId: string;
-    data: string;
-    hora: string;
-    endereco: string;
-    observacoes?: string;
+    person: string;
+    date: string;
+    hour: string;
+    address: string;
+    notes?: string;
     createdAt?: Date;
   }
   

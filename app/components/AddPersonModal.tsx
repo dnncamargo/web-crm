@@ -10,16 +10,16 @@ interface AddPersonModalProps {
 }
 
 const AddPersonModal = ({ onClose, onAdded }: AddPersonModalProps) => {
-  const [nome, setNome] = useState('');
-  const [telefone, setTelefone] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, 'clientes'), {
-        nome,
-        telefone,
+      await addDoc(collection(db, 'people-directory'), {
+        name,
+        phone,
         email,
         createdAt: serverTimestamp(),
       });
@@ -35,8 +35,8 @@ const AddPersonModal = ({ onClose, onAdded }: AddPersonModalProps) => {
       <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
         <h3 className="text-lg font-semibold mb-4">Adicionar Pessoa</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="text" placeholder="Nome" value={nome} onChange={(e) => setNome(e.target.value)} className="form-input" required />
-          <input type="text" placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} className="form-input" required />
+          <input type="text" placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} className="form-input" required />
+          <input type="text" placeholder="Telefone" value={phone} onChange={(e) => setPhone(e.target.value)} className="form-input" required />
           <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} className="form-input" required />
 
           <div className="flex justify-end space-x-2">

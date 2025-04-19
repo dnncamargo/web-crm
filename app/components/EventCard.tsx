@@ -26,7 +26,7 @@ const EventCard = ({ event, onEditEvent }: EventCardProps) => {
             e.stopPropagation();
             onEditEvent(event);
           }}
-          className="btn-secondary"
+          className="btn-primary"
         >
           Editar
         </button>

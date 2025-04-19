@@ -3,25 +3,26 @@ import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 
 interface AddEventModalProps {
-  clientId: string;
+  personId?: string;
   onClose: () => void;
+  isOpen: boolean;
 }
 
-const AddEventModal: React.FC<AddEventModalProps> = ({ clientId, onClose }) => {
-  const [data, setData] = useState('');
-  const [hora, setHora] = useState('');
-  const [endereco, setEndereco] = useState('');
-  const [observacoes, setObservacoes] = useState('');
+const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose }) => {
+  const [date, setDate] = useState('');
+  const [hour, setHour] = useState('');
+  const [address, setAddress] = useState('');
+  const [notes, setNotes] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await addDoc(collection(db, 'events'), {
-        clientId,
-        data,
-        hora,
-        endereco,
-        observacoes,
+        ...(personId && { personId }),
+        date,
+        hour,
+        address,
+        notes,
         createdAt: new Date(),
       });
       // Atualizar a lista de eventos do cliente (isso pode ser feito via state ou refetching)
@@ -38,19 +39,19 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ clientId, onClose }) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="data" className="form-label">Data</label>
-            <input type="date" id="data" value={data} onChange={(e) => setData(e.target.value)} required className="form-input" />
+            <input type="date" id="data" value={date} onChange={(e) => setDate(e.target.value)} required className="form-input" />
           </div>
           <div>
             <label htmlFor="hora" className="form-label">Hora</label>
-            <input type="time" id="hora" value={hora} onChange={(e) => setHora(e.target.value)} required className="form-input" />
+            <input type="time" id="hora" value={hour} onChange={(e) => setHour(e.target.value)} required className="form-input" />
           </div>
           <div>
             <label htmlFor="endereco" className="form-label">Endereço</label>
-            <input type="text" id="endereco" value={endereco} onChange={(e) => setEndereco(e.target.value)} className="form-input" />
+            <input type="text" id="endereco" value={address} onChange={(e) => setAddress(e.target.value)} className="form-input" />
           </div>
           <div>
             <label htmlFor="observacoes" className="form-label">Observações</label>
-            <textarea id="observacoes" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} className="form-input"></textarea>
+            <textarea id="observacoes" value={notes} onChange={(e) => setNotes(e.target.value)} className="form-input"></textarea>
           </div>
           <div className="flex justify-end space-x-2">
             <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>

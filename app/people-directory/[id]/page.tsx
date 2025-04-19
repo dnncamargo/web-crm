@@ -13,7 +13,7 @@ const PersonDetails = () => {
 
   useEffect(() => {
     const fetchPerson = async () => {
-      const docRef = doc(db, 'clientes', id as string);
+      const docRef = doc(db, 'people-directory', id as string);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setPerson(docSnap.data());
@@ -30,15 +30,15 @@ const PersonDetails = () => {
       <h1 className="text-xl font-semibold mb-4">Detalhes da Pessoa</h1>
 
       <div className="bg-white p-4 rounded-lg shadow space-y-2">
-        <p><strong>Nome:</strong> {person.nome}</p>
-        <p><strong>Telefone:</strong> {person.telefone}</p>
+        <p><strong>Nome:</strong> {person.name}</p>
+        <p><strong>Telefone:</strong> {person.phone}</p>
         <p><strong>Email:</strong> {person.email}</p>
-        <p><strong>CEP:</strong> {person.cep}</p>
-        <p><strong>Endereço:</strong> {person.endereco}</p>
-        <p><strong>Bairro:</strong> {person.bairro}</p>
-        <p><strong>Cidade:</strong> {person.cidade}</p>
-        <p><strong>UF:</strong> {person.uf}</p>
-        <p><strong>Data de Nascimento:</strong> {person.dataNascimento}</p>
+        <p><strong>CEP:</strong> {person.zipcode}</p>
+        <p><strong>Endereço:</strong> {person.address}</p>
+        <p><strong>Bairro:</strong> {person.district}</p>
+        <p><strong>Cidade:</strong> {person.city}</p>
+        <p><strong>UF:</strong> {person.state}</p>
+        <p><strong>Data de Nascimento:</strong> {person.birthday}</p>
 
         <button onClick={() => router.back()} className="btn-secondary mt-4">Voltar</button>
       </div>

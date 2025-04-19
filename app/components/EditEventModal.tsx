@@ -51,7 +51,7 @@ const EditEventModal = ({ isOpen, onClose, event, onUpdated }: EditEventModalPro
             <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Observações" className="form-input mb-2" />
 
             <div className="flex justify-end gap-2">
-                <button onClick={handleDelete} className="btn-secondary bg-red-100 text-red-600">Excluir Evento</button>
+                <button onClick={handleDelete} className="btn-tertiary">Excluir Evento</button>
                 <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
                 <button type="submit" className="btn-primary">Salvar</button>
             </div>

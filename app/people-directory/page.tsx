@@ -15,7 +15,7 @@ import EditPersonModal from '../components/EditPersonModal';
 const People = () => {
   const router = useRouter();
 
-  // state de controle
+  /* state de controle */
   const [person, setPerson] = useState<Person[]>([]);
   const [selectedClientIdForEvent, setSelectedClientIdForEvent] = useState('');
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
@@ -24,29 +24,35 @@ const People = () => {
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
 
   const fetchPeople = async () => {
-    const querySnapshot = await getDocs(collection(db, 'clientes'));
-    const dados = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Person[];
-    setPerson(dados);
+    const querySnapshot = await getDocs(collection(db, 'people-directory'));
+    const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Person[];
+    setPerson(data);
   };
 
   useEffect(() => {
     fetchPeople();
   }, []);
 
-  const openAddEventModal = (clientId: string) => {
-    setSelectedClientIdForEvent(clientId);
+  const openAddEventModal = (personId: string) => {
+    setSelectedClientIdForEvent(personId);
     setIsAddEventModalOpen(true);
   };
 
   const closeAddEventModal = () => {
     setIsAddEventModalOpen(false);
     setSelectedClientIdForEvent('');
+    setSelectedPerson(null);
   };
 
   const openEditPersonModal = (person: Person) => {
     setSelectedPerson(person);
     setIsEditModalOpen(true);
   };
+
+  const handlePersonDeleted = () => {
+    setSelectedPerson(null);
+    fetchPeople();
+  };  
 
   return (
     <main className="p-4">
@@ -69,6 +75,7 @@ const People = () => {
             initialData={selectedPerson}
             onClose={() => setIsEditModalOpen(false)}
             onUpdated={fetchPeople}
+            onDeleted={handlePersonDeleted}
           />
         )}
       </div>
@@ -81,7 +88,10 @@ const People = () => {
       )}
 
       {isAddEventModalOpen && (
-        <AddEventModal clientId={selectedClientIdForEvent} onClose={closeAddEventModal} />
+        <AddEventModal 
+          personId={selectedClientIdForEvent} 
+          isOpen={isAddEventModalOpen}
+          onClose={closeAddEventModal} />
       )}
     </main>
   );

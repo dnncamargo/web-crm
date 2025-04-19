@@ -8,12 +8,13 @@ import { db } from '../utils/firebaseConfig';
 import MainMenu from '../components/MainMenu';
 import EventCard from '../components/EventCard';
 import EditEventModal from '../components/EditEventModal';
+import AddEventModal from '../components/AddEventModal';
 import { Event } from '../utils/interfaces';
 
 const EventsHistoryPage = () => {
-  const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const fetchEvents = async () => {
@@ -32,15 +33,12 @@ const EventsHistoryPage = () => {
     setIsEditModalOpen(true);
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    await deleteDoc(doc(db, 'events', eventId));
-    fetchEvents();
-  };
-
   return (
     <main className="p-4">
       <MainMenu />
       <h1 className="text-xl font-semibold mb-4">Histórico de Eventos</h1>
+
+      <button onClick={() => setIsAddEventModalOpen(true)} className="btn-primary mb-4">Novo Evento</button>
 
       <div className="space-y-3">
         {events.map(e => (
@@ -48,10 +46,16 @@ const EventsHistoryPage = () => {
             key={e.id}
             event={e}
             onEditEvent={openEditEventModal}
-            onDeleteEvent={handleDeleteEvent}
           />
         ))}
       </div>
+
+      {isAddEventModalOpen && (
+        <AddEventModal
+          onClose={() => setIsAddEventModalOpen(false)}
+          isOpen={isAddEventModalOpen}  
+          />
+      )}
 
       {isEditModalOpen && selectedEvent && (
         <EditEventModal
