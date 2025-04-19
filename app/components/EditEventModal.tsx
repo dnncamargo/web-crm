@@ -149,6 +149,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
         )}
 
         {/* All-day + Data e Hora */}
+        
         <div className="border-gray-200 pt-4 mb-6">
           <div className="flex justify-between items-center mb-2">
             <span>Dia inteiro</span>
