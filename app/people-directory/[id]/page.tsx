@@ -49,4 +49,8 @@ const PersonDetails = () => {
   );
 };
 
+export async function generateStaticParams() {
+  return [];
+}
+
 export default PersonDetails;
