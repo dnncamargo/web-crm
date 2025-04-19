@@ -80,6 +80,7 @@ const PeopleDirectory = () => {
           <EditPersonModal
             personId={selectedPerson.id}
             initialData={selectedPerson}
+            isOpen={isEditModalOpen}
             onClose={() => setIsEditModalOpen(false)}
             onUpdated={fetchPeople}
             onDeleted={handlePersonDeleted}

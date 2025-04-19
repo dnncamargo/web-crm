@@ -12,10 +12,11 @@ interface EditPersonModalProps {
   initialData: Person;
   onClose: () => void;
   onUpdated: () => void;
+  onDeleted: () => void;
   isOpen: boolean;
 }
 
-const EditPersonModal = ({ personId, initialData, onClose, onUpdated, isOpen }: EditPersonModalProps) => {
+const EditPersonModal = ({ personId, initialData, onClose, onUpdated, isOpen, onDeleted }: EditPersonModalProps) => {
   const [name, setName] = useState(initialData.name);
   const [phone, setPhone] = useState(initialData.phone);
   const [email, setEmail] = useState(initialData.email);
@@ -33,10 +34,10 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, isOpen }: 
 
   if (!isOpen) return null;
 
-  const searchAddress = async (cep: string) => {
-    if (cep.length === 8) {
+  const searchAddress = async (zipCode: string) => {
+    if (zipCode.length === 8) {
       try {
-        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const response = await fetch(`https://viacep.com.br/ws/${zipCode}/json/`);
         const data = await response.json();
         if (!data.erro) {
           setAddress(data.logradouro);
