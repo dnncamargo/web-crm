@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { Person } from '../utils/interfaces';
+import { CalendarIcon, ClockIcon } from '@heroicons/react/24/outline';
 
 interface AddEventModalProps {
   personId?: string;
@@ -14,8 +15,12 @@ interface AddEventModalProps {
 
 const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose, isOpen, onAdded }) => {
   const [title, setTitle] = useState('');
-  const [date, setDate] = useState('');
-  const [hour, setHour] = useState('');
+  const [date, setDate] = useState(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0]; // YYYY-MM-DD
+  });
+  const [hour, setHour] = useState('12:00');
+  const [allDay, setAllDay] = useState(false);
   const [useAddressAPI, setUseAddressAPI] = useState(false);
   const [zipcode, setZipcode] = useState('');
   const [address, setAddress] = useState('');
@@ -43,7 +48,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose, isOpen
 
     if (isOpen) {
       fetchPeople();
-  
+
       // se vier personId, associa automaticamente
       if (personId) {
         setAssociatePerson(true);
@@ -80,6 +85,13 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose, isOpen
     }
   };
 
+  const toggleAllDay = () => {
+    if (!allDay) {
+      setHour('');
+    }
+    setAllDay(!allDay);
+  };
+
   const searchAddress = async (cep: string) => {
     if (cep.length === 8) {
       try {
@@ -106,8 +118,27 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose, isOpen
         <h3 className="text-lg font-semibold mb-4">Adicionar Evento</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input type="text" placeholder="Título" value={title} onChange={(e) => setTitle(e.target.value)} required className="form-input" />
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className="form-input" />
-          <input type="time" value={hour} onChange={(e) => setHour(e.target.value)} required className="form-input" />
+
+          <label className="flex items-center space-x-2">
+            <input type="checkbox" checked={allDay} onChange={toggleAllDay} />
+            <span>Dia inteiro</span>
+          </label>
+
+          {allDay && (
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-input" />
+          )}
+          
+          {!allDay && (
+            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 flex-1">
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required className="form-input flex-1" />
+            </div>
+
+            <div className="flex items-center gap-1 flex-1">
+              <input type="time" value={hour} onChange={(e) => setHour(e.target.value)} required className="form-input flex-1" />
+            </div>
+          </div>
+          )}
 
           <label className="flex items-center space-x-2">
             <input type="checkbox" checked={useAddressAPI} onChange={() => setUseAddressAPI(!useAddressAPI)} />
@@ -131,11 +162,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ personId, onClose, isOpen
 
           <textarea placeholder="Descrição" value={description} onChange={(e) => setDescription(e.target.value)} className="form-input"></textarea>
           <label className="flex items-center space-x-2">
-            <input
-              type="checkbox"
-              checked={associatePerson}
-              onChange={() => setAssociatePerson(!associatePerson)}
-            />
+            <input type="checkbox" checked={associatePerson} onChange={() => setAssociatePerson(!associatePerson)} />
             <span>Associar a uma pessoa</span>
           </label>
 
