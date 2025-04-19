@@ -34,10 +34,8 @@ const EventsHistory = () => {
 
   return (
     <main className="p-4 space-y-4 bg-gray-50 min-h-screen">
-    <MainMenu />
-    <h1 className="text-2xl font-bold mb-4">Histórico de Eventos</h1>
-
-      <button onClick={() => setIsAddEventModalOpen(true)} className="btn-primary mb-4">Novo Evento</button>
+      <MainMenu />
+      <h1 className="text-2xl font-bold mb-4">Histórico de Eventos</h1>
 
       <div className="space-y-3">
         {events.map(e => (
@@ -52,9 +50,9 @@ const EventsHistory = () => {
       {isAddEventModalOpen && (
         <AddEventModal
           onClose={() => setIsAddEventModalOpen(false)}
-          isOpen={isAddEventModalOpen}  
+          isOpen={isAddEventModalOpen}
           onAdded={fetchEvents}
-          />
+        />
       )}
 
       {isEditModalOpen && selectedEvent && (
@@ -65,6 +63,15 @@ const EventsHistory = () => {
           onUpdated={fetchEvents}
         />
       )}
+
+      <button
+        onClick={() => setIsAddEventModalOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-blue-600 transition"
+      >
+        +
+      </button>
+
+
     </main>
   );
 };

@@ -71,8 +71,6 @@ const PeopleDirectory = () => {
       <MainMenu />
       <h1 className="text-2xl font-bold mb-4">Diretório de Pessoas</h1>
 
-      <button onClick={() => setIsAddPersonModalOpen(true)} className="btn-primary mb-4">Adicionar Pessoa</button>
-
       <div className="space-y-3">
         {person.map(p => (
           <PersonCard key={p.id} person={p}
@@ -114,7 +112,7 @@ const PeopleDirectory = () => {
 
       <button
         onClick={() => setIsAddPersonModalOpen(true)}
-        className="fixed bottom-6 right-6 bg-blue-500 text-white p-4 rounded-full shadow-lg text-2xl"
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-blue-600 transition"
       >
         +
       </button>
