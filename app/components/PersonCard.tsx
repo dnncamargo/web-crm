@@ -13,25 +13,18 @@ const PersonCard = ({ person, onAddEvent, onEditPerson }: PersonCardProps) => {
   const router = useRouter();
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow flex flex-col gap-2 cursor-pointer"
-    onClick={() => router.push(`/people-directory/${person.id}`)}
-    >
-      <h2 className="text-lg font-semibold">{person.name}</h2>
-      <p className="text-gray-500">{person.phone}</p>
-      <div className="flex gap-2">
-      <button onClick={(e) => {
-          e.stopPropagation();
-          onEditPerson(person)
-          }} className="btn-primary">Editar</button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddEvent(person.id);
-          }}
-          className="btn-secondary">Novo Evento</button>
-        
+    <div className="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center">
+      <div>
+        <h2 className="text-lg font-semibold">{person.name}</h2>
+        <p className="text-sm text-gray-500">{person.phone}</p>
+        <p className="text-sm text-gray-400">{person.email}</p>
+      </div>
+      <div className="flex space-x-2">
+        <button onClick={() => onEditPerson(person)} className="text-blue-500 text-sm">Editar</button>
+        <button onClick={() => onAddEvent(person.id)} className="text-green-500 text-sm">Evento</button>
       </div>
     </div>
+
   );
 };
 

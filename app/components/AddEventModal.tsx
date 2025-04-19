@@ -116,7 +116,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
           <button onClick={handleSubmit} className="text-blue-500 text-lg">Salvar</button>
         </div>
 
-        {/* Seção: Título e Local */}
+        {/* Título e Local */}
 
         {!useAddressAPI && (
           <>
@@ -153,7 +153,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
           </>
         )}
 
-        {/* Seção: All-day e Data */}
+        {/* All-day e Data */}
 
         <div className=" border-gray-200 pt-4 mb-6">
           <div className="flex justify-between items-center mb-2">
@@ -205,7 +205,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
           )}
         </div>
 
-        {/* Seção: Descrição */}
+        {/* Descrição */}
         <div className="bg-gray-50 rounded-lg overflow-hidden border">
           <textarea
             placeholder="Notas"

@@ -253,7 +253,8 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
             </div>
           )}
         </div>
-
+            
+        {/* Excluir Evento */}
         <div className="flex justify-end mt-6">
           <button onClick={handleDelete} className="text-red-500">Excluir Evento</button>
         </div>

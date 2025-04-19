@@ -59,7 +59,7 @@ const PeopleDirectory = () => {
   const handlePersonDeleted = () => {
     setSelectedPerson(null);
     fetchPeople();
-  };  
+  };
 
   return (
     <main className="p-4">
@@ -97,13 +97,21 @@ const PeopleDirectory = () => {
       )}
 
       {isAddEventModalOpen && (
-        <AddEventModal 
+        <AddEventModal
           isOpen={isAddEventModalOpen}
           onClose={closeAddEventModal}
           onAdded={fetchEvents}
           initialPersonId={selectedClientIdForEvent}
-           />
+        />
       )}
+
+      <button
+        onClick={() => setIsAddPersonModalOpen(true)}
+        className="fixed bottom-6 right-6 bg-blue-500 text-white p-4 rounded-full shadow-lg text-2xl"
+      >
+        +
+      </button>
+
     </main>
   );
 };

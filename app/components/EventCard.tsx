@@ -12,27 +12,20 @@ const EventCard = ({ event, onEditEvent }: EventCardProps) => {
   const router = useRouter();
 
   return (
-    <div
-      className="bg-white p-4 rounded-lg shadow flex flex-col gap-2 cursor-pointer"
-      onClick={() => router.push(`/events-history/${event.id}`)}
-    >
-      <h2 className="text-lg font-semibold">{event.title}</h2>
-      <p className="text-gray-500">{event.address}</p>
-      <p className="text-gray-500">{event.date} às {event.hour}</p>
-      <p>{event.description}</p>
-
-      <div className="flex gap-2">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onEditEvent(event);
-          }}
-          className="btn-primary"
-        >
-          Editar
-        </button>
+    <div className="bg-white p-4 rounded-xl shadow-sm space-y-2">
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">{event.title}</h2>
+        <span className="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{event.date}</span>
+      </div>
+      <p className="text-sm text-gray-500">{event.hour && `${event.hour} - `}{event.address}</p>
+      {event.description && (
+        <p className="text-sm text-gray-400">{event.description}</p>
+      )}
+      <div className="flex space-x-2 justify-end">
+        <button onClick={() => onEditEvent(event)} className="text-blue-500 text-sm">Editar</button>
       </div>
     </div>
+
   );
 };
 

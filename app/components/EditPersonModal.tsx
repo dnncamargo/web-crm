@@ -141,9 +141,10 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, isOpen, on
             </div>
           </>
         )}
-
-        <div className="flex justify-end mt-8">
-          <button onClick={handleDelete} className="btn-tertiary">Excluir Cadastro</button>
+      
+          {/* Excluir Pessoa */}
+        <div className="flex justify-end mt-6">
+          <button onClick={handleDelete} className="text-red-500">Excluir Cadastro</button>
         </div>
       </div>
     </motion.div>
