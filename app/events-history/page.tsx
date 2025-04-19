@@ -33,9 +33,9 @@ const EventsHistory = () => {
   };
 
   return (
-    <main className="p-4">
-      <MainMenu />
-      <h1 className="text-xl font-semibold mb-4">Histórico de Eventos</h1>
+    <main className="p-4 space-y-4 bg-gray-50 min-h-screen">
+    <MainMenu />
+    <h1 className="text-2xl font-bold mb-4">Histórico de Eventos</h1>
 
       <button onClick={() => setIsAddEventModalOpen(true)} className="btn-primary mb-4">Novo Evento</button>
 

@@ -22,6 +22,11 @@ const PeopleDirectory = () => {
   const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  const toggleMenu = (personId: string) => {
+    setOpenMenuId((prevId) => (prevId === personId ? null : personId));
+  };
 
   const fetchPeople = async () => {
     const querySnapshot = await getDocs(collection(db, 'people-directory'));
@@ -34,7 +39,6 @@ const PeopleDirectory = () => {
     const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     console.log(data);
   };
-
 
   useEffect(() => {
     fetchPeople();
@@ -62,17 +66,20 @@ const PeopleDirectory = () => {
   };
 
   return (
-    <main className="p-4">
+
+    <main className="p-4 space-y-4 bg-gray-50 min-h-screen">
       <MainMenu />
-      <h1 className="text-xl font-semibold mb-4">Diretório de Pessoas</h1>
+      <h1 className="text-2xl font-bold mb-4">Diretório de Pessoas</h1>
 
       <button onClick={() => setIsAddPersonModalOpen(true)} className="btn-primary mb-4">Adicionar Pessoa</button>
 
       <div className="space-y-3">
         {person.map(p => (
           <PersonCard key={p.id} person={p}
-            onAddEvent={openAddEventModal}
-            onEditPerson={openEditPersonModal}
+          openMenuId={openMenuId}
+          toggleMenu={toggleMenu}
+          onAddEvent={openAddEventModal}
+          onEditPerson={openEditPersonModal}
           />
         ))}
 
