@@ -5,6 +5,7 @@ import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
+import { Person } from '../utils/interfaces';
 
 interface AddEventModalProps {
   onClose: () => void;
@@ -14,7 +15,6 @@ interface AddEventModalProps {
 
 const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded }) => {
   const [title, setTitle] = useState('');
-  const [location, setLocation] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [hour, setHour] = useState('12:00');
   const [allDay, setAllDay] = useState(false);
@@ -26,13 +26,16 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [description, setDescription] = useState('');
+  const [associatePerson, setAssociatePerson] = useState(false);
+  const [selectedPersonId, setSelectedPersonId] = useState('');
+  const [people, setPeople] = useState<Person[]>([]);
 
   if (!isOpen) return null;
 
-  const searchAddress = async (cep: string) => {
-    if (cep.length === 8) {
+  const searchAddress = async (zipCode: string) => {
+    if (zipCode.length === 8) {
       try {
-        const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const response = await fetch(`https://viacep.com.br/ws/${zipCode}/json/`);
         const data = await response.json();
         if (!data.erro) {
           setAddress(data.logradouro);
@@ -55,7 +58,6 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
         title,
         date,
         hour: allDay ? '' : hour,
-        location,
         zipcode,
         address,
         number,
@@ -63,6 +65,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
         city,
         state,
         description,
+        ...(associatePerson && selectedPersonId && { personId: selectedPersonId }),
         createdAt: new Date(),
       });
       onAdded();
@@ -94,32 +97,45 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
         </div>
 
         {/* Seção: Título e Local */}
-        <div className="bg-gray-50 rounded-lg overflow-hidden border">
-          <input
-            type="text"
-            placeholder="Título"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className={clsx(
-              "w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none",
-              !useAddressAPI && "w-full p-4 bg-transparent focus:outline-none"
-            )}
 
-          />
-          {!useAddressAPI && (
-            <input
-              type="text"
-              placeholder="Local ou chamada de vídeo"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              className="w-full p-4 bg-transparent focus:outline-none"
-            />
-          )}
-        </div>
+        {!useAddressAPI && (
+          <>
+            <div className="bg-gray-50 rounded-lg overflow-hidden border">
+              <input
+                type="text"
+                placeholder="Título"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Local ou chamada de vídeo"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full p-4 bg-transparent focus:outline-none"
+              />
+            </div>
+          </>
+        )}
+
+        {useAddressAPI && (
+          <>
+            <div className="bg-gray-50 rounded-lg overflow-hidden border">
+              <input
+                type="text"
+                placeholder="Título"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full p-4 bg-transparent focus:outline-none resize-none"
+              />
+            </div>
+          </>
+        )}
 
         {/* Seção: All-day e Data */}
 
-        <div className="border-t border-gray-200 pt-4 mb-6">
+        <div className=" border-gray-200 pt-4 mb-6">
           <div className="flex justify-between items-center mb-2">
             <span>Dia inteiro</span>
             <button
@@ -151,47 +167,21 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
           </div>
         </div>
 
-        {/* Seção: Endereço */}
-
-        <div className="border-t border-gray-200 pt-4 mb-6">
+        {/* Endereço */}
+        <div className="border-gray-200 pt-4 mb-6">
           <div className="flex items-center space-x-2 mb-2">
             <input type="checkbox" checked={useAddressAPI} onChange={() => setUseAddressAPI(!useAddressAPI)} />
             <span>Usar CEP</span>
           </div>
 
           {useAddressAPI && (
-            <>
-              <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                <input
-                  type="text"
-                  placeholder="Endereço"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Número"
-                  value={number}
-                  onChange={(e) => setNumber(e.target.value)}
-                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Bairro"
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Cidade"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full p-4 bg-transparent focus:outline-none"
-                />
-              </div>
-            </>
+            <div className="bg-gray-50 rounded-lg overflow-hidden border">
+              <input type="text" placeholder="CEP" value={zipcode} onChange={(e) => setZipcode(e.target.value)} onBlur={() => searchAddress(zipcode)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
+              <input type="text" placeholder="Endereço" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
+              <input type="text" placeholder="Número" value={number} onChange={(e) => setNumber(e.target.value)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
+              <input type="text" placeholder="Bairro" value={district} onChange={(e) => setDistrict(e.target.value)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
+              <input type="text" placeholder="Cidade" value={city} onChange={(e) => setCity(e.target.value)} className="w-full p-4 bg-transparent focus:outline-none" />
+            </div>
           )}
         </div>
 
@@ -204,6 +194,50 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
             className="w-full p-4 bg-transparent focus:outline-none resize-none"
             rows={4}
           />
+        </div>
+
+
+        {/* Associar Pessoa */}
+
+        <div className="border-gray-200 pt-4 mb-6">
+          <div className="flex justify-between items-center mb-2">
+            <span>Associar a uma pessoa</span>
+            <button
+              type="button"
+              onClick={() => {
+                setAssociatePerson(!associatePerson);
+                if (!associatePerson) setSelectedPersonId('');
+              }}
+              className={clsx(
+                'w-12 h-6 rounded-full transition flex items-center p-1',
+                associatePerson ? 'bg-blue-500' : 'bg-gray-300'
+              )}
+            >
+              <div
+                className={clsx(
+                  'bg-white w-4 h-4 rounded-full shadow transform transition',
+                  associatePerson ? 'translate-x-6' : 'translate-x-0'
+                )}
+              />
+            </button>
+          </div>
+
+          {associatePerson && (
+            <div className="mt-2">
+              <select
+                value={selectedPersonId}
+                onChange={(e) => setSelectedPersonId(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
+              >
+                <option value="">Selecione a pessoa</option>
+                {people.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
       </div>
