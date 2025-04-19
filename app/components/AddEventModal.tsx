@@ -32,6 +32,18 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded 
 
   if (!isOpen) return null;
 
+  useEffect(() => {
+    const fetchPeople = async () => {
+      const querySnapshot = await getDocs(collection(db, 'people-directory'));
+      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Person[];
+      setPeople(data);
+    };
+  
+    if (isOpen) {
+      fetchPeople();
+    }
+  }, [isOpen]);  
+
   const searchAddress = async (zipCode: string) => {
     if (zipCode.length === 8) {
       try {
