@@ -74,10 +74,10 @@ const PeopleDirectory = () => {
       <div className="space-y-3">
         {person.map(p => (
           <PersonCard key={p.id} person={p}
-          openMenuId={openMenuId}
-          toggleMenu={toggleMenu}
-          onAddEvent={openAddEventModal}
-          onEditPerson={openEditPersonModal}
+            openMenuId={openMenuId}
+            toggleMenu={toggleMenu}
+            onAddEvent={openAddEventModal}
+            onEditPerson={openEditPersonModal}
           />
         ))}
 
@@ -112,10 +112,11 @@ const PeopleDirectory = () => {
 
       <button
         onClick={() => setIsAddPersonModalOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-blue-600 transition"
+        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-green-600 transition"
       >
         +
       </button>
+
 
     </main>
   );
