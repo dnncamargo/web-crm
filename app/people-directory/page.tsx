@@ -12,7 +12,7 @@ import AddEventModal from '../components/AddEventModal';
 import AddPersonModal from '../components/AddPersonModal';
 import EditPersonModal from '../components/EditPersonModal';
 
-const People = () => {
+const PeopleDirectory = () => {
   const router = useRouter();
 
   /* state de controle */
@@ -97,4 +97,4 @@ const People = () => {
   );
 };
 
-export default People;
+export default PeopleDirectory;

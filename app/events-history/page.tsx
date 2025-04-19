@@ -1,24 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { collection, doc, getDocs, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { Event } from '../utils/interfaces';
 
 import MainMenu from '../components/MainMenu';
 import EventCard from '../components/EventCard';
 import EditEventModal from '../components/EditEventModal';
 import AddEventModal from '../components/AddEventModal';
-import { Event } from '../utils/interfaces';
 
-const EventsHistoryPage = () => {
+const EventsHistory = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const fetchEvents = async () => {
-    const q = query(collection(db, 'events'), orderBy('data', 'asc'), orderBy('hora', 'asc'));
+    const q = query(collection(db, 'events-history'), orderBy('date', 'asc'), orderBy('hour', 'asc'));
     const querySnapshot = await getDocs(q);
     const eventosData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Event[];
     setEvents(eventosData);
@@ -69,4 +68,4 @@ const EventsHistoryPage = () => {
   );
 };
 
-export default EventsHistoryPage;
+export default EventsHistory;

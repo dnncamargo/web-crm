@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { Person } from '../utils/interfaces';
 
 interface AddPersonModalProps {
   onClose: () => void;
@@ -17,12 +18,14 @@ const AddPersonModal = ({ onClose, onAdded }: AddPersonModalProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, 'people-directory'), {
+      const newPerson: Omit<Person, 'id'> = {
         name,
         phone,
         email,
-        createdAt: serverTimestamp(),
-      });
+        createdAt: serverTimestamp() as unknown as Date,
+      };
+
+      await addDoc(collection(db, 'people-directory'), newPerson);
       onAdded();
       onClose();
     } catch (error) {

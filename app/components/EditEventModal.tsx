@@ -13,27 +13,27 @@ interface EditEventModalProps {
 }
 
 const EditEventModal = ({ isOpen, onClose, event, onUpdated }: EditEventModalProps) => {
-  const [data, setData] = useState(event.data);
-  const [hora, setHora] = useState(event.hora);
-  const [endereco, setEndereco] = useState(event.endereco);
-  const [observacoes, setObservacoes] = useState(event.observacoes || '');
+  const [date, setDate] = useState(event.date);
+  const [hour, setHour] = useState(event.hour);
+  const [address, setAddress] = useState(event.address);
+  const [notes, setNotes] = useState(event.notes || '');
 
   useEffect(() => {
-    setData(event.data);
-    setHora(event.hora);
-    setEndereco(event.endereco);
-    setObservacoes(event.observacoes || '');
+    setDate(event.date);
+    setHour(event.hour);
+    setAddress(event.address);
+    setNotes(event.notes || '');
   }, [event]);
 
   const handleSave = async () => {
-    const docRef = doc(db, 'events', event.id);
-    await updateDoc(docRef, { data, hora, endereco, observacoes });
+    const docRef = doc(db, 'events-history', event.id);
+    await updateDoc(docRef, { date, hour, address, notes });
     onUpdated();
     onClose();
   };
 
   const handleDelete = async () => {
-    await deleteDoc(doc(db, 'events', event.id));
+    await deleteDoc(doc(db, 'events-history', event.id));
     onUpdated();
     onClose();
   };
@@ -45,10 +45,10 @@ const EditEventModal = ({ isOpen, onClose, event, onUpdated }: EditEventModalPro
 
         <form onSubmit={handleSave} className="space-y-3">
 
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="form-input mb-2" />
-            <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} className="form-input mb-2" />
-            <input value={endereco} onChange={(e) => setEndereco(e.target.value)} placeholder="Endereço" className="form-input mb-2" />
-            <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Observações" className="form-input mb-2" />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-input mb-2" />
+            <input type="time" value={hour} onChange={(e) => setHour(e.target.value)} className="form-input mb-2" />
+            <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Endereço" className="form-input mb-2" />
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações" className="form-input mb-2" />
 
             <div className="flex justify-end gap-2">
                 <button onClick={handleDelete} className="btn-tertiary">Excluir Evento</button>

@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { Person } from '../utils/interfaces';
 
 interface EditPersonModalProps {
   personId: string;
-  initialData: any;
+  initialData: Person;
   onClose: () => void;
   onUpdated: () => void;
   onDeleted: () => void;
@@ -93,7 +94,8 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, onDeleted 
           <input value={district} onChange={(e) => setDistrict(e.target.value)} placeholder="Bairro" className="form-input" />
           <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Cidade" className="form-input" />
           <input value={state} onChange={(e) => setState(e.target.value)} placeholder="UF" className="form-input" />
-          <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} className="form-input" />
+          <input value={birthday} onChange={(e) => setBirthday(e.target.value)} placeholder="Data de Nascimento" className="form-input" />
+            //todo: verificar se birthday é uma data ou timestamp e formatar corretamente
 
           <div className="flex justify-end gap-2">
             <button onClick={handleDelete} className="btn-tertiary">Excluir Cadastro</button>

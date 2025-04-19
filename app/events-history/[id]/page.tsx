@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebaseConfig';
 import MainMenu from '@/app/components/MainMenu';
+import { Event } from '@/app/utils/interfaces';
 
 const EventDetails = () => {
   const { id } = useParams();
@@ -13,7 +14,7 @@ const EventDetails = () => {
 
   useEffect(() => {
     const fetchEvent = async () => {
-      const docRef = doc(db, 'events', id as string);
+      const docRef = doc(db, 'events-history', id as string);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setEvent(docSnap.data());
