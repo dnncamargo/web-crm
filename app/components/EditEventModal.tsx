@@ -185,7 +185,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
       id="edit-event-modal"
       ref={modalRef}
       className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
-      drag={isDraggable ? "y" : false}
+      //drag={isDraggable ? "y" : false}
       dragConstraints={{ top: 0, bottom: 0 }}
       dragElastic={0.2}
       onDragEnd={(event, info) => {
