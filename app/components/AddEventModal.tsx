@@ -76,7 +76,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
         setPerson(personData);
       } catch (error) {
         console.error('Erro ao buscar pessoas:', error);
-        // Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
+        //todo: Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
       }
     };
 
