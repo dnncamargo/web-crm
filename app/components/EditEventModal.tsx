@@ -84,6 +84,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
       setIsDraggable(true);
     }
 
+    {/* Ações ao abrir ou fechar o modal */ }
     if (isOpen) {
       fetchPeople(); // Chama a função para buscar os dados das pessoas.
 
@@ -182,7 +183,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
     <motion.div
       id="edit-event-modal"
       className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
-      drag={isDraggable ? 'y' : false}
+      //drag={isDraggable ? 'y' : false}
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
