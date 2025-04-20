@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, JSX } from 'react'
 import { usePathname } from 'next/navigation'
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
@@ -10,7 +10,7 @@ import Link from 'next/link'
  * @description Componente para o menu principal de navegação do aplicativo. Exibe links para diferentes seções e um menu responsivo para telas menores.
  * @returns {JSX.Element} A interface do menu principal.
  */
-const MainMenu = () => {
+const MainMenu = (): JSX.Element => {
   const [isOpen, setIsOpen] = useState(false) /** @state {boolean} isOpen - Controla a visibilidade do menu responsivo em telas menores. */
   const pathname = usePathname() /** @const {string} pathname - O caminho atual da URL, obtido usando `usePathname`. */
 
@@ -38,8 +38,8 @@ const MainMenu = () => {
 
       {/* Logo e menu desktop */}
       <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
-        <Link href="/" className="text-xl font-semibold text-gray-900">
-          CRM
+        <Link href="/" className="title-logo">
+          connexus
         </Link>
 
         {/* Menu desktop */}

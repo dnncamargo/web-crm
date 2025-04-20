@@ -1,8 +1,17 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
+import localFont from 'next/font/local'
+
+const connexusFont = localFont({
+  src: './assets/IncompleetaLight.ttf',
+  variable: '--font-connexus'
+})
+
 export const metadata: Metadata = {
-  title: "CRM",
+  title: "Connexus",
+  icons: {
+    icon: "/favicon.ico"},
   description: "Gerenciamento de Clientes",
 };
 
@@ -13,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className={connexusFont.variable}>
         {children}
       </body>
     </html>
