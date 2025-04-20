@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { doc, updateDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { Event, Person } from '../utils/interfaces';
@@ -46,8 +46,20 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
   const [selectedPersonId, setSelectedPersonId] = useState('');  /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
   const [person, setPerson] = useState<Person[]>([]);  /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
   const [isDraggable, setIsDraggable] = useState(true);  /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
+  const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
   if (!isOpen) return null;
+
+  useLayoutEffect(() => {
+    const modal = modalRef.current;
+    if (modal) {
+      if (modal.scrollHeight > window.innerHeight) {
+        setIsDraggable(false);
+      } else {
+        setIsDraggable(true);
+      }
+    }
+  }, [isOpen, useAddressAPI]);
 
   useEffect(() => {
     /**
@@ -72,17 +84,6 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
         // Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
       }
     };
-
-    {/* Conflito drag vs. scroll vertical */ }
-    const modal = document.getElementById('edit-event-modal');
-    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
-    if (modal && modal.scrollHeight > window.innerHeight) {
-      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
-      setIsDraggable(false);
-    } else {
-      // Caso contrário, habilita a funcionalidade de arrastar.
-      setIsDraggable(true);
-    }
 
     {/* Ações ao abrir ou fechar o modal */ }
     if (isOpen) {
@@ -113,7 +114,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
     return () => {
       document.body.classList.remove('overflow-hidden');
     };
-  }, [isOpen, useAddressAPI]);
+  }, [isOpen]);
 
   /**
    * @async
@@ -182,23 +183,19 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
   return (
     <motion.div
       id="edit-event-modal"
+      ref={modalRef}
       className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
-      //drag={isDraggable ? 'y' : false}
+      drag={isDraggable ? "y" : false}
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={0.2}
+      onDragEnd={(event, info) => {
+        if (info.point.y > 400) onClose();
+      }}
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
-      {/* Drag handle — só ele com drag */}
-      <motion.div
-        className="h-1.5 w-14 bg-gray-300 rounded-full mx-auto my-4 cursor-pointer"
-        drag="y"
-        dragConstraints={{ top: 0, bottom: 0 }}
-        dragElastic={0.2}
-        onDragEnd={(event, info) => {
-          if (info.point.y > 120) onClose();
-        }}
-      />
       <div className="p-4 space-y-4">
         <div className="flex justify-between items-center mb-6">
           <button onClick={onClose} className="text-blue-500 text-lg">
