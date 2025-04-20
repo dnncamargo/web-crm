@@ -39,8 +39,9 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Person[];
       setPeople(data);
     };
-  
+
     if (isOpen) {
+      document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
       fetchPeople();
       if (initialPersonId) {
         setAssociatePerson(true);
@@ -49,6 +50,11 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
         setAssociatePerson(false);
         setSelectedPersonId('');
       }
+    } else {
+      document.body.classList.remove('overflow-hidden'); // Libera scroll da tela de fundo
+    }
+    return () => {
+      document.body.classList.remove('overflow-hidden'); // // Remove em caso de desmontagem
     }
   }, [isOpen, initialPersonId]);
 

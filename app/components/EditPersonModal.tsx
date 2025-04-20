@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { Person } from '../utils/interfaces';
@@ -34,6 +34,18 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, isOpen, on
   const [favorite, setFavorite] = useState(initialData.favorite || false);
 
   if (!isOpen) return null;
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
+    } else {
+      document.body.classList.remove('overflow-hidden'); // Libera scroll da tela de fundo
+    }
+
+    return () => {
+      document.body.classList.remove('overflow-hidden'); // remove em caso de desmontagem
+    }
+  }, [isOpen]);
 
   const searchAddress = async (zipCode: string) => {
     if (zipCode.length === 8) {

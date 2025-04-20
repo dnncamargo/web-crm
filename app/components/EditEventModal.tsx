@@ -44,6 +44,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
     };
 
     if (isOpen) {
+      document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
       fetchPerson();
 
       if (event.personId) {
@@ -53,6 +54,11 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
         setAssociatePerson(false);
         setSelectedPersonId('');
       }
+    } else {
+      document.body.classList.remove('overflow-hidden'); // Libera scroll da tela de fundo
+    }
+    return () => {
+      document.body.classList.remove('overflow-hidden'); // Remove em caso de desmontagem
     }
   }, [isOpen]);
 

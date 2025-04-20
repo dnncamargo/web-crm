@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { motion } from 'framer-motion';
@@ -29,6 +29,18 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ onClose, isOpen, onAdde
   const [note, setNote] = useState('');
 
   if (!isOpen) return null;
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
+    } else {
+      document.body.classList.remove('overflow-hidden'); // Libera scroll da tela de fundo
+    }
+
+    return () => {
+      document.body.classList.remove('overflow-hidden'); // remove em caso de desmontagem
+    }
+  }, [isOpen]);
 
   const searchAddress = async (cep: string) => {
     if (cep.length === 8) {
@@ -133,10 +145,10 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ onClose, isOpen, onAdde
             {/* Outros campos */}
             <div className="space-y-4">
               <div className="bg-gray-50 rounded-lg overflow-hidden border w-full max-w-[200px]">
-                <input type="date" 
-                value={birthday} 
-                onChange={(e) => setBirthday(e.target.value)} 
-                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
+                <input type="date"
+                  value={birthday}
+                  onChange={(e) => setBirthday(e.target.value)}
+                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
               </div>
               <div className="bg-gray-50 rounded-lg overflow-hidden border">
                 <textarea
