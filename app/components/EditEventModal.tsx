@@ -29,7 +29,7 @@ interface EditEventModalProps {
  * @returns {JSX.Element | null} O componente renderizado ou null se `isOpen` for falso.
  */
 const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalProps) => {
-  
+
   const [title, setTitle] = useState(event.title); /** @state {string} title - Título do evento. */
   const [date, setDate] = useState(event.date); /** @state {string} date - Data do evento no formato 'YYYY-MM-DD'. */
   const [hour, setHour] = useState(event.hour); /** @state {string} hour - Hora do evento no formato 'HH:MM'. Vazio se `allDay` for true. */
@@ -73,7 +73,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
       }
     };
 
-    {/* Conflito drag vs. scroll vertical */}
+    {/* Conflito drag vs. scroll vertical */ }
     const modal = document.getElementById('edit-event-modal');
     // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
     if (modal && modal.scrollHeight > window.innerHeight) {
@@ -86,10 +86,10 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
 
     if (isOpen) {
       fetchPeople(); // Chama a função para buscar os dados das pessoas.
-      
+
       document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
 
-      {/* Associação de pessoa ao Evento */}
+      {/* Associação de pessoa ao Evento */ }
       if (event.personId) {
         setAssociatePerson(true); // Se 'personId' existir, indica que um contato deve ser associado ao evento.
         setSelectedPersonId(event.personId); // Define o ID da pessoa selecionada com o valor de 'event.personId'.
@@ -180,20 +180,23 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
 
   return (
     <motion.div
-      id="edit-event-modal"
       className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
-      drag="y"
-      dragConstraints={{ top: 0, bottom: 0 }}
-      dragElastic={0.2}
-      onDragEnd={(event, info) => {
-        if (info.point.y > 400) onClose();
-      }}
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
-      <div className="p-4">
+      {/* Drag handle — só ele com drag */}
+      <motion.div
+        className="h-1.5 w-14 bg-gray-300 rounded-full mx-auto my-4 cursor-pointer"
+        drag="y"
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={0.2}
+        onDragEnd={(event, info) => {
+          if (info.point.y > 120) onClose();
+        }}
+      />
+      <div className="p-4 space-y-4">
         <div className="flex justify-between items-center mb-6">
           <button onClick={onClose} className="text-blue-500 text-lg">
             Cancelar
