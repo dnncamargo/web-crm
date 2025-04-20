@@ -180,7 +180,9 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
 
   return (
     <motion.div
+      id="edit-event-modal"
       className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
+      drag={isDraggable ? 'y' : false}
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
