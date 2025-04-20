@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { collection, addDoc, getDocs } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { motion } from 'framer-motion';
@@ -15,49 +15,102 @@ interface AddEventModalProps {
 }
 
 const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded, initialPersonId }) => {
-  const [title, setTitle] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [hour, setHour] = useState('12:00');
-  const [allDay, setAllDay] = useState(false);
-  const [useAddressAPI, setUseAddressAPI] = useState(false);
-  const [zipcode, setZipcode] = useState('');
-  const [address, setAddress] = useState('');
-  const [number, setNumber] = useState('');
-  const [district, setDistrict] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [description, setDescription] = useState('');
-  const [associatePerson, setAssociatePerson] = useState(false);
-  const [selectedPersonId, setSelectedPersonId] = useState(initialPersonId || '');
-  const [people, setPeople] = useState<Person[]>([]);
+  const [title, setTitle] = useState(''); /** @state {string} title - Título do evento. */
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]); /** @state {string} date - Data do evento no formato 'YYYY-MM-DD'. */
+  const [hour, setHour] = useState('12:00'); /** @state {string} hour - Hora do evento no formato 'HH:MM'. Vazio se `allDay` for true. */
+  const [allDay, setAllDay] = useState(false); /** @state {boolean} allDay - Indica se o evento é de dia inteiro (sem hora específica). */
+  const [useAddressAPI, setUseAddressAPI] = useState(false); /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
+  const [zipcode, setZipcode] = useState('');  /** @state {string} zipcode - Código postal do local do evento. */
+  const [address, setAddress] = useState(''); /** @state {string} address - Endereço do local do evento. */
+  const [number, setNumber] = useState(''); /** @state {string} number - Número do local do evento. */
+  const [district, setDistrict] = useState(''); /** @state {string} district - Bairro do local do evento. */
+  const [city, setCity] = useState(''); /** @state {string} city - Cidade do local do evento. */
+  const [state, setState] = useState(''); /** @state {string} state - Estado (UF) do local do evento. */
+  const [description, setDescription] = useState(''); /** @state {string} description - Notas ou descrição adicional do evento. */
+  const [associatePerson, setAssociatePerson] = useState(false); /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
+  const [selectedPersonId, setSelectedPersonId] = useState(initialPersonId || ''); /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
+  const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
+  const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
+  const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
   if (!isOpen) return null;
 
+
+  useLayoutEffect(() => {
+    {/* Conflito drag vs. scroll vertical */ }
+    const modal = document.getElementById('edit-event-modal');
+    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
+    if (modal && modal.scrollHeight > window.innerHeight) {
+      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
+      setIsDraggable(false);
+    } else {
+      // Caso contrário, habilita a funcionalidade de arrastar.
+      setIsDraggable(true);
+    }
+  }, [isOpen, useAddressAPI]);
+
   useEffect(() => {
-    const fetchPeople = async () => {
-      const querySnapshot = await getDocs(collection(db, 'people-directory'));
-      const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Person[];
-      setPeople(data);
+    /**
+     * @async
+     * @function fetchPeople
+     * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
+     * @returns {Promise<void>}
+     */
+    const fetchPeople = async (): Promise<void> => {
+      try {
+        // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
+        const querySnapshot = await getDocs(collection(db, 'people-directory'));
+        // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
+        const personData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Person[];
+        // Atualiza o estado 'person' com os dados das pessoas buscadas.
+        setPerson(personData);
+      } catch (error) {
+        console.error('Erro ao buscar pessoas:', error);
+        // Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
+      }
     };
 
+    {/* Ações ao abrir ou fechar o modal */ }
     if (isOpen) {
+
+      fetchPeople(); // Chama a função para buscar os dados das pessoas.
+
       document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
-      fetchPeople();
+
+      {/* Associação de pessoa ao Evento */ }
       if (initialPersonId) {
-        setAssociatePerson(true);
-        setSelectedPersonId(initialPersonId);
+        setAssociatePerson(true); // Se 'initialPersonId' existir, indica que um contato deve ser associado ao evento.
+        setSelectedPersonId(initialPersonId); // Define o ID da pessoa selecionada com o valor de 'event.personId'.
       } else {
-        setAssociatePerson(false);
-        setSelectedPersonId('');
+        setAssociatePerson(false); // Se 'initialPersonId' não existir, indica que nenhum contato deve ser associado.
+        setSelectedPersonId(''); // Limpa o ID da pessoa selecionada.
       }
     } else {
+      // Se 'isOpen' for falso (modal fechado), remove a classe 'overflow-hidden' do body
+      // para permitir o scroll novamente na tela de fundo.
       document.body.classList.remove('overflow-hidden'); // Libera scroll da tela de fundo
     }
-    return () => {
-      document.body.classList.remove('overflow-hidden'); // // Remove em caso de desmontagem
-    }
-  }, [isOpen, initialPersonId]);
 
+    /**
+     * @function cleanup
+     * @description Função de limpeza executada quando o componente é desmontado ou as dependências mudam. Remove a classe 'overflow-hidden' do body.
+     * @returns {void}
+     */
+    return (): void => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  }, [isOpen]);
+
+  /**
+   * @async
+   * @function searchAddress
+   * @description Busca informações de endereço a partir de um CEP usando a API ViaCEP.
+   * @param {string} zipCode - O código postal a ser pesquisado.
+   * @returns {Promise<void>}
+   */
   const searchAddress = async (zipCode: string) => {
     if (zipCode.length === 8) {
       try {
@@ -77,7 +130,14 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /**
+ * @async
+ * @function handleSubmit
+ * @description Salva as informações do formulário no Firestore.
+ * @param {React.FormEvent} e - Objeto do evento de formulário.
+ * @returns {Promise<void>}
+ */
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     try {
       await addDoc(collection(db, 'events-history'), {
@@ -102,9 +162,13 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
   };
 
   return (
+
     <motion.div
+      // Framer-Motion
+      id="add-event-modal"
+      ref={modalRef}
       className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
-      drag="y"
+      //drag={isDraggable ? "y" : false}
       dragConstraints={{ top: 0, bottom: 0 }}
       dragElastic={0.2}
       onDragEnd={(event, info) => {
@@ -115,6 +179,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
       exit={{ y: '100%' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
+      {/* Topo do Modal de Inclusão de Evento */}
       <div className="p-4">
         <div className="flex justify-between items-center mb-6">
           <button onClick={onClose} className="text-blue-500 text-lg">Cancelar</button>
@@ -123,7 +188,6 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
         </div>
 
         {/* Título e Local */}
-
         {!useAddressAPI && (
           <>
             <div className="bg-gray-50 rounded-lg overflow-hidden border">
@@ -144,7 +208,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
             </div>
           </>
         )}
-
+        {/* Título com API de Endereço */}
         {useAddressAPI && (
           <>
             <div className="bg-gray-50 rounded-lg overflow-hidden border">
@@ -160,7 +224,6 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
         )}
 
         {/* All-day e Data */}
-
         <div className=" border-gray-200 pt-4 mb-6">
           <div className="flex justify-between items-center mb-2">
             <span>Dia inteiro</span>
@@ -184,11 +247,21 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
               />
             </button>
           </div>
-
           <div className="flex space-x-2">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-input bg-gray-50 rounded-lg overflow-hidden border flex-1" />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="form-input bg-gray-50 rounded-lg border flex-1"
+            />
+            {/* Incluir Hora */}
             {!allDay && (
-              <input type="time" value={hour} onChange={(e) => setHour(e.target.value)} className="form-input bg-gray-50 rounded-lg overflow-hidden border w-28" />
+              <input
+                type="time"
+                value={hour}
+                onChange={(e) => setHour(e.target.value)}
+                className="form-input bg-gray-50 rounded-lg border w-28"
+              />
             )}
           </div>
         </div>
@@ -196,17 +269,51 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
         {/* Endereço */}
         <div className="border-gray-200 pt-4 mb-6">
           <div className="flex items-center space-x-2 mb-2">
-            <input type="checkbox" checked={useAddressAPI} onChange={() => setUseAddressAPI(!useAddressAPI)} />
+            <input
+              type="checkbox"
+              checked={useAddressAPI}
+              onChange={() => setUseAddressAPI(!useAddressAPI)} />
             <span>Usar CEP</span>
           </div>
-
+          {/* Usar API de Endereço */}
           {useAddressAPI && (
             <div className="bg-gray-50 rounded-lg overflow-hidden border">
-              <input type="text" placeholder="CEP" value={zipcode} onChange={(e) => setZipcode(e.target.value)} onBlur={() => searchAddress(zipcode)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
-              <input type="text" placeholder="Endereço" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
-              <input type="text" placeholder="Número" value={number} onChange={(e) => setNumber(e.target.value)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
-              <input type="text" placeholder="Bairro" value={district} onChange={(e) => setDistrict(e.target.value)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
-              <input type="text" placeholder="Cidade" value={city} onChange={(e) => setCity(e.target.value)} className="w-full p-4 bg-transparent focus:outline-none" />
+              <input
+                type="text"
+                placeholder="CEP"
+                value={zipcode}
+                onChange={(e) => setZipcode(e.target.value)}
+                onBlur={() => searchAddress(zipcode)}
+                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Endereço"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Número"
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Bairro"
+                value={district}
+                onChange={(e) => setDistrict(e.target.value)}
+                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Cidade"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="w-full p-4 bg-transparent focus:outline-none"
+              />
             </div>
           )}
         </div>
@@ -224,7 +331,6 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
 
 
         {/* Associar Pessoa */}
-
         <div className="border-gray-200 pt-4 mb-6">
           <div className="flex justify-between items-center mb-2">
             <span>Associar a uma pessoa</span>
@@ -247,7 +353,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
               />
             </button>
           </div>
-
+          {/* Selecionar e Salvar Pessoa */}
           {associatePerson && (
             <div className="mt-2">
               <select
@@ -256,7 +362,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded,
                 className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
               >
                 <option value="">Selecione a pessoa</option>
-                {people.map((p) => (
+                {person.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>

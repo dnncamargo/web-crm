@@ -51,13 +51,15 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
   if (!isOpen) return null;
 
   useLayoutEffect(() => {
-    const modal = modalRef.current;
-    if (modal) {
-      if (modal.scrollHeight > window.innerHeight) {
-        setIsDraggable(false);
-      } else {
-        setIsDraggable(true);
-      }
+    {/* Conflito drag vs. scroll vertical */ }
+    const modal = document.getElementById('edit-event-modal');
+    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
+    if (modal && modal.scrollHeight > window.innerHeight) {
+      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
+      setIsDraggable(false);
+    } else {
+      // Caso contrário, habilita a funcionalidade de arrastar.
+      setIsDraggable(true);
     }
   }, [isOpen, useAddressAPI]);
 
@@ -87,6 +89,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
 
     {/* Ações ao abrir ou fechar o modal */ }
     if (isOpen) {
+
       fetchPeople(); // Chama a função para buscar os dados das pessoas.
 
       document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
@@ -111,7 +114,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
      * @description Função de limpeza executada quando o componente é desmontado ou as dependências mudam. Remove a classe 'overflow-hidden' do body.
      * @returns {void}
      */
-    return () => {
+    return (): void => {
       document.body.classList.remove('overflow-hidden');
     };
   }, [isOpen]);
@@ -144,12 +147,12 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
 
   /**
    * @async
-   * @function handleSave
-   * @description Salva as alterações do evento no Firestore.
+   * @function handleUpdate
+   * @description Salva as alterações do formulário no Firestore.
    * @param {React.FormEvent} e - Objeto do evento de formulário.
    * @returns {Promise<void>}
    */
-  const handleSave = async (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     await updateDoc(doc(db, 'events-history', event.id), {
       title,
@@ -174,7 +177,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
    * @description Exclui o evento atual do Firestore.
    * @returns {Promise<void>}
    */
-  const handleDelete = async () => {
+  const handleDelete = async (): Promise<void> => {
     await deleteDoc(doc(db, 'events-history', event.id));
     onUpdated();
     onClose();
@@ -182,6 +185,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
 
   return (
     <motion.div
+      // Framer-Motion
       id="edit-event-modal"
       ref={modalRef}
       className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
@@ -196,17 +200,19 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
       exit={{ y: '100%' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
+      {/* Topo do Modal de Edição de Evento */}
       <div className="p-4 space-y-4">
         <div className="flex justify-between items-center mb-6">
           <button onClick={onClose} className="text-blue-500 text-lg">
             Cancelar
           </button>
           <h3 className="text-lg font-semibold">Editar Evento</h3>
-          <button onClick={handleSave} className="text-blue-500 text-lg">
+          <button onClick={handleUpdate} className="text-blue-500 text-lg">
             Salvar
           </button>
         </div>
 
+        {/* Título e Local */}
         {!useAddressAPI && (
           <>
             <div className="bg-gray-50 rounded-lg overflow-hidden border">
@@ -227,7 +233,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
             </div>
           </>
         )}
-
+        {/* Título com API de Endereço */}
         {useAddressAPI && (
           <>
             <div className="bg-gray-50 rounded-lg overflow-hidden border">
@@ -243,7 +249,6 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
         )}
 
         {/* All-day + Data e Hora */}
-
         <div className="border-gray-200 pt-4 mb-6">
           <div className="flex justify-between items-center mb-2">
             <span>Dia inteiro</span>
@@ -267,7 +272,6 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
               />
             </button>
           </div>
-
           <div className="flex space-x-2">
             <input
               type="date"
@@ -275,6 +279,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
               onChange={(e) => setDate(e.target.value)}
               className="form-input bg-gray-50 rounded-lg border flex-1"
             />
+            {/* Incluir Hora */}
             {!allDay && (
               <input
                 type="time"
@@ -289,10 +294,12 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
         {/* Endereço */}
         <div className="border-gray-200 pt-4 mb-6">
           <div className="flex items-center space-x-2 mb-2">
-            <input type="checkbox" checked={useAddressAPI} onChange={() => setUseAddressAPI(!useAddressAPI)} />
+            <input type="checkbox" 
+              checked={useAddressAPI} 
+              onChange={() => setUseAddressAPI(!useAddressAPI)} />
             <span>Usar CEP</span>
           </div>
-
+          {/* Usar API de Endereço */}
           {useAddressAPI && (
             <div className="bg-gray-50 rounded-lg overflow-hidden border">
               <input
@@ -335,7 +342,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
           )}
         </div>
 
-        {/* Notas */}
+        {/* Descrição */}
         <div className="bg-gray-50 rounded-lg overflow-hidden border">
           <textarea
             placeholder="Notas"
@@ -347,7 +354,6 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
         </div>
 
         {/* Associar Pessoa */}
-
         <div className="border-gray-200 pt-4 mb-6">
           <div className="flex justify-between items-center mb-2">
             <span>Associar a uma pessoa</span>
@@ -370,7 +376,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
               />
             </button>
           </div>
-
+          {/* Selecionar e Salvar Pessoa */}
           {associatePerson && (
             <div className="mt-2">
               <select
