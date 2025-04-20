@@ -70,9 +70,6 @@ const EventsHistory = () => {
 >
   +
 </button>
-
-
-
     </main>
   );
 };

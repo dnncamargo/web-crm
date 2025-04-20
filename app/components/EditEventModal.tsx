@@ -34,17 +34,25 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
   if (!isOpen) return null;
 
   useEffect(() => {
-    const fetchPeople = async () => {
+    const fetchPerson = async () => {
       const querySnapshot = await getDocs(collection(db, 'people-directory'));
-      const peopleData = querySnapshot.docs.map(doc => ({
+      const personData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Person[];
-      setPeople(peopleData);
+      setPeople(personData);
     };
 
     if (isOpen) {
-      fetchPeople();
+      fetchPerson();
+
+      if (event.personId) {
+        setAssociatePerson(true);
+        setSelectedPersonId(event.personId);
+      } else {
+        setAssociatePerson(false);
+        setSelectedPersonId('');
+      }
     }
   }, [isOpen]);
 
@@ -149,7 +157,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
         )}
 
         {/* All-day + Data e Hora */}
-        
+
         <div className="border-gray-200 pt-4 mb-6">
           <div className="flex justify-between items-center mb-2">
             <span>Dia inteiro</span>
@@ -253,7 +261,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
             </div>
           )}
         </div>
-            
+
         {/* Excluir Evento */}
         <div className="flex justify-end mt-6">
           <button onClick={handleDelete} className="text-red-500">Excluir Evento</button>
