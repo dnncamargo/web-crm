@@ -10,8 +10,6 @@ const connexusFont = localFont({
 
 export const metadata: Metadata = {
   title: "Connexus",
-  icons: {
-    icon: "/favicon.ico"},
   description: "Gerenciamento de Clientes",
 };
 
