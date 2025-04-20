@@ -1,64 +1,57 @@
-'use client'
+'use client';
 
 import { Person } from '../utils/interfaces';
 import { useRouter } from 'next/navigation';
+import { HeartIcon as HeartSolid } from '@heroicons/react/24/solid';
+import { HeartIcon as HeartOutline } from '@heroicons/react/24/outline';
 
 interface PersonCardProps {
   person: Person;
-  openMenuId: string | null;
-  toggleMenu: (personId: string) => void;
-  onAddEvent: (personId: string) => void;
   onEditPerson: (person: Person) => void;
+  onToggleFavorite: (personId: string, currentValue: boolean) => void;
 }
 
-const PersonCard = ({ person, onAddEvent, onEditPerson, openMenuId, toggleMenu }: PersonCardProps) => {
+const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps) => {
   const router = useRouter();
 
   return (
-    <div 
+    <div
       onClick={() => router.push(`/people-directory/${person.id}`)}
-      className="bg-white rounded-xl shadow p-4 flex justify-between items-start">
-      
-      <div>
-        <h2 className="text-lg font-medium">{person.name}</h2>
-        <p className="text-sm text-gray-500">{person.phone}</p>
-        <p className="text-sm text-gray-500">{person.email}</p>
+      className="bg-white p-4 rounded-xl shadow-sm space-y-2 relative cursor-pointer hover:bg-gray-50 transition"
+    >
+      <div className="flex justify-between items-start">
+        <h2 className="text-lg font-semibold break-words">{person.name}</h2>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFavorite(person.id, !!person.favorite);
+          }}
+          className="text-green-500"
+        >
+          {person.favorite ? (
+            <HeartSolid className="w-6 h-6" />
+          ) : (
+            <HeartOutline className="w-6 h-6" />
+          )}
+        </button>
       </div>
 
-      {/* Menu de opções */}
-      <div className="relative">
-        <button onClick={(e) => {
-            e.stopPropagation();
-            toggleMenu(person.id);
-          }} className="text-gray-400 hover:text-gray-600">
-          ⋯
-        </button>
+      <p className="text-sm text-gray-500">{person.phone}</p>
+      {person.email && <p className="text-sm text-gray-400">{person.email}</p>}
 
-        {openMenuId === person.id && (
-          <div className="absolute right-0 mt-2 w-40 bg-white rounded-lg shadow-lg border">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditPerson(person);
-              }} className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
-            >
-              ✏️ Editar
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddEvent(person.id);
-              }}
-              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-50"
-            >
-              📆 Novo evento
-            </button>
-          </div>
-        )}
+      <div className="flex space-x-2 justify-end">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditPerson(person);
+          }}
+          className="text-green-500 text-sm"
+        >
+          Editar
+        </button>
       </div>
     </div>
-
-
   );
 };
 

@@ -6,12 +6,14 @@ import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firesto
 import { db } from '../../utils/firebaseConfig';
 import { Person, Event } from '@/app/utils/interfaces';
 import MainMenu from '@/app/components/MainMenu';
+import AddEventModal from '@/app/components/AddEventModal'; // certifique-se do caminho correto
 
 const PersonDetails = () => {
   const { id } = useParams();
   const router = useRouter();
   const [person, setPerson] = useState<Person | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
+  const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchPerson = async () => {
@@ -41,7 +43,7 @@ const PersonDetails = () => {
   return (
     <div className="p-6 space-y-6">
       <MainMenu />
-      <h1 className="text-x2 font-semibold">Detalhes da Pessoa</h1>
+      <h1 className="text-2xl font-semibold">Detalhes da Pessoa</h1>
 
       {/* Dados principais */}
       <div className="bg-white p-4 rounded-lg shadow space-y-2">
@@ -73,7 +75,41 @@ const PersonDetails = () => {
         </div>
       )}
 
-      <button onClick={() => router.back()} className="btn-secondary w-full">Voltar</button>
+      {/* Botão Adicionar Evento */}
+      <button
+        onClick={() => setIsAddEventModalOpen(true)}
+        className="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2 rounded transition"
+      >
+        Adicionar Evento
+      </button>
+
+      {/* Botão Voltar */}
+      <button onClick={() => router.back()} className="w-full items-center rounded-md border py-2  border-gray-300 bg-white">
+        Voltar
+      </button>
+
+      {/* Modal de Novo Evento */}
+      {isAddEventModalOpen && person && (
+        <AddEventModal
+          isOpen={isAddEventModalOpen}
+          onClose={() => setIsAddEventModalOpen(false)}
+          onAdded={() => {
+            setIsAddEventModalOpen(false);
+            // Refaz a lista de eventos depois de adicionar
+            const fetchEvents = async () => {
+              const q = query(collection(db, 'events-history'), where('personId', '==', id));
+              const querySnapshot = await getDocs(q);
+              const eventData = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+              })) as Event[];
+              setEvents(eventData);
+            };
+            fetchEvents();
+          }}
+          initialPersonId={person.id}
+        />
+      )}
     </div>
   );
 };

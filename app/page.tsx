@@ -7,6 +7,10 @@ import { useRouter } from 'next/navigation';
 import { format, isToday, isThisWeek, isThisMonth, addMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Person, Event } from './utils/interfaces';
+import { UserIcon as UserIconOutline } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon as CalendarDaysIconOutline } from '@heroicons/react/24/outline';
+import { PencilSquareIcon as PencilSquareIconOutline } from '@heroicons/react/24/outline';
+
 
 import MainMenu from './components/MainMenu';
 
@@ -68,9 +72,22 @@ export default function Home() {
     return (
       <li key={event.id} className="border rounded p-3 mb-2 bg-white">
         <p className="font-medium">{event.title}</p>
-        <p className="text-sm text-gray-600">📅 {formatarData(event.date, event.hour)}</p>
-        {pessoa && <p className="text-sm text-gray-600">👤 {pessoa.name}</p>}
-        {event.description && <p className="text-sm text-gray-400 mt-1">📝 {event.description}</p>}
+        <p className="text-sm text-gray-600 flex items-center">
+          <CalendarDaysIconOutline className="w-4 h-4 mr-2" />
+          {formatarData(event.date, event.hour)}
+        </p>
+        {pessoa && (
+          <p className="text-sm text-gray-600 flex items-center">
+            <UserIconOutline className="w-4 h-4 mr-2" />
+            {pessoa.name}
+          </p>
+        )}
+        {event.description && (
+          <p className="text-sm text-gray-400 mt-1 flex items-start">
+            <PencilSquareIconOutline className="w-4 h-4 mr-2 mt-0.5" />
+            {event.description}
+          </p>
+        )}
       </li>
     );
   };

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { Person } from '../utils/interfaces';
 
@@ -31,7 +31,10 @@ const PeopleDirectory = () => {
   const fetchPeople = async () => {
     const querySnapshot = await getDocs(collection(db, 'people-directory'));
     const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Person[];
-    setPerson(data);
+
+     // Favoritos primeiro
+    const sorted = data.sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
+    setPerson(sorted);
   };
 
   const fetchEvents = async () => {
@@ -65,6 +68,12 @@ const PeopleDirectory = () => {
     fetchPeople();
   };
 
+  const toggleFavorite = async (personId: string, currentValue: boolean) => {
+    const docRef = doc(db, 'people-directory', personId);
+    await updateDoc(docRef, { favorite: !currentValue });
+    fetchPeople();
+  };
+
   return (
 
     <main className="p-4 space-y-4 bg-gray-50 min-h-screen">
@@ -74,10 +83,8 @@ const PeopleDirectory = () => {
       <div className="space-y-3">
         {person.map(p => (
           <PersonCard key={p.id} person={p}
-            openMenuId={openMenuId}
-            toggleMenu={toggleMenu}
-            onAddEvent={openAddEventModal}
             onEditPerson={openEditPersonModal}
+            onToggleFavorite={toggleFavorite}
           />
         ))}
 
@@ -116,8 +123,6 @@ const PeopleDirectory = () => {
       >
         +
       </button>
-
-
     </main>
   );
 };

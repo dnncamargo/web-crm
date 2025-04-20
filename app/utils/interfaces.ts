@@ -18,6 +18,7 @@ export interface Person {
   // Outros
   note?: string;
   birthday?: string;
+  favorite?: boolean;
   createdAt?: Date | Timestamp;
 }
 

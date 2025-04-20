@@ -31,6 +31,7 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, isOpen, on
   const [state, setState] = useState(initialData.state || '');
   const [birthday, setBirthday] = useState(initialData.birthday || '');
   const [note, setNote] = useState('');
+  const [favorite, setFavorite] = useState(initialData.favorite || false);
 
   if (!isOpen) return null;
 
@@ -56,7 +57,7 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, isOpen, on
   const handleSave = async () => {
     const personRef = doc(db, 'people-directory', personId);
     await updateDoc(personRef, {
-      name, phone, email,
+      name, phone, email, favorite,
       ...(showMore && {
         zipcode, address, number, complement, district, city, state, birthday, note
       }),
@@ -85,6 +86,24 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, isOpen, on
           <button onClick={onClose} className="text-blue-500 text-lg">Cancelar</button>
           <h3 className="text-lg font-semibold">Editar Cadastro</h3>
           <button onClick={handleSave} className="text-blue-500 text-lg">Salvar</button>
+        </div>
+        <div className="flex justify-between items-center mb-4">
+          <span>Favorito</span>
+          <button
+            type="button"
+            onClick={() => setFavorite(!favorite)}
+            className={clsx(
+              'w-12 h-6 rounded-full transition flex items-center p-1',
+              favorite ? 'bg-red-500' : 'bg-gray-300'
+            )}
+          >
+            <div
+              className={clsx(
+                'bg-white w-4 h-4 rounded-full shadow transform transition',
+                favorite ? 'translate-x-6' : 'translate-x-0'
+              )}
+            />
+          </button>
         </div>
 
         <div className="bg-gray-50 rounded-lg overflow-hidden border">
@@ -141,8 +160,8 @@ const EditPersonModal = ({ personId, initialData, onClose, onUpdated, isOpen, on
             </div>
           </>
         )}
-      
-          {/* Excluir Pessoa */}
+
+        {/* Excluir Pessoa */}
         <div className="flex justify-end mt-6">
           <button onClick={handleDelete} className="text-red-500">Excluir Cadastro</button>
         </div>
