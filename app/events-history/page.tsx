@@ -49,8 +49,8 @@ const EventsHistory = () => {
 
       {isAddEventModalOpen && (
         <AddEventModal
-          onClose={() => setIsAddEventModalOpen(false)}
           isOpen={isAddEventModalOpen}
+          onClose={() => setIsAddEventModalOpen(false)}
           onAdded={fetchEvents}
         />
       )}
@@ -58,8 +58,8 @@ const EventsHistory = () => {
       {isEditModalOpen && selectedEvent && (
         <EditEventModal
           event={selectedEvent}
-          onClose={() => setIsEditModalOpen(false)}
           isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
           onUpdated={fetchEvents}
         />
       )}

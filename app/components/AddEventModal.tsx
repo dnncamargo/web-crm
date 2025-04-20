@@ -1,20 +1,28 @@
 'use client';
 
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { addDoc, getDocs, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { Person } from '../utils/interfaces';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
-import { Person } from '../utils/interfaces';
 
+/**
+ * @interface AddEventModalProps
+ * @description Props para o componente `AddEventModal`.
+ * @property {() => void} onClose - Função para fechar o modal.
+ * @property {boolean} isOpen - Controla a visibilidade do modal.
+ * @property {() => void} onAdded - Função chamada após um novo evento ser adicionado com sucesso.
+ * @property {string | undefined} initialPersonId - ID inicial de uma pessoa para pré-selecionar no formulário de adicionar evento (opcional).
+ */
 interface AddEventModalProps {
-  onClose: () => void;
   isOpen: boolean;
+  onClose: () => void;
   onAdded: () => void;
   initialPersonId?: string;
 }
 
-const AddEventModal: React.FC<AddEventModalProps> = ({ onClose, isOpen, onAdded, initialPersonId }) => {
+const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded, initialPersonId }) => {
   const [title, setTitle] = useState(''); /** @state {string} title - Título do evento. */
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]); /** @state {string} date - Data do evento no formato 'YYYY-MM-DD'. */
   const [hour, setHour] = useState('12:00'); /** @state {string} hour - Hora do evento no formato 'HH:MM'. Vazio se `allDay` for true. */

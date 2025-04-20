@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { doc, updateDoc, deleteDoc, getDocs, collection } from 'firebase/firestore';
+import { useState, useEffect, useLayoutEffect, useRef, JSX } from 'react';
+import { doc, getDocs, updateDoc, deleteDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { Event, Person } from '../utils/interfaces';
 import { motion } from 'framer-motion';
@@ -10,14 +10,14 @@ import clsx from 'clsx';
 /**
  * @interface EditEventModalProps
  * @description Props para o componente `EditEventModal`.
- * @property {boolean} isOpen - Controla a visibilidade do modal.
  * @property {Event} event - O objeto do evento a ser editado.
+ * @property {boolean} isOpen - Controla a visibilidade do modal.
  * @property {() => void} onClose - Função para fechar o modal.
  * @property {() => void} onUpdated - Função chamada após a atualização ou exclusão do evento.
  */
 interface EditEventModalProps {
-  isOpen: boolean;
   event: Event;
+  isOpen: boolean;
   onClose: () => void;
   onUpdated: () => void;
 }
@@ -28,7 +28,7 @@ interface EditEventModalProps {
  * @param {EditEventModalProps} props - As propriedades passadas para o componente.
  * @returns {JSX.Element | null} O componente renderizado ou null se `isOpen` for falso.
  */
-const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalProps) => {
+const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalProps): JSX.Element | null => {
 
   const [title, setTitle] = useState(event.title); /** @state {string} title - Título do evento. */
   const [date, setDate] = useState(event.date); /** @state {string} date - Data do evento no formato 'YYYY-MM-DD'. */
