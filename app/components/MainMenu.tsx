@@ -1,62 +1,72 @@
 'use client'
 
-import Link from 'next/link';
-import { useState } from 'react';
-import { usePathname } from 'next/navigation';
-import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/solid';
+import Link from 'next/link'
+import { useState } from 'react'
+import { usePathname } from 'next/navigation'
+import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
 
 const MainMenu = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(false)
+  const pathname = usePathname()
 
-  const toggleMenu = () => {
-    setIsOpen(!isOpen);
-  };
+  const toggleMenu = () => setIsOpen(!isOpen)
 
   const linkClass = (path: string) =>
-    `px-4 py-2 rounded ${pathname === path
-      ? 'bg-gray-800 text-white'
-      : 'text-gray-700 hover:bg-gray-100'
-    }`;
+    `px-3 py-2 rounded-md text-sm font-medium transition ${
+      pathname === path
+        ? 'text-gray-900 border-b-2 border-gray-900'
+        : 'text-gray-600 hover:text-gray-900'
+    }`
 
   return (
-    <nav className="border-b py-4 mb-6 shadow-sm">
-      <div className="container mx-auto px-4 flex items-center justify-between">
-        <Link href="/" className="text-2xl font-bold text-gray-800 hover:text-gray-900">
+    <header className="fixed top-0 left-0 w-full backdrop-blur bg-white/80 z-50 border-b">
+      <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
+        <Link href="/" className="text-xl font-semibold text-gray-900">
           CRM
         </Link>
 
-        {/* Desktop menu */}
-        <div className="hidden md:flex gap-2 items-center">
+        {/* Menu desktop */}
+        <div className="hidden md:flex items-center gap-4">
           <Link href="/people-directory" className={linkClass('/people-directory')}>Pessoas</Link>
           <Link href="/events-history" className={linkClass('/events-history')}>Eventos</Link>
         </div>
 
         {/* Botão mobile */}
-        <div className="md:hidden">
-          <button
-            onClick={toggleMenu}
-            type="button"
-            className="inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-800 focus:outline-none"
-          >
-            {isOpen ? (
-              <XMarkIcon className="h-6 w-6" aria-hidden="true" />
-            ) : (
-              <Bars3Icon className="h-6 w-6" aria-hidden="true" />
-            )}
-          </button>
-        </div>
+        <button
+          onClick={toggleMenu}
+          className="md:hidden p-2 rounded hover:bg-gray-100 transition"
+        >
+          {isOpen ? (
+            <XMarkIcon className="h-6 w-6 text-gray-700" />
+          ) : (
+            <Bars3Icon className="h-6 w-6 text-gray-700" />
+          )}
+        </button>
       </div>
 
       {/* Menu mobile */}
       {isOpen && (
-        <div className="md:hidden mt-2 px-2 space-y-1">
-          <Link href="/people-directory" className={`block py-2 px-3 rounded ${pathname === '/people-directory' ? 'bg-green-500 text-white' : 'text-gray-700 hover:bg-green-600'}`} onClick={toggleMenu}>Pessoas</Link>
-          <Link href="/events-history" className={`block py-2 px-3 rounded ${pathname === '/events-history' ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}`} onClick={toggleMenu}>Eventos</Link>
+        <div className="md:hidden bg-white border-t mt-1">
+          <div className="flex flex-col p-3 space-y-2">
+            <Link
+              href="/people-directory"
+              className={linkClass('/people-directory')}
+              onClick={toggleMenu}
+            >
+              Pessoas
+            </Link>
+            <Link
+              href="/events-history"
+              className={linkClass('/events-history')}
+              onClick={toggleMenu}
+            >
+              Eventos
+            </Link>
+          </div>
         </div>
       )}
-    </nav>
-  );
-};
+    </header>
+  )
+}
 
-export default MainMenu;
+export default MainMenu
