@@ -7,6 +7,14 @@ import { Event, Person } from '../utils/interfaces';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
+/**
+ * @interface EditEventModalProps
+ * @description Props para o componente `EditEventModal`.
+ * @property {boolean} isOpen - Controla a visibilidade do modal.
+ * @property {Event} event - O objeto do evento a ser editado.
+ * @property {() => void} onClose - Função para fechar o modal.
+ * @property {() => void} onUpdated - Função chamada após a atualização ou exclusão do evento.
+ */
 interface EditEventModalProps {
   isOpen: boolean;
   event: Event;
@@ -14,54 +22,106 @@ interface EditEventModalProps {
   onUpdated: () => void;
 }
 
+/**
+ * @component
+ * @description Modal para editar os detalhes de um evento existente. Permite modificar título, data, hora, endereço, notas e associar a uma pessoa. Também oferece a opção de excluir o evento.
+ * @param {EditEventModalProps} props - As propriedades passadas para o componente.
+ * @returns {JSX.Element | null} O componente renderizado ou null se `isOpen` for falso.
+ */
 const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalProps) => {
-  const [title, setTitle] = useState(event.title);
-  const [date, setDate] = useState(event.date);
-  const [hour, setHour] = useState(event.hour);
-  const [allDay, setAllDay] = useState(!event.hour);
-  const [useAddressAPI, setUseAddressAPI] = useState(false);
-  const [zipcode, setZipcode] = useState(event.zipcode || '');
-  const [address, setAddress] = useState(event.address || '');
-  const [number, setNumber] = useState(event.number || '');
-  const [district, setDistrict] = useState(event.district || '');
-  const [city, setCity] = useState(event.city || '');
-  const [state, setState] = useState(event.state || '');
-  const [description, setDescription] = useState(event.description || '');
-  const [associatePerson, setAssociatePerson] = useState(false);
-  const [selectedPersonId, setSelectedPersonId] = useState('');
-  const [people, setPeople] = useState<Person[]>([]);
+  
+  const [title, setTitle] = useState(event.title); /** @state {string} title - Título do evento. */
+  const [date, setDate] = useState(event.date); /** @state {string} date - Data do evento no formato 'YYYY-MM-DD'. */
+  const [hour, setHour] = useState(event.hour); /** @state {string} hour - Hora do evento no formato 'HH:MM'. Vazio se `allDay` for true. */
+  const [allDay, setAllDay] = useState(!event.hour); /** @state {boolean} allDay - Indica se o evento é de dia inteiro (sem hora específica). */
+  const [useAddressAPI, setUseAddressAPI] = useState(false);   /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
+  const [zipcode, setZipcode] = useState(event.zipcode || '');   /** @state {string} zipcode - Código postal do local do evento. */
+  const [address, setAddress] = useState(event.address || '');   /** @state {string} address - Endereço do local do evento. */
+  const [number, setNumber] = useState(event.number || '');  /** @state {string} number - Número do local do evento. */
+  const [district, setDistrict] = useState(event.district || '');  /** @state {string} district - Bairro do local do evento. */
+  const [city, setCity] = useState(event.city || '');  /** @state {string} city - Cidade do local do evento. */
+  const [state, setState] = useState(event.state || '');  /** @state {string} state - Estado (UF) do local do evento. */
+  const [description, setDescription] = useState(event.description || '');  /** @state {string} description - Notas ou descrição adicional do evento. */
+  const [associatePerson, setAssociatePerson] = useState(false);  /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
+  const [selectedPersonId, setSelectedPersonId] = useState('');  /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
+  const [person, setPerson] = useState<Person[]>([]);  /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
+  const [isDraggable, setIsDraggable] = useState(true);  /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
   if (!isOpen) return null;
 
   useEffect(() => {
-    const fetchPerson = async () => {
-      const querySnapshot = await getDocs(collection(db, 'people-directory'));
-      const personData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Person[];
-      setPeople(personData);
+    /**
+     * @async
+     * @function fetchPeople
+     * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
+     * @returns {Promise<void>}
+     */
+    const fetchPeople = async (): Promise<void> => {
+      try {
+        // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
+        const querySnapshot = await getDocs(collection(db, 'people-directory'));
+        // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
+        const personData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Person[];
+        // Atualiza o estado 'person' com os dados das pessoas buscadas.
+        setPerson(personData);
+      } catch (error) {
+        console.error('Erro ao buscar pessoas:', error);
+        // Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
+      }
     };
 
-    if (isOpen) {
-      document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
-      fetchPerson();
+    {/* Conflito drag vs. scroll vertical */}
+    
+    const modal = document.getElementById('edit-event-modal');
+    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
+    if (modal && modal.scrollHeight > window.innerHeight) {
+      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
+      setIsDraggable(false);
+    } else {
+      // Caso contrário, habilita a funcionalidade de arrastar.
+      setIsDraggable(true);
+    }
 
+    if (isOpen) {
+      fetchPeople(); // Chama a função para buscar os dados das pessoas.
+      
+      document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
+
+      {/* Associação de pessoa ao Evento */}
       if (event.personId) {
-        setAssociatePerson(true);
-        setSelectedPersonId(event.personId);
+        setAssociatePerson(true); // Se 'personId' existir, indica que um contato deve ser associado ao evento.
+        setSelectedPersonId(event.personId); // Define o ID da pessoa selecionada com o valor de 'event.personId'.
       } else {
-        setAssociatePerson(false);
-        setSelectedPersonId('');
+        setAssociatePerson(false); // Se 'personId' não existir, indica que nenhum contato deve ser associado.
+        setSelectedPersonId(''); // Limpa o ID da pessoa selecionada.
       }
+      
+      // Se 'isOpen' for falso (modal fechado), remove a classe 'overflow-hidden' do body
+      // para permitir o scroll novamente na tela de fundo.
     } else {
       document.body.classList.remove('overflow-hidden'); // Libera scroll da tela de fundo
     }
-    return () => {
-      document.body.classList.remove('overflow-hidden'); // Remove em caso de desmontagem
-    }
-  }, [isOpen]);
 
+    /**
+     * @function cleanup
+     * @description Função de limpeza executada quando o componente é desmontado ou as dependências mudam. Remove a classe 'overflow-hidden' do body.
+     * @returns {void}
+     */
+    return () => {
+      document.body.classList.remove('overflow-hidden');
+    };
+  }, [isOpen, useAddressAPI]);
+
+  /**
+   * @async
+   * @function searchAddress
+   * @description Busca informações de endereço a partir de um CEP usando a API ViaCEP.
+   * @param {string} zipCode - O código postal a ser pesquisado.
+   * @returns {Promise<void>}
+   */
   const searchAddress = async (zipCode: string) => {
     if (zipCode.length === 8) {
       try {
@@ -81,6 +141,13 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
     }
   };
 
+  /**
+   * @async
+   * @function handleSave
+   * @description Salva as alterações do evento no Firestore.
+   * @param {React.FormEvent} e - Objeto do evento de formulário.
+   * @returns {Promise<void>}
+   */
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     await updateDoc(doc(db, 'events-history', event.id), {
@@ -100,6 +167,12 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
     onClose();
   };
 
+  /**
+   * @async
+   * @function handleDelete
+   * @description Exclui o evento atual do Firestore.
+   * @returns {Promise<void>}
+   */
   const handleDelete = async () => {
     await deleteDoc(doc(db, 'events-history', event.id));
     onUpdated();
@@ -108,6 +181,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
 
   return (
     <motion.div
+      id="edit-event-modal"
       className="fixed inset-0 bg-white overflow-y-auto h-full w-full z-50"
       drag="y"
       dragConstraints={{ top: 0, bottom: 0 }}
@@ -122,9 +196,13 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
     >
       <div className="p-4">
         <div className="flex justify-between items-center mb-6">
-          <button onClick={onClose} className="text-blue-500 text-lg">Cancelar</button>
+          <button onClick={onClose} className="text-blue-500 text-lg">
+            Cancelar
+          </button>
           <h3 className="text-lg font-semibold">Editar Evento</h3>
-          <button onClick={handleSave} className="text-blue-500 text-lg">Salvar</button>
+          <button onClick={handleSave} className="text-blue-500 text-lg">
+            Salvar
+          </button>
         </div>
 
         {!useAddressAPI && (
@@ -189,9 +267,19 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
           </div>
 
           <div className="flex space-x-2">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="form-input bg-gray-50 rounded-lg border flex-1" />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="form-input bg-gray-50 rounded-lg border flex-1"
+            />
             {!allDay && (
-              <input type="time" value={hour} onChange={(e) => setHour(e.target.value)} className="form-input bg-gray-50 rounded-lg border w-28" />
+              <input
+                type="time"
+                value={hour}
+                onChange={(e) => setHour(e.target.value)}
+                className="form-input bg-gray-50 rounded-lg border w-28"
+              />
             )}
           </div>
         </div>
@@ -205,11 +293,42 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
 
           {useAddressAPI && (
             <div className="bg-gray-50 rounded-lg overflow-hidden border">
-              <input type="text" placeholder="CEP" value={zipcode} onChange={(e) => setZipcode(e.target.value)} onBlur={() => searchAddress(zipcode)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
-              <input type="text" placeholder="Endereço" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
-              <input type="text" placeholder="Número" value={number} onChange={(e) => setNumber(e.target.value)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
-              <input type="text" placeholder="Bairro" value={district} onChange={(e) => setDistrict(e.target.value)} className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
-              <input type="text" placeholder="Cidade" value={city} onChange={(e) => setCity(e.target.value)} className="w-full p-4 bg-transparent focus:outline-none" />
+              <input
+                type="text"
+                placeholder="CEP"
+                value={zipcode}
+                onChange={(e) => setZipcode(e.target.value)}
+                onBlur={() => searchAddress(zipcode)}
+                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Endereço"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Número"
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Bairro"
+                value={district}
+                onChange={(e) => setDistrict(e.target.value)}
+                className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Cidade"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="w-full p-4 bg-transparent focus:outline-none"
+              />
             </div>
           )}
         </div>
@@ -258,7 +377,7 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
                 className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
               >
                 <option value="">Selecione a pessoa</option>
-                {people.map((p) => (
+                {person.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -270,7 +389,9 @@ const EditEventModal = ({ isOpen, event, onClose, onUpdated }: EditEventModalPro
 
         {/* Excluir Evento */}
         <div className="flex justify-end mt-6">
-          <button onClick={handleDelete} className="text-red-500">Excluir Evento</button>
+          <button onClick={handleDelete} className="text-red-500">
+            Excluir Evento
+          </button>
         </div>
       </div>
     </motion.div>
