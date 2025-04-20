@@ -32,7 +32,7 @@ const PeopleDirectory = () => {
     const querySnapshot = await getDocs(collection(db, 'people-directory'));
     const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Person[];
 
-     // Favoritos primeiro
+    // Favoritos primeiro
     const sorted = data.sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
     setPerson(sorted);
   };
@@ -90,8 +90,7 @@ const PeopleDirectory = () => {
 
         {isEditModalOpen && selectedPerson && (
           <EditPersonModal
-            personId={selectedPerson.id}
-            initialData={selectedPerson}
+            person={selectedPerson}
             isOpen={isEditModalOpen}
             onClose={() => setIsEditModalOpen(false)}
             onUpdated={fetchPeople}

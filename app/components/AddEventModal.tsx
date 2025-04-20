@@ -84,7 +84,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
     if (isOpen) {
 
       document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
-      
+
       fetchPeople(); // Chama a função para buscar os dados das pessoas.
 
       {/* Associação de pessoa ao Evento */ }
@@ -189,9 +189,15 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
       {/* Topo do Modal de Inclusão de Evento */}
       <div className="p-4">
         <div className="flex justify-between items-center mb-6">
-          <button onClick={onClose} className="text-blue-500 text-lg">Cancelar</button>
-          <h3 className="text-lg font-semibold">Novo Evento</h3>
-          <button onClick={handleSubmit} className="text-blue-500 text-lg">Salvar</button>
+          <button onClick={onClose} className="text-blue-500 text-lg">
+            Cancelar
+          </button>
+          <h3 className="text-lg font-semibold">
+            Novo Evento
+          </h3>
+          <button onClick={handleSubmit} className="text-blue-500 text-lg">
+            Salvar
+          </button>
         </div>
 
         {/* Título e Local */}

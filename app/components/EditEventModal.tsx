@@ -91,7 +91,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
     if (isOpen) {
 
       document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
-      
+
       fetchPeople(); // Chama a função para buscar os dados das pessoas.
 
       {/* Associação de pessoa ao Evento */ }
@@ -174,11 +174,12 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
   /**
    * @async
    * @function handleDelete
-   * @description Exclui o evento atual do Firestore.
+   * @description Exclui o documento atual do Firestore.
    * @returns {Promise<void>}
    */
   const handleDelete = async (): Promise<void> => {
-    await deleteDoc(doc(db, 'events-history', event.id));
+    const eventRef = doc(db, 'events-history', event.id);
+    await deleteDoc(eventRef);
     onUpdated();
     onClose();
   };
@@ -206,7 +207,9 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
           <button onClick={onClose} className="text-blue-500 text-lg">
             Cancelar
           </button>
-          <h3 className="text-lg font-semibold">Editar Evento</h3>
+          <h3 className="text-lg font-semibold">
+            Editar Evento
+          </h3>
           <button onClick={handleUpdate} className="text-blue-500 text-lg">
             Salvar
           </button>
@@ -294,8 +297,8 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
         {/* Endereço */}
         <div className="border-gray-200 pt-4 mb-6">
           <div className="flex items-center space-x-2 mb-2">
-            <input type="checkbox" 
-              checked={useAddressAPI} 
+            <input type="checkbox"
+              checked={useAddressAPI}
               onChange={() => setUseAddressAPI(!useAddressAPI)} />
             <span>Usar CEP</span>
           </div>
