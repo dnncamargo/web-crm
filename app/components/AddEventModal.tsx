@@ -43,7 +43,6 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
 
   if (!isOpen) return null;
 
-
   useLayoutEffect(() => {
     {/* Conflito drag vs. scroll vertical */ }
     const modal = document.getElementById('edit-event-modal');
@@ -84,9 +83,9 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
     {/* Ações ao abrir ou fechar o modal */ }
     if (isOpen) {
 
-      fetchPeople(); // Chama a função para buscar os dados das pessoas.
-
       document.body.classList.add('overflow-hidden'); // Previne scroll da tela de fundo
+      
+      fetchPeople(); // Chama a função para buscar os dados das pessoas.
 
       {/* Associação de pessoa ao Evento */ }
       if (initialPersonId) {
@@ -119,7 +118,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
    * @param {string} zipCode - O código postal a ser pesquisado.
    * @returns {Promise<void>}
    */
-  const searchAddress = async (zipCode: string) => {
+  const searchAddress = async (zipCode: string): Promise<void> => {
     if (zipCode.length === 8) {
       try {
         const response = await fetch(`https://viacep.com.br/ws/${zipCode}/json/`);
