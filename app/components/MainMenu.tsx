@@ -14,7 +14,7 @@ const MainMenu = () => {
   const linkClass = (path: string) =>
     `px-3 py-2 rounded-md text-sm font-medium transition ${
       pathname === path
-        ? 'text-gray-900 border-b-2 border-gray-900'
+        ? 'text-blue-900'
         : 'text-gray-600 hover:text-gray-900'
     }`
 
