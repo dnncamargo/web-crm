@@ -4,7 +4,7 @@ import "./globals.css";
 import localFont from 'next/font/local'
 
 const connexusFont = localFont({
-  src: './assets/Connexus.ttf',
+  src: '/assets/Connexus.ttf',
   variable: '--font-connexus'
 })
 
