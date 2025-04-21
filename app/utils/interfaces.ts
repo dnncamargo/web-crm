@@ -42,3 +42,10 @@ export interface Event {
   description?: string;
   createdAt?: Date;
 }
+
+export interface Task {
+  id: string;
+  title: string;
+  completed: boolean;
+  date?: string; 
+}

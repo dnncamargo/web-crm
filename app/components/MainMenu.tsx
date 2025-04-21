@@ -46,6 +46,7 @@ const MainMenu = (): JSX.Element => {
         <div className="hidden md:flex items-center gap-4">
           <Link href="/people-directory" className={linkClass('/people-directory')}>Pessoas</Link>
           <Link href="/events-history" className={linkClass('/events-history')}>Eventos</Link>
+          <Link href="/task-list" className={linkClass('/task-list')}>Tarefas</Link>
         </div>
 
         {/* Botão mobile */}
@@ -78,6 +79,12 @@ const MainMenu = (): JSX.Element => {
               onClick={toggleMenu}
             >
               Eventos
+            </Link>
+            <Link
+              href="/task-list"
+              className={linkClass('/task-list')}
+              onClick={toggleMenu}
+            > Tarefas
             </Link>
           </div>
         </div>
