@@ -257,30 +257,42 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
             </div>
 
             {/* Data de Nascimento */}
-            <div className="space-y-4">
-              <div className="bg-gray-50 rounded-lg overflow-hidden border w-full max-w-[200px]">
-                <input type="date"
-                  placeholder="Data de Nascimento"
-                  value={birthday}
-                  onChange={(e) => setBirthday(e.target.value)}
-                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
-              </div>
-
-              {/* Notas */}
-              <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                <textarea
-                  placeholder="Notas"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  className="w-full p-4 bg-transparent focus:outline-none resize-none"
-                  rows={4}
+            <div className="relative">
+              <input
+                type="date"
+                value={birthday}
+                onChange={(e) => setBirthday(e.target.value)}
+                className="w-full p-3 pr-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-primary focus:outline-none"
+              />
+              <svg
+                className="absolute right-3 top-1/2 w-5 h-5 text-gray-400 pointer-events-none -translate-y-1/2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M8 7V3M16 7V3M4 11h16M4 19h16M4 15h16"
                 />
-              </div>
+              </svg>
+            </div>
+
+            {/* Notas */}
+            <div className="bg-gray-50 rounded-lg overflow-hidden border">
+              <textarea
+                placeholder="Notas"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full p-4 bg-transparent focus:outline-none resize-none"
+                rows={4}
+              />
             </div>
           </>
         )}
       </div>
-    </motion.div>
+    </motion.div >
   );
 };
 
