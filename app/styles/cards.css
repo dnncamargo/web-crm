@@ -1,0 +1,39 @@
+.card-space-bellow {
+  @apply space-y-2;
+}
+
+.card-container {
+  @apply rounded-lg overflow-hidden bg-white shadow-sm border;
+}
+
+/* .card-container:hover {
+  @apply shadow-lg;
+} */
+
+.card-header {
+  @apply bg-[#cec1aa] px-4 py-1;
+}
+
+.card-content {
+  @apply p-3;
+}
+
+.card-container-large {
+    @apply bg-white rounded-xl border shadow-sm space-y-2 relative cursor-pointer hover:bg-gray-50 transition
+}
+
+.card-header-large {
+    @apply flex justify-between items-start bg-[#cec1aa] px-4 py-1 rounded-t-xl;
+}
+
+.card-content-large {
+    @apply text-sm px-4;
+}
+
+.card-bottom-end {
+    @apply flex justify-end p-2
+}
+
+.card-header-right {
+        @apply text-xs px-2 py-0.5 rounded-full
+}

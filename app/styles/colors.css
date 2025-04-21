@@ -1,25 +1,16 @@
-/*paleta custom*/
 
-:root {
-  --color-primary: #f59e0b;
-  --color-bg: #111827;
-}
-  
-.bg-primary {
-  background-color: var(--color-primary);
-}
-  
-.text-primary {
-  color: var(--color-primary);
+.color-people {
+    @apply text-green-500
 }
 
-:root {
-  --color-bg: #f3f4f6; /* Um tom de cinza claro */
-  --color-primary: #3b82f6; /* Azul */
-  --color-primary-hover: #2563eb;
-  --color-secondary: #6b7280; /* Cinza médio */
-  --color-text-primary: #111827; /* Preto */
-  --color-text-secondary: #4b5563; /* Cinza escuro */
-  --color-accent: #10b981; /* Verde */
-  --color-error: #dc2626; /* Vermelho */
+.color-event {
+    @apply text-blue-600
+}
+
+.color-event-bg {
+    @apply bg-blue-100
+}
+
+.gray-soft {
+    @apply text-gray-500
 }

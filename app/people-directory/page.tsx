@@ -90,14 +90,14 @@ const PeopleDirectory = (): JSX.Element => {
 
   return (
 
-    <main className="p-4 space-y-4 bg-gray-50 min-h-screen">
+    <main className="main-container-body">
 
       {/* Renderiza o menu principal da aplicação. */}
       <MainMenu />
-      <h1 className="text-2xl font-bold mb-4">Diretório de Pessoas</h1>
+      <h1 className="title-1">Diretório de Pessoas</h1>
 
       {/* Renderiza os cards de cada pessoa. */}
-      <div className="space-y-3">
+      <div className="card-space-bellow">
         {person.map(p => (
           <PersonCard key={p.id} person={p}
             onEditPerson={openEditPersonModal}

@@ -34,16 +34,16 @@ const MainMenu = (): JSX.Element => {
     }`
 
   return (
-    <header className="fixed top-0 left-0 w-full backdrop-blur bg-white/80 z-50 border-b">
+    <header className="main-container-top">
 
       {/* Logo e menu desktop */}
-      <div className="max-w-5xl mx-auto px-4 flex items-center justify-between h-14">
+      <div className="menu-container">
         <Link href="/" className="title-logo">
           connexus
         </Link>
 
         {/* Menu desktop */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="menu-desktop">
           <Link href="/people-directory" className={linkClass('/people-directory')}>Pessoas</Link>
           <Link href="/events-history" className={linkClass('/events-history')}>Eventos</Link>
           <Link href="/task-list" className={linkClass('/task-list')}>Tarefas</Link>
@@ -64,8 +64,8 @@ const MainMenu = (): JSX.Element => {
 
       {/* Menu mobile */}
       {isOpen && (
-        <div className="md:hidden bg-white border-t mt-1">
-          <div className="flex flex-col p-3 space-y-2">
+        <div className="menu-mobile">
+          <div className="menu-mobile-content">
             <Link
               href="/people-directory"
               className={linkClass('/people-directory')}

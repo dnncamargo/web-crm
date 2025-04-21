@@ -2,10 +2,12 @@
 @tailwind utilities;
 @tailwind components;
 
-@import '../app/styles/tables.css';
+@import '../app/styles/layout.css';
+@import '../app/styles/cards.css';
+@import '../app/styles/text.css';
+@import '../app/styles/colors.css';
 @import '../app/styles/buttons.css';
 @import '../app/styles/forms.css';
-@import '../app/styles/layout.css';
 @import '../app/styles/typography.css';
 
 /* reset básico */

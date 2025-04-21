@@ -107,38 +107,6 @@ export default function Home(): JSX.Element {
   };
 
   /**
-   * @function renderItem
-   * @description Renderiza um item de evento, buscando a pessoa associada na lista de pessoas (se houver).
-   * @param {Event} event - O objeto do evento a ser renderizado.
-   * @returns {Person} O objeto da pessoa associada ao evento, ou undefined se não houver associação ou a pessoa não for encontrada.
-   */
-  const renderItem = (event: Event) => {
-    const associatedPerson = person.find(p => p.id === event.personId);
-
-    return (
-      <li key={event.id} className="border rounded p-3 mb-2 bg-white">
-        <p className="font-medium">{event.title}</p>
-        <p className="text-sm text-gray-600 flex items-center">
-          <CalendarDaysIconOutline className="w-4 h-4 mr-2" />
-          {formatDate(event.date, event.hour)}
-        </p>
-        {associatedPerson && (
-          <p className="text-sm text-gray-600 flex items-center">
-            <UserIconOutline className="w-4 h-4 mr-2" />
-            {associatedPerson.name}
-          </p>
-        )}
-        {event.description && (
-          <p className="text-sm text-gray-400 mt-1 flex items-start">
-            <PencilSquareIconOutline className="w-4 h-4 mr-2 mt-0.5" />
-            {event.description}
-          </p>
-        )}
-      </li>
-    );
-  };
-
-  /**
    * @function renderEvent
    * @description Renderiza um cartão de resumo de evento, buscando a pessoa associada na lista de pessoas (se houver).
    * @param {Event}
@@ -152,22 +120,22 @@ export default function Home(): JSX.Element {
 
   return (
 
-    <main className="p-4 space-y-6 bg-gray-50 min-h-screen">
+    <main className="main-container-body">
 
       {/* Renderiza o menu principal da aplicação. */}
       <MainMenu />
-      <h1 className="text-2xl font-bold">Próximos Eventos</h1>
+      <h1 className="title-1">Próximos Eventos</h1>
 
       {Object.entries(events).map(([groupName, groupEvents]) => (
         groupEvents.length > 0 && (
           <section key={groupName}>
-            <h2 className="text-lg font-semibold mb-2">
+            <h2 className="title-2">
               {groupName === 'today' && `Hoje (${groupEvents.length})`} {/* Eventos do dia */}
               {groupName === 'week' && `Esta Semana (${groupEvents.length})`} {/* Eventos da Semana */}
               {groupName === 'nextMonth' && `Próximo Mês (${groupEvents.length})`} {/* Eventos do Próximo Mês */}
               {groupName === 'future' && `Futuro (${groupEvents.length})`} {/* Eventos sem Data Específica */}
             </h2>
-            <div className="space-y-2">
+            <div className="card-space-bellow">
               {groupEvents.map(renderEvent)}
             </div>
           </section>

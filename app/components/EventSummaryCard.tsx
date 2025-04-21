@@ -34,15 +34,15 @@ const formatDate = (date: string, hour?: string) => {
  */
 export default function EventSummaryCard({ event, person }: EventSummaryCardProps): JSX.Element {
   return (
-    <div className="rounded-lg overflow-hidden bg-white shadow-sm border">
+    <div className="card-container">
 
       {/* Título full-width topo */}
-      <div className="bg-[#cec1aa] px-4 py-2">
-        <h2 className="text-[#3a342f] text-sm font-semibold">{event.title}</h2>
+      <div className="card-header">
+        <h2 className="card-header-title">{event.title}</h2>
       </div>
 
       {/* Conteúdo */}
-      <div className="p-3 mb-2">
+      <div className="card-content">
 
         {/* Data e Hora */}
         <div className="flex items-center text-sm text-gray-600">

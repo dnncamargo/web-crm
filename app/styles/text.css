@@ -1,0 +1,19 @@
+.title-1 {
+    @apply text-2xl font-bold mb-4
+}
+
+.title-2 {
+    @apply text-lg font-semibold mb-2
+}
+
+.title-3 {
+    @apply text-base font-semibold mb-2
+}
+
+.card-header-title {
+    @apply text-[#3a342f] text-sm font-semibold
+}
+
+.card-header-title-large {
+    @apply text-base font-semibold;
+}

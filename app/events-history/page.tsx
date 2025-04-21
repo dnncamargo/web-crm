@@ -66,11 +66,11 @@ const EventsHistory = (): JSX.Element => {
 
   return (
 
-    <main className="p-4 space-y-4 bg-gray-50 min-h-screen">
+    <main className="main-container-body">
 
       {/* Renderiza o menu principal da aplicação. */}
       <MainMenu />
-      <h1 className="text-2xl font-bold mb-4">Histórico de Eventos</h1>
+      <h1 className="title-1">Histórico de Eventos</h1>
 
       {/* Renderiza os cards de cada evento. */}
       <div className="space-y-3">
