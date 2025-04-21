@@ -37,7 +37,7 @@ export default function EventSummaryCard({ event, person }: EventSummaryCardProp
     <div className="rounded-lg overflow-hidden bg-white shadow-sm border">
 
       {/* Título full-width topo */}
-      <div className="bg-[#e6e0d4] px-4 py-2">
+      <div className="bg-[#cec1aa] px-4 py-2">
         <h2 className="text-[#3a342f] text-sm font-semibold">{event.title}</h2>
       </div>
 
