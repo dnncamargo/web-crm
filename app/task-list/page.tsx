@@ -12,7 +12,7 @@ export default function TasksPage() {
   const [newTask, setNewTask] = useState('')
 
   const fetchTasks = async () => {
-    const querySnapshot = await getDocs(collection(db, 'tasks'))
+    const querySnapshot = await getDocs(collection(db, 'task-list'))
     const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Task[]
     setTasks(data)
   }
