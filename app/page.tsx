@@ -10,6 +10,14 @@ import { UserIcon as UserIconOutline } from '@heroicons/react/24/outline';
 import { CalendarDaysIcon as CalendarDaysIconOutline } from '@heroicons/react/24/outline';
 import { PencilSquareIcon as PencilSquareIconOutline } from '@heroicons/react/24/outline';
 import MainMenu from './components/MainMenu';
+import EventSummaryCard from './components/EventSummaryCard';
+
+type GroupedEvents = {
+  today: Event[],
+  week: Event[],
+  nextMonth: Event[],
+  future: Event[]
+}
 
 /**
  * @component
@@ -17,12 +25,17 @@ import MainMenu from './components/MainMenu';
  * @returns {JSX.Element} A interface da página inicial.
  */
 export default function Home(): JSX.Element {
-  const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore. */
-  const [futureEvents, setFutureEvents] = useState<Event[]>([]); /** @state {Event[]} futureEvents - Array de eventos futuros buscados do Firestore, ordenados por data. */
+  const [person, setPerson] = useState<Person[]>([])
+  const [events, setEvents] = useState<GroupedEvents>({
+    today: [],
+    week: [],
+    nextMonth: [],
+    future: []
+  })
 
   useEffect(() => {
-    fetchPeople();
-    fetchFutureEvents();
+    fetchPerson();
+    fetchAndGroupEvents()
   }, []);
 
   /**
@@ -31,7 +44,7 @@ export default function Home(): JSX.Element {
   * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
   * @returns {Promise<void>}
   */
-  const fetchPeople = async (): Promise<void> => {
+  const fetchPerson = async (): Promise<void> => {
     const querySnapshot = await getDocs(collection(db, 'people-directory'));
     const personData = querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -42,43 +55,43 @@ export default function Home(): JSX.Element {
 
   /**
    * @async
-   * @function fetchFutureEvents
-   * @description Busca os eventos futuros da coleção 'events-history' no Firestore, ordenados por data e hora.
-   * @description Os eventos são filtrados para incluir apenas aqueles com data maior ou igual à data atual.
+   * @function fetchAndGroupEvents
+   * @description Busca os eventos futuros da coleção 'events-history' no Firestore, e agrupa por categorias de tempo.
    * @returns {Promise<void>}
    */
-  const fetchFutureEvents = async (): Promise<void> => {
-    const today = new Date();
+  const fetchAndGroupEvents = async (): Promise<void> => {
+    const today = new Date()
     const q = query(
       collection(db, 'events-history'),
       where('date', '>=', format(today, 'yyyy-MM-dd')),
       orderBy('date'),
       orderBy('hour')
-    );
-    const querySnapshot = await getDocs(q);
-    const eventData = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Event[];
-    setFutureEvents(eventData);
-  };
+    )
+    const querySnapshot = await getDocs(q)
+    const allEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Event[]
 
-  // Agrupar eventos por categorias
-  const eventsToday = futureEvents.filter(e => isToday(parseISO(e.date)));
-  const eventsThisWeek = futureEvents.filter(e => isThisWeek(parseISO(e.date), { weekStartsOn: 1 }) && !isToday(parseISO(e.date)));
-  const eventsNextMonth = futureEvents.filter(e => {
-    const dateEvent = parseISO(e.date);
-    const hoje = new Date();
-    return (
-      dateEvent.getMonth() === addMonths(hoje, 1).getMonth() &&
-      dateEvent.getFullYear() === hoje.getFullYear()
-    );
-  });
-  const otherEvents = futureEvents.filter(e =>
-    !eventsToday.includes(e) &&
-    !eventsThisWeek.includes(e) &&
-    !eventsNextMonth.includes(e)
-  );
+    const grouped = allEvents.reduce<GroupedEvents>((acc, event) => {
+      const date = parseISO(event.date)
+      const now = new Date()
+
+      if (isToday(date)) {
+        acc.today.push(event)
+      } else if (isThisWeek(date, { weekStartsOn: 1 })) {
+        acc.week.push(event)
+      } else if (
+        date.getMonth() === addMonths(now, 1).getMonth() &&
+        date.getFullYear() === now.getFullYear()
+      ) {
+        acc.nextMonth.push(event)
+      } else {
+        acc.future.push(event)
+      }
+
+      return acc
+    }, { today: [], week: [], nextMonth: [], future: [] })
+
+    setEvents(grouped)
+  }
 
   /**
    * @function formatDate
@@ -88,9 +101,9 @@ export default function Home(): JSX.Element {
    * @returns {string} A data formatada como "Dia da semana, dia de Mês" ou "Dia da semana, dia de Mês às Hora".
    */
   const formatDate = (stringDate: string, hour?: string): string => {
-    const data = parseISO(stringDate);
-    const textoBase = format(data, "EEEE, d 'de' MMMM", { locale: ptBR });
-    return hour ? `${textoBase} às ${hour}` : textoBase;
+    const date = parseISO(stringDate);
+    const textCard = format(date, "EEEE, d 'de' MMMM", { locale: ptBR });
+    return hour ? `${textCard} às ${hour}` : textCard;
   };
 
   /**
@@ -100,7 +113,7 @@ export default function Home(): JSX.Element {
    * @returns {Person} O objeto da pessoa associada ao evento, ou undefined se não houver associação ou a pessoa não for encontrada.
    */
   const renderItem = (event: Event) => {
-    const pessoa = person.find(p => p.id === event.personId);
+    const associatedPerson = person.find(p => p.id === event.personId);
 
     return (
       <li key={event.id} className="border rounded p-3 mb-2 bg-white">
@@ -109,10 +122,10 @@ export default function Home(): JSX.Element {
           <CalendarDaysIconOutline className="w-4 h-4 mr-2" />
           {formatDate(event.date, event.hour)}
         </p>
-        {pessoa && (
+        {associatedPerson && (
           <p className="text-sm text-gray-600 flex items-center">
             <UserIconOutline className="w-4 h-4 mr-2" />
-            {pessoa.name}
+            {associatedPerson.name}
           </p>
         )}
         {event.description && (
@@ -125,6 +138,18 @@ export default function Home(): JSX.Element {
     );
   };
 
+  /**
+   * @function renderEvent
+   * @description Renderiza um cartão de resumo de evento, buscando a pessoa associada na lista de pessoas (se houver).
+   * @param {Event}
+   */
+  const renderEvent = (event: Event) => {
+    const associatedPerson = person.find(p => p.id === event.personId)
+    return (
+      <EventSummaryCard key={event.id} event={event} person={associatedPerson} />
+    )
+  }
+
   return (
 
     <main className="p-4 space-y-6 bg-gray-50 min-h-screen">
@@ -133,41 +158,26 @@ export default function Home(): JSX.Element {
       <MainMenu />
       <h1 className="text-2xl font-bold">Próximos Eventos</h1>
 
-      {/* Eventos do dia */}
-      {eventsToday.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-2">Hoje ({eventsToday.length})</h2>
-          <ul>{eventsToday.map(renderItem)}</ul>
-        </section>
-      )}
+      {Object.entries(events).map(([groupName, groupEvents]) => (
+        groupEvents.length > 0 && (
+          <section key={groupName}>
+            <h2 className="text-lg font-semibold mb-2">
+              {groupName === 'today' && `Hoje (${groupEvents.length})`} {/* Eventos do dia */}
+              {groupName === 'week' && `Esta Semana (${groupEvents.length})`} {/* Eventos da Semana */}
+              {groupName === 'nextMonth' && `Próximo Mês (${groupEvents.length})`} {/* Eventos do Próximo Mês */}
+              {groupName === 'future' && `Futuro (${groupEvents.length})`} {/* Eventos sem Data Específica */}
+            </h2>
+            <div className="space-y-2">
+              {groupEvents.map(renderEvent)}
+            </div>
+          </section>
+        )
+      ))}
 
-      {/* Eventos da Semana */}
-      {eventsThisWeek.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-2">Esta semana ({eventsThisWeek.length})</h2>
-          <ul>{eventsThisWeek.map(renderItem)}</ul>
-        </section>
-      )}
-
-      {/* Eventos do Próximo Mês */}
-      {eventsNextMonth.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-2">Próximo mês ({eventsNextMonth.length})</h2>
-          <ul>{eventsNextMonth.map(renderItem)}</ul>
-        </section>
-      )}
-
-      {/* Eventos sem Data Específica */}
-      {otherEvents.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-2">Futuro ({otherEvents.length})</h2>
-          <ul>{otherEvents.map(renderItem)}</ul>
-        </section>
-      )}
-
-      {futureEvents.length === 0 && (
+      {Object.values(events).flat().length === 0 && (
         <p className="text-gray-600">Nenhum evento futuro agendado.</p>
       )}
+
     </main>
   );
 }

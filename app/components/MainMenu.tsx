@@ -19,7 +19,7 @@ const MainMenu = (): JSX.Element => {
    * @description Alterna a visibilidade do menu responsivo (abre e fecha).
    * @returns {void}
    */
-  const toggleMenu = () => setIsOpen(!isOpen)
+  const toggleMenu = (): void => setIsOpen(!isOpen)
 
   /**
    * @function linkClass
