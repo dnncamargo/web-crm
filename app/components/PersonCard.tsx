@@ -1,10 +1,10 @@
 'use client';
 
 import { JSX } from 'react';
-import { Person } from '../utils/interfaces';
 import { useRouter } from 'next/navigation';
+import { Person } from '../utils/interfaces';
 import { HeartIcon as HeartSolid } from '@heroicons/react/24/solid';
-import { HeartIcon as HeartOutline, CalendarDaysIcon as CalendarIcon, PhoneIcon, UserIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { HeartIcon as HeartOutline, CalendarDaysIcon as CalendarIcon, PhoneIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 
 /**
  * @interface PersonCardProps
@@ -37,7 +37,7 @@ const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps)
       {/* Título do card */}
       <div className="card-header-large card-header-bg">
         <h2 className="card-header-title-large color-pd-dark">{person.name}</h2>
-        {/* Elemento à direita */}
+        {/* Favorito */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -53,11 +53,24 @@ const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps)
       </div>
 
       {/* Conteúdo */}
-      <p className="card-content-large">
+      <div className="card-content-large">
         {/* Telefone */}
-        {person.phone}</p>
-      {person.email && <p className="card-content-large text-gray-400">{person.email}</p>}
-      {/* Elemento à direita */}
+        {person.phone && (
+          <div className="card-content-info-large text-gray-500 mb-2">
+            <PhoneIcon className="w-4 h-4 mr-2 mt-0.5" />
+            {person.phone}
+          </div>
+        )}
+        {/* E-mail */}
+        {person.email && (
+          <div className="card-content-info-large text-gray-500">
+            <EnvelopeIcon className="w-4 h-4 mr-2 mt-0.5" />
+            {person.email}
+          </div>
+        )}
+      </div>
+
+      {/* Botão de editar */}
       <div className="card-bottom-end">
         <button
           className="color-pd-base"

@@ -3,6 +3,7 @@
 import { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { Event } from '../utils/interfaces';
+import { ClockIcon, MapPinIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 
 /**
  * @interface EventCardProps
@@ -30,10 +31,10 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
       onClick={() => router.push(`/events-history/${event.id}`)}
       className="card-container-large card-container-bg">
 
-      {/* Título full-width topo */}
+      {/* Título do card */}
       <div className="card-header-large card-header-bg">
         <h2 className="card-header-title-large color-eh-dark">{event.title}</h2>
-        {/* Elemento à direita */}
+        {/* Data */}
         <span
           className="card-header-far-right color-eh-light">
           {event.date}
@@ -41,12 +42,35 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
       </div>
 
       {/* Conteúdo */}
-      <p className="card-content-large text-gray-500">{event.hour && `${event.hour} - `}{event.address}</p>
-      {event.description && (
-        <p className="card-content-large text-gray-400">{event.description}</p>
-      )}
+      <div className="card-content-large">
+        {/* Hora */}
+        {event.hour && (
+          <div className="card-content-info-large text-gray-500 mb-2">
+            <ClockIcon className="w-4 h-4 mr-2 mt-0.5" />
+            {/* {event.hour && `${event.hour} - `}{event.address} */}
+            {event.hour}
+          </div>
+        )}
+        {/* Endereço */}
+        {event.address && (
+          <div className="card-content-info-large text-gray-500 mb-2">
+            <MapPinIcon className="w-4 h-4 mr-2 mt-0.5" />
+            {event.address}
+          </div>
+        )}
+        {/* todo: incluir Pessoa associada no card */}
+        {/* Descrição */}
+        {event.description && (
+          <div className="card-content-info-large text-gray-500 mb-2">
+            <PencilSquareIcon className="w-4 h-4 mr-2 mt-0.5" />
+            {event.description}
+          </div>
+        )}
+
+      </div>
+      {/* Botão de editar */}
       <div className="card-bottom-end">
-      <button
+        <button
           className="color-eh-base"
           onClick={(e) => {
             e.stopPropagation();

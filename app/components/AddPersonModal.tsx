@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { searchAddress } from '../utils/helpers';
 import { motion } from 'framer-motion';
 import ProtectedRoute from './ProtectedRoute';
 import clsx from 'clsx';
@@ -20,6 +21,12 @@ interface AddPersonModalProps {
   onAdded: () => void;
 }
 
+/**
+ * @component AddPersonModal
+ * @description Modal para adicionar uma nova pessoa ao diretório. Permite inserir informações básicas de contato e detalhes adicionais como endereço, data de nascimento e notas. Utiliza a API ViaCEP para buscar endereços a partir do CEP.
+ * @param {AddPersonModalProps} props - As propriedades do componente.
+ * @returns {JSX.Element | null} O componente modal, ou `null` se `isOpen` for `false`.
+ */
 const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdded }) => {
   const [name, setName] = useState(''); /** @state {string} name - Nome da pessoa. */
   const [phone, setPhone] = useState(''); /** @state {string} phone - Número de telefone da pessoa. */
@@ -77,40 +84,31 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
   }, [isOpen]);
 
   /**
-   * @async
-   * @function searchAddress
-   * @description Busca informações de endereço a partir de um CEP usando a API ViaCEP.
-   * @param {string} zipCode - O código postal a ser pesquisado.
-   * @returns {Promise<void>}
-   */
-  const searchAddress = async (zipCode: string): Promise<void> => {
-    if (zipCode.length === 8) {
-      try {
-        const response = await fetch(`https://viacep.com.br/ws/${zipCode}/json/`);
-        const data = await response.json();
-        if (!data.erro) {
-          setAddress(data.logradouro);
-          setDistrict(data.bairro);
-          setCity(data.localidade);
-          setState(data.uf);
-        } else {
-          alert('CEP não encontrado.');
-        }
-      } catch (error) {
-        console.error('Erro ao buscar CEP:', error);
-      }
-    }
-  };
-
-  /**
    * @function validatePerson
    * @description Valida os campos obrigarórios do formulário.
    * @returns {string | null} Uma string contendo a mensagem de erro se a validação falhar, ou `null` se a validação for bem-sucedida.
    */
   function validatePerson(): string | null {
-    if (name.length === 0) return "Nome é obrigatório.";
+    if (name.length === 0) return "Nome da Pessoa é obrigatório.";
     return null;
   }
+
+  /**
+   * @async
+   * @function handleSearchAddress
+   * @description Busca o endereço a partir do CEP informado.
+   * @param {string} zipCode - O código postal a ser pesquisado.
+   * @returns {Promise<void>}
+   */
+  const handleSearchAddress = async (zipCode: string): Promise<void> => {
+    const data = await searchAddress(zipCode);
+    if (data) {
+      setAddress(data?.address || ''); // Garante que o estado seja atualizado mesmo se a propriedade for undefined
+      setDistrict(data?.district || '');
+      setCity(data?.city || '');
+      setState(data?.state || '');
+    }
+  };
 
   /**
   * @async
@@ -148,7 +146,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
       onAdded();
       onClose();
     } catch (error) {
-      console.error('Erro ao adicionar pessoa:', error);
+      console.error('Erro ao adicionar pessoa: ', error);
     }
   };
 
@@ -173,17 +171,17 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
       >
         {/* Formulário */}
         <form onSubmit={handleSubmit}>
-          {/* Topo do Modal de Inclusão de Pessoa */}
           <div className="p-4">
+            {/* Topo do Modal de Inclusão de Pessoa */}
             <div className="flex justify-between items-center mb-6">
-              <button onClick={onClose} 
+              <button onClick={onClose}
                 className="color-pd-base text-lg">
                 Cancelar
               </button>
               <h3 className="text-lg font-semibold">
                 Novo Cadastro
               </h3>
-              <button type="submit" 
+              <button type="submit"
                 className="color-pd-base text-lg">
                 Salvar
               </button>
@@ -198,7 +196,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
                 onChange={(e) => setName(e.target.value)}
                 className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
               <input
-                type="text"
+                type="number"
                 placeholder="Telefone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -232,7 +230,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
                     <input
                       type="checkbox"
                       checked={useAddressAPI}
-                      accent-color-pd-base-bg
+                      className="accent-green-600 focus:ring-2 focus:ring-green-500"
                       onChange={() => setUseAddressAPI(!useAddressAPI)} />
                     <span>Usar CEP</span>
                   </div>
@@ -244,7 +242,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
                         placeholder="CEP"
                         value={zipcode}
                         onChange={(e) => setZipcode(e.target.value)}
-                        onBlur={() => searchAddress(zipcode)}
+                        onBlur={() => handleSearchAddress(zipcode)}
                         className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
                       />
                       <input
@@ -280,7 +278,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
                 </div>
 
                 {/* Data de Nascimento */}
-                <div className="relative">
+                <div className="relative mb-2">
                   <input
                     type="date"
                     value={birthday}

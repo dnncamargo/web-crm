@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, JSX } from 'react';
 import { doc, getDocs, updateDoc, deleteDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { searchAddress } from '../utils/helpers';
 import { Event, Person } from '../utils/interfaces';
 import { motion } from 'framer-motion';
 import ProtectedRoute from './ProtectedRoute';
@@ -29,7 +30,7 @@ interface EditEventModalProps {
  * @param {EditEventModalProps} props - As propriedades passadas para o componente.
  * @returns {JSX.Element | null} O componente renderizado ou null se `isOpen` for falso.
  */
-const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalProps): JSX.Element | null => {
+const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalProps) => {
 
   const [title, setTitle] = useState(event.title); /** @state {string} title - Título do evento. */
   const [date, setDate] = useState(event.date); /** @state {string} date - Data do evento no formato 'YYYY-MM-DD'. */
@@ -121,28 +122,29 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
   }, [isOpen]);
 
   /**
+  * @function validateEvent
+  * @description Valida os campos obrigarórios do formulário.
+  * @returns {string | null} Uma string contendo a mensagem de erro se a validação falhar, ou `null` se a validação for bem-sucedida.
+  */
+  function validateEvent(): string | null {
+    if (title.length === 0) return "O Nome do Evento é obrigatório.";
+    return null;
+  }
+
+  /**
    * @async
-   * @function searchAddress
-   * @description Busca informações de endereço a partir de um CEP usando a API ViaCEP.
+   * @function handleSearchAddress
+   * @description Busca o endereço a partir do CEP informado.
    * @param {string} zipCode - O código postal a ser pesquisado.
    * @returns {Promise<void>}
    */
-  const searchAddress = async (zipCode: string): Promise<void> => {
-    if (zipCode.length === 8) {
-      try {
-        const response = await fetch(`https://viacep.com.br/ws/${zipCode}/json/`);
-        const data = await response.json();
-        if (!data.erro) {
-          setAddress(data.logradouro);
-          setDistrict(data.bairro);
-          setCity(data.localidade);
-          setState(data.uf);
-        } else {
-          alert('CEP não encontrado.');
-        }
-      } catch (error) {
-        console.error('Erro ao buscar CEP:', error);
-      }
+  const handleSearchAddress = async (zipCode: string): Promise<void> => {
+    const data = await searchAddress(zipCode);
+    if (data) {
+      setAddress(data?.address || ''); // Garante que o estado seja atualizado mesmo se a propriedade for undefined
+      setDistrict(data?.district || '');
+      setCity(data?.city || '');
+      setState(data?.state || '');
     }
   };
 
@@ -153,23 +155,34 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
    * @param {React.FormEvent} e - Objeto do evento de formulário.
    * @returns {Promise<void>}
    */
-  const handleUpdate = async (e: React.FormEvent): Promise<void> => {
+  const handleUpdate = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-    await updateDoc(doc(db, 'events-history', event.id), {
-      title,
-      date,
-      hour: allDay ? '' : hour,
-      zipcode,
-      address,
-      number,
-      district,
-      city,
-      state,
-      description,
-      ...(associatePerson && selectedPersonId && { personId: selectedPersonId }),
-    });
-    onUpdated();
-    onClose();
+    const errorMsg = validateEvent();
+    if (errorMsg) {
+      alert(errorMsg);
+      return;
+    }
+
+    try {
+      const eventRef = doc(db, 'events-history', event.id);
+      await updateDoc(eventRef, {
+        title,
+        date,
+        hour: allDay ? '' : hour,
+        zipcode,
+        address,
+        number,
+        district,
+        city,
+        state,
+        description,
+        ...(associatePerson && selectedPersonId && { personId: selectedPersonId }),
+      });
+      onUpdated();
+      onClose();
+    } catch (error) {
+      console.error('Erro ao atualizar o evento: ', error);
+    };
   };
 
   /**
@@ -179,10 +192,14 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
    * @returns {Promise<void>}
    */
   const handleDelete = async (): Promise<void> => {
-    const eventRef = doc(db, 'events-history', event.id);
-    await deleteDoc(eventRef);
-    onUpdated();
-    onClose();
+    try {
+      const eventRef = doc(db, 'events-history', event.id);
+      await deleteDoc(eventRef);
+      onUpdated();
+      onClose();
+    } catch (error) {
+      console.error('Erro ao excluir o evento: ', error);
+    }
   };
 
   return (
@@ -205,210 +222,213 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
-        {/* Topo do Modal de Edição de Evento */}
-        <div className="p-4 space-y-4">
-          <div className="flex justify-between items-center mb-6">
-            <button onClick={onClose} className="color-eh-base text-lg">
-              Cancelar
-            </button>
-            <h3 className="text-lg font-semibold">
-              Editar Evento
-            </h3>
-            <button onClick={handleUpdate} className="color-eh-base text-lg">
-              Salvar
-            </button>
-          </div>
-
-          {/* Título e Local */}
-          {!useAddressAPI && (
-            <>
-              <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                <input
-                  type="text"
-                  placeholder="Título"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Local ou chamada de vídeo"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full p-4 bg-transparent focus:outline-none"
-                />
-              </div>
-            </>
-          )}
-          {/* Título com API de Endereço */}
-          {useAddressAPI && (
-            <>
-              <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                <input
-                  type="text"
-                  placeholder="Título"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full p-4 bg-transparent focus:outline-none resize-none"
-                />
-              </div>
-            </>
-          )}
-
-          {/* All-day + Data e Hora */}
-          <div className="border-gray-200 pt-4 mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <span>Dia inteiro</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setAllDay(!allDay);
-                  if (!allDay) setHour('');
-                  else setHour('12:00');
-                }}
-                className={clsx(
-                  'w-12 h-6 rounded-full transition flex items-center p-1',
-                  allDay ? 'color-eh-base-bg' : 'bg-gray-300'
-                )}
-              >
-                <div
-                  className={clsx(
-                    'bg-white w-4 h-4 rounded-full shadow transform transition',
-                    allDay ? 'translate-x-6' : 'translate-x-0'
-                  )}
-                />
+        {/* Formulário */}
+        <form onSubmit={handleUpdate}>
+          <div className="p-4 space-y-4">
+            {/* Topo do Modal de Edição de Evento */}
+            <div className="flex justify-between items-center mb-6">
+              <button onClick={onClose} className="color-eh-base text-lg">
+                Cancelar
+              </button>
+              <h3 className="text-lg font-semibold">
+                Editar Evento
+              </h3>
+              <button type='submit' className="color-eh-base text-lg">
+                Salvar
               </button>
             </div>
-            <div className="flex space-x-2">
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="form-input bg-gray-50 rounded-lg border flex-1"
-              />
-              {/* Incluir Hora */}
-              {!allDay && (
+            {/* Título e Local */}
+            {!useAddressAPI && (
+              <>
+                <div className="bg-gray-50 rounded-lg overflow-hidden border">
+                  <input
+                    type="text"
+                    placeholder="Título"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Local ou chamada de vídeo"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full p-4 bg-transparent focus:outline-none"
+                  />
+                </div>
+              </>
+            )}
+            {/* Título com API de Endereço */}
+            {useAddressAPI && (
+              <>
+                <div className="bg-gray-50 rounded-lg overflow-hidden border">
+                  <input
+                    type="text"
+                    placeholder="Título"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full p-4 bg-transparent focus:outline-none resize-none"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* All-day + Data e Hora */}
+            <div className="border-gray-200 pt-4 mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <span>Dia inteiro</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAllDay(!allDay);
+                    if (!allDay) setHour('');
+                    else setHour('12:00');
+                  }}
+                  className={clsx(
+                    'w-12 h-6 rounded-full transition flex items-center p-1',
+                    allDay ? 'color-eh-base-bg' : 'bg-gray-300'
+                  )}
+                >
+                  <div
+                    className={clsx(
+                      'bg-white w-4 h-4 rounded-full shadow transform transition',
+                      allDay ? 'translate-x-6' : 'translate-x-0'
+                    )}
+                  />
+                </button>
+              </div>
+              <div className="flex space-x-2">
                 <input
-                  type="time"
-                  value={hour}
-                  onChange={(e) => setHour(e.target.value)}
-                  className="form-input bg-gray-50 rounded-lg border w-28"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="form-input bg-gray-50 rounded-lg border flex-1"
                 />
+                {/* Incluir Hora */}
+                {!allDay && (
+                  <input
+                    type="time"
+                    value={hour}
+                    onChange={(e) => setHour(e.target.value)}
+                    className="form-input bg-gray-50 rounded-lg border w-28"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Endereço */}
+            <div className="border-gray-200 pt-4 mb-6">
+              <div className="flex items-center space-x-2 mb-2">
+                <input type="checkbox"
+                  checked={useAddressAPI}
+                  onChange={() => setUseAddressAPI(!useAddressAPI)} />
+                <span>Usar CEP</span>
+              </div>
+              {/* Usar API de Endereço */}
+              {useAddressAPI && (
+                <div className="bg-gray-50 rounded-lg overflow-hidden border">
+                  <input
+                    type="text"
+                    placeholder="CEP"
+                    value={zipcode}
+                    onChange={(e) => setZipcode(e.target.value)}
+                    onBlur={() => handleSearchAddress(zipcode)}
+                    className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Endereço"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Número"
+                    value={number}
+                    onChange={(e) => setNumber(e.target.value)}
+                    className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Bairro"
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                    className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Cidade"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full p-4 bg-transparent focus:outline-none"
+                  />
+                </div>
               )}
             </div>
-          </div>
 
-          {/* Endereço */}
-          <div className="border-gray-200 pt-4 mb-6">
-            <div className="flex items-center space-x-2 mb-2">
-              <input type="checkbox"
-                checked={useAddressAPI}
-                onChange={() => setUseAddressAPI(!useAddressAPI)} />
-              <span>Usar CEP</span>
+            {/* Descrição */}
+            <div className="bg-gray-50 rounded-lg overflow-hidden border">
+              <textarea
+                placeholder="Notas"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full p-4 bg-transparent focus:outline-none resize-none"
+                rows={4}
+              />
             </div>
-            {/* Usar API de Endereço */}
-            {useAddressAPI && (
-              <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                <input
-                  type="text"
-                  placeholder="CEP"
-                  value={zipcode}
-                  onChange={(e) => setZipcode(e.target.value)}
-                  onBlur={() => searchAddress(zipcode)}
-                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Endereço"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Número"
-                  value={number}
-                  onChange={(e) => setNumber(e.target.value)}
-                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Bairro"
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                />
-                <input
-                  type="text"
-                  placeholder="Cidade"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full p-4 bg-transparent focus:outline-none"
-                />
-              </div>
-            )}
-          </div>
 
-          {/* Descrição */}
-          <div className="bg-gray-50 rounded-lg overflow-hidden border">
-            <textarea
-              placeholder="Notas"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full p-4 bg-transparent focus:outline-none resize-none"
-              rows={4}
-            />
-          </div>
-
-          {/* Associar Pessoa */}
-          <div className="border-gray-200 pt-4 mb-6">
-            <div className="flex justify-between items-center mb-2">
-              <span>Associar a uma pessoa</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setAssociatePerson(!associatePerson);
-                  if (!associatePerson) setSelectedPersonId('');
-                }}
-                className={clsx(
-                  'w-12 h-6 rounded-full transition flex items-center p-1',
-                  associatePerson ? 'color-eh-base-bg' : 'bg-gray-300'
-                )}
-              >
-                <div
+            {/* Associar Pessoa */}
+            <div className="border-gray-200 pt-4 mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <span>Associar a uma pessoa</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssociatePerson(!associatePerson);
+                    if (!associatePerson) setSelectedPersonId('');
+                  }}
                   className={clsx(
-                    'bg-white w-4 h-4 rounded-full shadow transform transition',
-                    associatePerson ? 'translate-x-6' : 'translate-x-0'
+                    'w-12 h-6 rounded-full transition flex items-center p-1',
+                    associatePerson ? 'color-eh-base-bg' : 'bg-gray-300'
                   )}
-                />
+                >
+                  <div
+                    className={clsx(
+                      'bg-white w-4 h-4 rounded-full shadow transform transition',
+                      associatePerson ? 'translate-x-6' : 'translate-x-0'
+                    )}
+                  />
+                </button>
+              </div>
+              {/* Selecionar e Salvar Pessoa */}
+              {associatePerson && (
+                <div className="mt-2">
+                  <select
+                    value={selectedPersonId}
+                    onChange={(e) => setSelectedPersonId(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
+                  >
+                    <option value="">Selecione a pessoa</option>
+                    {person.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Excluir Evento */}
+            <div className="flex justify-end mt-6">
+              <button onClick={handleDelete} className="text-red-500">
+                Excluir Evento
               </button>
             </div>
-            {/* Selecionar e Salvar Pessoa */}
-            {associatePerson && (
-              <div className="mt-2">
-                <select
-                  value={selectedPersonId}
-                  onChange={(e) => setSelectedPersonId(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
-                >
-                  <option value="">Selecione a pessoa</option>
-                  {person.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
           </div>
+        </form>
 
-          {/* Excluir Evento */}
-          <div className="flex justify-end mt-6">
-            <button onClick={handleDelete} className="text-red-500">
-              Excluir Evento
-            </button>
-          </div>
-        </div>
       </motion.div>
 
     </ProtectedRoute>

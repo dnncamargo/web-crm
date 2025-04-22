@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, JSX } from 'react';
-import { doc, getDocs, updateDoc, collection } from 'firebase/firestore';
+import { doc, getDocs, query, where, orderBy, updateDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { Person } from '../utils/interfaces';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -17,7 +17,7 @@ import EditPersonModal from '../components/EditPersonModal';
  */
 const PeopleDirectory = (): JSX.Element => {
 
-  const [person, setPerson] = useState<Person[]>([]);  /** @state {Person[]} person - Array de pessoas buscadas do Firestore. */
+  const [people, setPeople] = useState<Person[]>([]);  /** @state {Person[]} people - Array de pessoas buscadas do Firestore. */
   const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);  /** @state {boolean} isAddPersonModalOpen - Controla a visibilidade do modal de adicionar uma nova pessoa. */
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);  /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de uma pessoa existente. */
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);  /** @state {Person | null} selectedPerson - A pessoa selecionada para edição. */
@@ -39,15 +39,22 @@ const PeopleDirectory = (): JSX.Element => {
       // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
       const querySnapshot = await getDocs(collection(db, 'people-directory'));
       // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
-      const personData = querySnapshot.docs.map(doc => ({
+      const peopleData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
       })) as Person[];
 
       // Favoritos primeiro
-      const sorted = personData.sort((a, b) => (b.favorite ? 1 : 0) - (a.favorite ? 1 : 0));
+      const sorted = peopleData.sort((a, b) => {
+        // Ordenação primária: favoritos primeiro
+        if(a.favorite && !b.favorite) {
+          return b.favorite - a.favorite; // true (1) vem antes de false (0)
+        }
+        return a.name.localeCompare(b.name); // Ordenação secundária: por nome
+      }
+      console.log('Pessoas:', sorted);
       // Atualiza o estado 'person' com os dados ordenados.
-      setPerson(sorted);
+      setPeople(sorted);
     } catch (error) {
       console.error('Erro ao buscar pessoas:', error);
       //todo: Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
@@ -101,7 +108,7 @@ const PeopleDirectory = (): JSX.Element => {
 
         {/* Renderiza os cards de cada pessoa. */}
         <div className="card-spacing-bellow">
-          {person.map(p => (
+          {people.map(p => (
             <PersonCard key={p.id} person={p}
               onEditPerson={openEditPersonModal}
               onToggleFavorite={toggleFavorite}

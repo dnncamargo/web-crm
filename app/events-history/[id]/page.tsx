@@ -66,7 +66,7 @@ const EventDetails = () => {
 
         {/* Dados principais */}
         <div className="bg-white p-4 rounded-lg shadow space-y-2">
-          <p><strong>Título:</strong> {event.title}</p>
+          <p><strong>Evento:</strong> {event.title}</p>
           <p><strong>Data:</strong> {event.date}</p>
           <p><strong>Hora:</strong> {event.hour || 'Dia inteiro'}</p>
 
