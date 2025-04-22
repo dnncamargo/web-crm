@@ -1,16 +1,48 @@
 
-.color-people {
-    @apply text-green-500
+/* This file contains color utility classes for the application.
+ * It uses Tailwind CSS for styling.
+ */
+
+/* People Directory */
+.color-pd-base {
+    @apply text-green-600
 }
 
-.color-event {
+.color-pd-dark {
+    @apply text-green-800
+}
+
+/* Events History */
+.color-eh-base {
     @apply text-blue-600
 }
 
-.color-event-bg {
-    @apply bg-blue-100
+.color-eh-dark {
+    @apply text-blue-800
 }
 
-.gray-soft {
-    @apply text-gray-500
+.color-eh-light {
+    @apply bg-blue-100 text-blue-600
+}
+
+.color-eh-button-bg {
+    @apply bg-blue-500 hover:bg-blue-300
+}
+
+/* Task List */
+.color-task-text {
+    @apply text-red-600
+}
+
+ /* Cards */
+.card-container-bg{
+    @apply bg-white 
+}
+
+.card-container-bg:hover {
+    @apply bg-gray-50 shadow-sm transition;
+}
+
+.card-header-bg {
+    @apply bg-gray-100
 }

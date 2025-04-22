@@ -14,10 +14,10 @@ const EventCard = ({ event, onEditEvent }: EventCardProps) => {
   return (
     <div 
       onClick={() => router.push(`/events-history/${event.id}`)}
-      className="card-container-large">
-      <div className="card-header-large">
-        <h2 className="card-header-title-large">{event.title}</h2>
-        <span className="card-header-right color-event color-event-bg">{event.date}</span>
+      className="card-container-large card-container-bg">
+      <div className="card-header-large card-header-bg">
+        <h2 className="card-header-title-large color-eh-dark">{event.title}</h2>
+        <span className="card-header-far-right color-eh-light">{event.date}</span>
       </div>
       <p className="card-content-large text-gray-500">{event.hour && `${event.hour} - `}{event.address}</p>
       {event.description && (
@@ -27,7 +27,7 @@ const EventCard = ({ event, onEditEvent }: EventCardProps) => {
         <button onClick={(e) => {
             e.stopPropagation();
             onEditEvent(event);
-          }} className="color-event">Editar</button>
+          }} className="color-eh-base">Editar</button>
       </div>
     </div>
 

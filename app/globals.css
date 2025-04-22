@@ -1,5 +1,4 @@
 @tailwind base;
-@tailwind utilities;
 @tailwind components;
 
 @import '../app/styles/layout.css';
@@ -9,6 +8,9 @@
 @import '../app/styles/buttons.css';
 @import '../app/styles/forms.css';
 @import '../app/styles/typography.css';
+
+@tailwind utilities;
+
 
 /* reset básico */
 * {

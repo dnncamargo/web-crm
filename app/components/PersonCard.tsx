@@ -17,17 +17,17 @@ const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps)
   return (
     <div
       onClick={() => router.push(`/people-directory/${person.id}`)}
-      className="card-container-large"
+      className="card-container-large card-container-bg"
     >
-      <div className="card-header-large">
-        <h2 className="card-header-title-large">{person.name}</h2>
+      <div className="card-header-large card-header-bg">
+        <h2 className="card-header-title-large color-pd-dark">{person.name}</h2>
 
         <button
           onClick={(e) => {
             e.stopPropagation();
             onToggleFavorite(person.id, !!person.favorite);
           }}
-          className="card-header-right color-people"
+          className="card-header-far-right color-pd-base"
         >
           {person.favorite ? (
             <HeartSolid className="w-6 h-6" />
@@ -46,7 +46,7 @@ const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps)
             e.stopPropagation();
             onEditPerson(person);
           }}
-          className="color-people text-sm"
+          className="color-pd-base"
         >
           Editar
         </button>
