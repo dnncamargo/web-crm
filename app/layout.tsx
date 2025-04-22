@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AuthProvider } from './components/AuthProvider'
 import "./globals.css";
 
 import localFont from 'next/font/local'
@@ -15,13 +16,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR">
       <body className={connexusFont.variable}>
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

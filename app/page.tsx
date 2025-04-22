@@ -6,9 +6,7 @@ import { db } from './utils/firebaseConfig';
 import { Event, Person } from './utils/interfaces';
 import { format, isToday, isThisWeek, isThisMonth, addMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { UserIcon as UserIconOutline } from '@heroicons/react/24/outline';
-import { CalendarDaysIcon as CalendarDaysIconOutline } from '@heroicons/react/24/outline';
-import { PencilSquareIcon as PencilSquareIconOutline } from '@heroicons/react/24/outline';
+import ProtectedRoute from './components/ProtectedRoute'
 import MainMenu from './components/MainMenu';
 import EventSummaryCard from './components/EventSummaryCard';
 
@@ -120,32 +118,36 @@ export default function Home(): JSX.Element {
 
   return (
 
-    <main className="main-container-body">
+    <ProtectedRoute>
 
-      {/* Renderiza o menu principal da aplicação. */}
-      <MainMenu />
-      <h1 className="title-1">Próximos Eventos</h1>
+      <main className="main-container-body">
 
-      {Object.entries(events).map(([groupName, groupEvents]) => (
-        groupEvents.length > 0 && (
-          <section key={groupName}>
-            <h2 className="title-2">
-              {groupName === 'today' && `Hoje (${groupEvents.length})`} {/* Eventos do dia */}
-              {groupName === 'week' && `Esta Semana (${groupEvents.length})`} {/* Eventos da Semana */}
-              {groupName === 'nextMonth' && `Próximo Mês (${groupEvents.length})`} {/* Eventos do Próximo Mês */}
-              {groupName === 'future' && `Futuro (${groupEvents.length})`} {/* Eventos sem Data Específica */}
-            </h2>
-            <div className="card-space-bellow">
-              {groupEvents.map(renderEvent)}
-            </div>
-          </section>
-        )
-      ))}
+        {/* Renderiza o menu principal da aplicação. */}
+        <MainMenu />
+        <h1 className="title-1">Próximos Eventos</h1>
 
-      {Object.values(events).flat().length === 0 && (
-        <p className="text-gray-600">Nenhum evento futuro agendado.</p>
-      )}
+        {Object.entries(events).map(([groupName, groupEvents]) => (
+          groupEvents.length > 0 && (
+            <section key={groupName}>
+              <h2 className="title-2">
+                {groupName === 'today' && `Hoje (${groupEvents.length})`} {/* Eventos do dia */}
+                {groupName === 'week' && `Esta Semana (${groupEvents.length})`} {/* Eventos da Semana */}
+                {groupName === 'nextMonth' && `Próximo Mês (${groupEvents.length})`} {/* Eventos do Próximo Mês */}
+                {groupName === 'future' && `Futuro (${groupEvents.length})`} {/* Eventos sem Data Específica */}
+              </h2>
+              <div className="card-space-bellow">
+                {groupEvents.map(renderEvent)}
+              </div>
+            </section>
+          )
+        ))}
 
-    </main>
+        {Object.values(events).flat().length === 0 && (
+          <p className="text-gray-600">Nenhum evento futuro agendado.</p>
+        )}
+
+      </main>
+
+    </ProtectedRoute>
   );
 }
