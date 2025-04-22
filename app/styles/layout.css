@@ -4,22 +4,6 @@
   @apply fixed top-0 left-0 w-full backdrop-blur bg-white/80 z-50 border-b
 }
 
-.menu-container {
-  @apply flex items-center justify-between max-w-5xl mx-auto px-4 h-14 py-2 border-gray-200;
-}
-
-.menu-desktop {
-  @apply hidden md:flex items-center gap-4
-}
-
-.menu-mobile {
-  @apply md:hidden bg-white border-t;
-}
-
-.menu-mobile-content {
-  @apply flex flex-col p-3 space-y-2;
-}
-
 /* .title {
   @apply text-4xl font-bold text-gray-200 mb-6;
 }
@@ -30,37 +14,4 @@
 
 .main-container-body{
   @apply p-4 space-y-6 min-h-screen;
-}
-
-/* Cards */
-.card-container {
-  @apply overflow-hidden relative space-y-2 shadow-sm border rounded-lg;
-}
-
-.card-header {
-  @apply flex justify-between items-start px-4 py-1 rounded-t-lg;
-}
-
-.card-content {
-  @apply p-3;
-}
-
-.card-bottom-end {
-  @apply flex justify-end p-2
-}
-
-.card-header-far-right {
-  @apply px-3 rounded-full
-}
-
-.card-container-large {
-  @apply overflow-hidden relative space-y-2 shadow-sm border rounded-xl;
-} 
-
-.card-header-large {
-  @apply flex justify-between items-start px-1 py-1 rounded-t-xl;
-}
-
-.card-content-large {
-  @apply text-sm px-4;
 }

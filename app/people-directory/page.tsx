@@ -4,6 +4,7 @@ import { useState, useEffect, JSX } from 'react';
 import { doc, getDocs, updateDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { Person } from '../utils/interfaces';
+import ProtectedRoute from '../components/ProtectedRoute';
 import MainMenu from '../components/MainMenu';
 import PersonCard from '../components/PersonCard';
 import AddPersonModal from '../components/AddPersonModal';
@@ -90,50 +91,54 @@ const PeopleDirectory = (): JSX.Element => {
 
   return (
 
-    <main className="main-container-body">
+    <ProtectedRoute>
 
-      {/* Renderiza o menu principal da aplicação. */}
-      <MainMenu />
-      <h1 className="title-1">Diretório de Pessoas</h1>
+      <main className="main-container-body">
 
-      {/* Renderiza os cards de cada pessoa. */}
-      <div className="card-space-bellow">
-        {person.map(p => (
-          <PersonCard key={p.id} person={p}
-            onEditPerson={openEditPersonModal}
-            onToggleFavorite={toggleFavorite}
-          />
-        ))}
+        {/* Renderiza o menu principal da aplicação. */}
+        <MainMenu />
+        <h1 className="title-1">Diretório de Pessoas</h1>
 
-        {/* Modal de adição de nova pessoa. Abre quando isAddPersonModalOpen é verdadeiro. */}
-        {isAddPersonModalOpen && (
-          <AddPersonModal
-            onClose={() => setIsAddPersonModalOpen(false)}
-            onAdded={fetchPeople}
-            isOpen={isAddPersonModalOpen}
-          />
-        )}
+        {/* Renderiza os cards de cada pessoa. */}
+        <div className="card-spacing-bellow">
+          {person.map(p => (
+            <PersonCard key={p.id} person={p}
+              onEditPerson={openEditPersonModal}
+              onToggleFavorite={toggleFavorite}
+            />
+          ))}
 
-        {/* Modal de edição de pessoa. Abre quando isEditModalOpen é verdadeiro e uma pessoa está selecionada. */}
-        {isEditModalOpen && selectedPerson && (
-          <EditPersonModal
-            person={selectedPerson}
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            onUpdated={fetchPeople}
-            onDeleted={handlePersonDeleted}
-          />
-        )}
-      </div>
+          {/* Modal de adição de nova pessoa. Abre quando isAddPersonModalOpen é verdadeiro. */}
+          {isAddPersonModalOpen && (
+            <AddPersonModal
+              onClose={() => setIsAddPersonModalOpen(false)}
+              onAdded={fetchPeople}
+              isOpen={isAddPersonModalOpen}
+            />
+          )}
 
-      {/* Botão flutuante para adicionar uma nova pessoa. Ao clicar, abre o modal de adição. */}
-      <button
-        onClick={() => setIsAddPersonModalOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-green-600 transition"
-      >
-        +
-      </button>
-    </main>
+          {/* Modal de edição de pessoa. Abre quando isEditModalOpen é verdadeiro e uma pessoa está selecionada. */}
+          {isEditModalOpen && selectedPerson && (
+            <EditPersonModal
+              person={selectedPerson}
+              isOpen={isEditModalOpen}
+              onClose={() => setIsEditModalOpen(false)}
+              onUpdated={fetchPeople}
+              onDeleted={handlePersonDeleted}
+            />
+          )}
+        </div>
+
+        {/* Botão flutuante para adicionar uma nova pessoa. Ao clicar, abre o modal de adição. */}
+        <button
+          onClick={() => setIsAddPersonModalOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-green-600 transition"
+        >
+          +
+        </button>
+      </main>
+
+    </ProtectedRoute>
   );
 };
 

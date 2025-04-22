@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebaseConfig';
 import { Event, Person } from '@/app/utils/interfaces';
+import ProtectedRoute from '@/app/components/ProtectedRoute';
 import MainMenu from '@/app/components/MainMenu';
 
 /**
@@ -55,42 +56,45 @@ const EventDetails = () => {
 
   return (
 
-    <div className="p-6 space-y-6">
+    <ProtectedRoute>
 
-      {/* Renderiza o menu principal da aplicação. */}
-      <MainMenu />
-      <h1 className="text-xl font-semibold">Detalhes do Evento</h1>
+      <div className="p-6 space-y-6">
 
-      {/* Dados principais */}
-      <div className="bg-white p-4 rounded-lg shadow space-y-2">
-        <p><strong>Título:</strong> {event.title}</p>
-        <p><strong>Data:</strong> {event.date}</p>
-        <p><strong>Hora:</strong> {event.hour || 'Dia inteiro'}</p>
+        {/* Renderiza o menu principal da aplicação. */}
+        <MainMenu />
+        <h1 className="text-xl font-semibold">Detalhes do Evento</h1>
 
-        {/* Endereço */}
-        {event.zipcode && <p><strong>CEP:</strong> {event.zipcode}</p>}
-        {event.address && <p><strong>Endereço:</strong> {event.address}</p>}
-        {event.number && <p><strong>Número:</strong> {event.number}</p>}
-        {event.complement && <p><strong>Complemento:</strong> {event.complement}</p>}
-        {event.district && <p><strong>Bairro:</strong> {event.district}</p>}
-        {event.city && <p><strong>Cidade:</strong> {event.city}</p>}
-        {event.state && <p><strong>Estado:</strong> {event.state}</p>}
+        {/* Dados principais */}
+        <div className="bg-white p-4 rounded-lg shadow space-y-2">
+          <p><strong>Título:</strong> {event.title}</p>
+          <p><strong>Data:</strong> {event.date}</p>
+          <p><strong>Hora:</strong> {event.hour || 'Dia inteiro'}</p>
 
-        {/* Outras informações */}
-        {event.description && <p><strong>Notas:</strong> {event.description}</p>}
+          {/* Endereço */}
+          {event.zipcode && <p><strong>CEP:</strong> {event.zipcode}</p>}
+          {event.address && <p><strong>Endereço:</strong> {event.address}</p>}
+          {event.number && <p><strong>Número:</strong> {event.number}</p>}
+          {event.complement && <p><strong>Complemento:</strong> {event.complement}</p>}
+          {event.district && <p><strong>Bairro:</strong> {event.district}</p>}
+          {event.city && <p><strong>Cidade:</strong> {event.city}</p>}
+          {event.state && <p><strong>Estado:</strong> {event.state}</p>}
 
-        {/* Pessoa associada */}
-        {person && (
-          <div className="p-3 bg-gray-50 rounded border">
-            <p><strong>{person.name}</strong></p>
-            <p className="text-sm text-gray-500">{person.phone}</p>
-          </div>
-        )}
+          {/* Outras informações */}
+          {event.description && <p><strong>Notas:</strong> {event.description}</p>}
+
+          {/* Pessoa associada */}
+          {person && (
+            <div className="p-3 bg-gray-50 rounded border">
+              <p><strong>{person.name}</strong></p>
+              <p className="text-sm text-gray-500">{person.phone}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Botão Voltar */}
+        <button onClick={() => router.back()} className="btn-secondary w-full">Voltar</button>
       </div>
-
-      {/* Botão Voltar */}
-      <button onClick={() => router.back()} className="btn-secondary w-full">Voltar</button>
-    </div>
+    </ProtectedRoute>
   );
 };
 

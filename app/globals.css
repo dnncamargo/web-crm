@@ -2,6 +2,7 @@
 @tailwind components;
 
 @import '../app/styles/layout.css';
+@import '../app/styles/menu.css';
 @import '../app/styles/cards.css';
 @import '../app/styles/text.css';
 @import '../app/styles/colors.css';

@@ -4,6 +4,7 @@ import { useState, JSX } from 'react'
 import { usePathname } from 'next/navigation'
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
+import LogoutButton from './LogoutButton'
 
 /**
  * @component
@@ -47,6 +48,7 @@ const MainMenu = (): JSX.Element => {
           <Link href="/people-directory" className={linkClass('/people-directory')}>Pessoas</Link>
           <Link href="/events-history" className={linkClass('/events-history')}>Eventos</Link>
           <Link href="/task-list" className={linkClass('/task-list')}>Tarefas</Link>
+          <LogoutButton />
         </div>
 
         {/* Botão mobile */}
@@ -66,26 +68,32 @@ const MainMenu = (): JSX.Element => {
       {isOpen && (
         <div className="menu-mobile">
           <div className="menu-mobile-content">
-            <Link
-              href="/people-directory"
-              className={linkClass('/people-directory')}
-              onClick={toggleMenu}
-            >
-              Pessoas
-            </Link>
-            <Link
-              href="/events-history"
-              className={linkClass('/events-history')}
-              onClick={toggleMenu}
-            >
-              Eventos
-            </Link>
-            <Link
-              href="/task-list"
-              className={linkClass('/task-list')}
-              onClick={toggleMenu}
-            > Tarefas
-            </Link>
+
+            <div className="menu-mobile-links">
+              <Link
+                href="/people-directory"
+                className={linkClass('/people-directory')}
+                onClick={toggleMenu}
+              >
+                Pessoas
+              </Link>
+              <Link
+                href="/events-history"
+                className={linkClass('/events-history')}
+                onClick={toggleMenu}
+              >
+                Eventos
+              </Link>
+              <Link
+                href="/task-list"
+                className={linkClass('/task-list')}
+                onClick={toggleMenu}
+              > Tarefas
+              </Link>
+            </div>
+            <div className="flex justify-end">
+              <LogoutButton />
+            </div>
           </div>
         </div>
       )}

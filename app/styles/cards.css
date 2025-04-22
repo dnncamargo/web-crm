@@ -1,9 +1,37 @@
-.card-space-bellow {
+/* Cards */
+
+.card-spacing-bellow {
   @apply space-y-2;
 }
 
-/* .card-container:hover {
-  @apply shadow-lg;
-} */
+.card-container {
+  @apply overflow-hidden relative shadow-sm border rounded-lg;
+}
 
+.card-header {
+  @apply flex justify-between items-start px-4 py-1 rounded-t-lg;
+}
 
+.card-content {
+  @apply p-3;
+}
+
+.card-bottom-end {
+  @apply flex justify-end p-2
+}
+
+.card-header-far-right {
+  @apply px-3 rounded-full
+}
+
+.card-container-large {
+  @apply overflow-hidden relative space-y-2 shadow-sm border rounded-xl;
+} 
+
+.card-header-large {
+  @apply flex justify-between items-start px-1 py-1 rounded-t-xl;
+}
+
+.card-content-large {
+  @apply text-sm px-4;
+}

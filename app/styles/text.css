@@ -28,3 +28,11 @@
 .card-header-title-large {
     @apply text-base font-semibold ml-4;
 }
+
+.card-content-info {
+    @apply flex items-center text-sm;
+}
+
+.card-content-info-large {
+    @apply flex items-center text-base;
+}

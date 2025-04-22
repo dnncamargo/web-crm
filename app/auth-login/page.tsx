@@ -14,12 +14,14 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await signInWithEmailAndPassword(auth, email, password)
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      const token = await userCredential.user.getIdToken()
+      document.cookie = `token=${token}; path=/`
       router.push('/')
     } catch (error: any) {
       alert('Erro no login: ' + error.message)
     }
-  }
+  }  
 
   return (
     <div className="login-container">

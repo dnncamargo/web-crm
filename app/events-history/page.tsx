@@ -4,6 +4,7 @@ import { useState, useEffect, JSX } from 'react';
 import { getDocs, query, orderBy, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { Event } from '../utils/interfaces';
+import ProtectedRoute from '../components/ProtectedRoute';
 import MainMenu from '../components/MainMenu';
 import EventCard from '../components/EventCard';
 import AddEventModal from '../components/AddEventModal';
@@ -66,53 +67,57 @@ const EventsHistory = (): JSX.Element => {
 
   return (
 
-    <main className="main-container-body">
+    <ProtectedRoute>
 
-      {/* Renderiza o menu principal da aplicação. */}
-      <MainMenu />
-      <h1 className="title-1">Histórico de Eventos</h1>
+      <main className="main-container-body">
 
-      {/* Renderiza os cards de cada evento. */}
-      <div className="space-y-3">
-        {events.map(e => (
-          <EventCard
-            key={e.id}
-            event={e}
-            onEditEvent={openEditEventModal}
+        {/* Renderiza o menu principal da aplicação. */}
+        <MainMenu />
+        <h1 className="title-1">Histórico de Eventos</h1>
+
+        {/* Renderiza os cards de cada evento. */}
+        <div className="card-spacing-bellow">
+          {events.map(e => (
+            <EventCard
+              key={e.id}
+              event={e}
+              onEditEvent={openEditEventModal}
+            />
+          ))}
+        </div>
+
+
+        {/* Modal de adição de novo evento. Abre quando isAddEventModalOpen é verdadeiro */}
+        {isAddEventModalOpen && (
+          <AddEventModal
+            isOpen={isAddEventModalOpen}
+            onClose={() => setIsAddEventModalOpen(false)}
+            onAdded={fetchEvents}
           />
-        ))}
-      </div>
+        )}
 
 
-      {/* Modal de adição de novo evento. Abre quando isAddEventModalOpen é verdadeiro */}
-      {isAddEventModalOpen && (
-        <AddEventModal
-          isOpen={isAddEventModalOpen}
-          onClose={() => setIsAddEventModalOpen(false)}
-          onAdded={fetchEvents}
-        />
-      )}
+        {/* Modal de edição de evento. Abre quando isEditModalOpen é verdadeiro e um evento está selecionado */}
+        {isEditModalOpen && selectedEvent && (
+          <EditEventModal
+            event={selectedEvent}
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            onUpdated={fetchEvents}
+          />
+        )}
 
 
-      {/* Modal de edição de evento. Abre quando isEditModalOpen é verdadeiro e um evento está selecionado */}
-      {isEditModalOpen && selectedEvent && (
-        <EditEventModal
-          event={selectedEvent}
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          onUpdated={fetchEvents}
-        />
-      )}
-
-
-      {/* Botão flutuante para adicionar um novo evento */}
-      <button
-        onClick={() => setIsAddEventModalOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-blue-600 transition"
-      >
-        +
-      </button>
-    </main>
+        {/* Botão flutuante para adicionar um novo evento */}
+        <button
+          onClick={() => setIsAddEventModalOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-blue-600 transition"
+        >
+          +
+        </button>
+      </main>
+      
+    </ProtectedRoute>
   );
 };
 

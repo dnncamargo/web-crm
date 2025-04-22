@@ -1,0 +1,20 @@
+
+.menu-container {
+  @apply flex items-end justify-between max-w-5xl mx-auto px-4 h-14 py-2 border-gray-200;
+}
+
+.menu-desktop {
+  @apply hidden md:flex items-center gap-4
+}
+
+.menu-mobile {
+  @apply md:hidden bg-white border-t;
+}
+
+.menu-mobile-content {
+  @apply flex flex-col p-3;
+}
+
+.menu-mobile-links {
+  @apply flex flex-col space-y-2;
+}
