@@ -156,13 +156,13 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
       {/* Topo do Modal de Inclusão de Pessoa */}
       <div className="p-4">
         <div className="flex justify-between items-center mb-6">
-          <button onClick={onClose} className="text-blue-500 text-lg">
+          <button onClick={onClose} className="color-pd-base text-lg">
             Cancelar
           </button>
           <h3 className="text-lg font-semibold">
             Novo Cadastro
           </h3>
-          <button onClick={handleSubmit} className="text-blue-500 text-lg">
+          <button onClick={handleSubmit} className="color-pd-base text-lg">
             Salvar
           </button>
         </div>
@@ -196,7 +196,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
             type="button"
             onClick={() => setShowMore(!showMore)}
             className={clsx('w-12 h-6 rounded-full transition flex items-center p-1',
-              showMore ? 'bg-blue-500' : 'bg-gray-300')}
+              showMore ? 'color-pd-base-bg' : 'bg-gray-300')}
           >
             <div className={clsx('bg-white w-4 h-4 rounded-full shadow transform transition', showMore ? 'translate-x-6' : 'translate-x-0')} />
           </button>
@@ -210,6 +210,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
                 <input
                   type="checkbox"
                   checked={useAddressAPI}
+                  accent-color-pd-base-bg
                   onChange={() => setUseAddressAPI(!useAddressAPI)} />
                 <span>Usar CEP</span>
               </div>

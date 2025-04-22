@@ -204,13 +204,13 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
       {/* Topo do Modal de Edição de Evento */}
       <div className="p-4 space-y-4">
         <div className="flex justify-between items-center mb-6">
-          <button onClick={onClose} className="text-blue-500 text-lg">
+          <button onClick={onClose} className="color-eh-base text-lg">
             Cancelar
           </button>
           <h3 className="text-lg font-semibold">
             Editar Evento
           </h3>
-          <button onClick={handleUpdate} className="text-blue-500 text-lg">
+          <button onClick={handleUpdate} className="color-eh-base text-lg">
             Salvar
           </button>
         </div>
@@ -264,7 +264,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
               }}
               className={clsx(
                 'w-12 h-6 rounded-full transition flex items-center p-1',
-                allDay ? 'bg-blue-500' : 'bg-gray-300'
+                allDay ? 'color-eh-base-bg' : 'bg-gray-300'
               )}
             >
               <div
@@ -368,7 +368,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
               }}
               className={clsx(
                 'w-12 h-6 rounded-full transition flex items-center p-1',
-                associatePerson ? 'bg-blue-500' : 'bg-gray-300'
+                associatePerson ? 'color-eh-base-bg' : 'bg-gray-300'
               )}
             >
               <div

@@ -8,6 +8,10 @@
     @apply text-green-600
 }
 
+.color-pd-base-bg {
+    @apply bg-green-600
+}
+
 .color-pd-dark {
     @apply text-green-800
 }

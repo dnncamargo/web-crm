@@ -149,13 +149,13 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
       {/* Topo do Modal de Edição da Pessoa */}
       <div className="p-4">
         <div className="flex justify-between items-center mb-6">
-          <button onClick={onClose} className="text-blue-500 text-lg">
+          <button onClick={onClose} className="color-pd-base text-lg">
             Cancelar
           </button>
           <h3 className="text-lg font-semibold">
             Editar Cadastro
           </h3>
-          <button onClick={handleUpdate} className="text-blue-500 text-lg">
+          <button onClick={handleUpdate} className="color-pd-base text-lg">
             Salvar
           </button>
         </div>
@@ -168,7 +168,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
             onClick={() => setFavorite(!favorite)}
             className={clsx(
               'w-12 h-6 rounded-full transition flex items-center p-1',
-              favorite ? 'bg-red-500' : 'bg-gray-300'
+              favorite ? 'color-pd-base-bg' : 'bg-gray-300'
             )}
           >
             <div
@@ -209,7 +209,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
             type="button"
             onClick={() => setShowMore(!showMore)}
             className={clsx('w-12 h-6 rounded-full transition flex items-center p-1',
-              showMore ? 'bg-blue-500' : 'bg-gray-300')}
+              showMore ? 'color-pd-base-bg' : 'bg-gray-300')}
           >
             <div className={clsx('bg-white w-4 h-4 rounded-full shadow transform transition', showMore ? 'translate-x-6' : 'translate-x-0')} />
           </button>
