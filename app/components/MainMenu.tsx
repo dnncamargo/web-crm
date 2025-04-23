@@ -48,6 +48,7 @@ const MainMenu = (): JSX.Element => {
           <Link href="/people-directory" className={linkClass('/people-directory')}>Pessoas</Link>
           <Link href="/events-history" className={linkClass('/events-history')}>Eventos</Link>
           <Link href="/task-list" className={linkClass('/task-list')}>Tarefas</Link>
+          <Link href="/task-list-2" className={linkClass('/task-list')}>Tarefas 2</Link>
           <LogoutButton />
         </div>
 
@@ -89,6 +90,12 @@ const MainMenu = (): JSX.Element => {
                 className={linkClass('/task-list')}
                 onClick={toggleMenu}
               > Tarefas
+              </Link>
+              <Link
+                href="/task-list-2"
+                className={linkClass('/task-list')}
+                onClick={toggleMenu}
+              > Tarefas 2
               </Link>
             </div>
             <div className="flex justify-end">

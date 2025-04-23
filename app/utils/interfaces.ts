@@ -48,4 +48,9 @@ export interface Task {
   title: string;
   completed: boolean;
   date?: string; 
+  event?: string;
+  groupId?: string;
+  parentId?: string; 
+  order?: number;
+  createdAt?: Date | Timestamp;
 }

@@ -38,5 +38,6 @@ export const config = {
     '/people-directory/:path*',
     '/events-history/:path*',
     '/task-list/:path*',
+    '/task-list-2/:path*',
   ],
 }
