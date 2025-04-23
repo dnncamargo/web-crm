@@ -48,7 +48,7 @@ export default function TaskCard({ task, onToggle, onUpdate, onDelete }: {
     <li
       ref={setNodeRef}
       style={style}
-      className="grid grid-cols-[auto_1fr_auto] gap-3 bg-white p-3 rounded shadow group cursor-move">
+      className="grid grid-cols-[auto_1fr_auto] gap-3 bg-white p-3 rounded shadow group">
 
       {/* Alça de drag */}
       <div 
@@ -72,7 +72,7 @@ export default function TaskCard({ task, onToggle, onUpdate, onDelete }: {
       </div>
 
       {/* Área de Texto */}
-      <div onClick={handleEdit} className="w-full">
+      <div onClick={handleEdit} className="grid">
         {isEditing ? (
           <input
             value={editValue}
@@ -95,7 +95,7 @@ export default function TaskCard({ task, onToggle, onUpdate, onDelete }: {
       {/* Botão de Excluir */}
       <button
         onClick={() => onDelete(task)}
-        className="text-xs text-gray-400 group-hover:opacity-100"
+        className="text-xs text-gray-400 opacity-0 group-hover:opacity-100 justify-self-end self-end"
       >
         Excluir
       </button>
