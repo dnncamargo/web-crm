@@ -30,10 +30,10 @@ export default function TaskCard({ task, onToggle, onDelete }: {
       style={style}
       {...attributes}
       {...listeners}
-      className="bg-white p-3 rounded shadow flex items-center justify-between">
+      className="bg-white p-3 rounded shadow flex justify-items-stretch justify-between">
       {/* Checkbox */}
       <div
-        className="flex items-center gap-3 cursor-pointer"
+        className="mt-2 mr-2 gap-3 cursor-pointer"
         onClick={() => onToggle(task)}>
         <div
           className={`w-5 h-5 border-2 rounded 
@@ -54,7 +54,7 @@ export default function TaskCard({ task, onToggle, onDelete }: {
       </button> */}
       <button
         onClick={() => onDelete(task)}
-        className="text-xs text-gray-400 group-hover:opacity-100"
+        className="flex items-end text-xs text-gray-400 group-hover:opacity-100"
       >
         Excluir
       </button>
