@@ -1,40 +1,102 @@
-# web-crm
+# Connexus - Seu Hub de Conexão e Organização de Eventos 🔗🗓️
 
-The page is live at https://web-crm-nine.vercel.app/
+[![Vercel](https://vercel.com/button)](https://web-crm-nine.vercel.app/)
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Connexus é uma plataforma web construída com Next.js para facilitar a organização e o acompanhamento de eventos 📅, além de gerenciar seu diretório de contatos 🧑‍🤝‍🧑 e tarefas ✅. Acesse a versão online em [https://web-crm-nine.vercel.app/](https://web-crm-nine.vercel.app/).
 
-## Getting Started
+## Funcionalidades Atuais (v0.1.0)
 
-First, run the development server:
+* **Dashboard de Eventos Futuros:** Visualize de forma clara os próximos eventos 🗓️.
+* **Diretório de Pessoas:** Gerencie seus contatos 🧑‍🤝‍🧑 com informações relevantes.
+* **Histórico de Eventos:** Acompanhe os eventos passados ⏪ para referência.
+* **Lista de Tarefas:** Organize suas atividades ✅ e mantenha-se produtivo.
+* **Autenticação de Usuário:** Segurança 🛡️ e personalização através do Firebase Authentication.
+* **Persistência de Dados na Nuvem:** Dados seguros ☁️ e acessíveis utilizando o Firebase.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Próximas Funcionalidades (v0.1.1 - Em Desenvolvimento 🛠️)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A próxima versão do Connexus trará ainda mais poder para sua organização:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+* **Sugestões de Eventos:** Receba ideias e sugestões ✨ para seus próximos eventos.
+* **Avaliação de Eventos:** Colete feedback ⭐ e avalie o sucesso de seus eventos.
+* **Filtros e Pesquisa:** Encontre rapidamente eventos, pessoas e tarefas específicas 🔍.
+* **Grupos de Tarefas:** Organize suas tarefas em categorias 📂 e projetos.
+* **Tarefas com Subníveis:** Divida tarefas complexas em subtarefas gerenciáveis 🪜.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Tecnologias Utilizadas 💻
 
-## Learn More
+* [Next.js](https://nextjs.org/): Framework React para aplicações web com renderização server-side e muito mais.
+* [Tailwind CSS](https://tailwindcss.com/): Framework CSS utilitário para estilização rápida e responsiva.
+* [Heroicons](https://heroicons.com/): Biblioteca de ícones SVG para interfaces de usuário modernas.
+* [Firebase](https://firebase.google.com/): Plataforma de desenvolvimento da Google Cloud para persistência de dados na nuvem (Firestore) e autenticação de usuários (Firebase Authentication).
+* [create-next-app](https://create-next-app.dev/): Ferramenta utilizada para inicializar o projeto Next.js.
 
-To learn more about Next.js, take a look at the following resources:
+## Como Executar Localmente (Para Desenvolvedores 🧑‍💻)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Se você deseja executar o Connexus localmente para desenvolvimento ou contribuição, siga estas etapas:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1.  **Clone o repositório (se o código for público):**
+    ```bash
+    git clone [https://docs.github.com/articles/referencing-and-citing-content](https://docs.github.com/articles/referencing-and-citing-content)
+    ```
+2.  **Navegue até o diretório do projeto:**
+    ```bash
+    cd connexus
+    ```
+3.  **Instale as dependências:**
+    ```bash
+    npm install
+    # ou
+    yarn install
+    # ou
+    pnpm install
+    ```
+4.  **Configure o Firebase:**
+    * Crie um projeto no [Firebase Console](https://console.firebase.google.com/).
+    * Configure a autenticação (Firebase Authentication).
+    * Crie um banco de dados Firestore.
+    * Obtenha as configurações do seu projeto Firebase (apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId).
+    * Crie um arquivo `.env.local` na raiz do seu projeto e adicione suas configurações do Firebase como variáveis de ambiente:
+        ```env
+        NEXT_PUBLIC_FIREBASE_API_KEY=SUA_API_KEY
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=SEU_AUTH_DOMAIN
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID=SEU_PROJECT_ID
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=SEU_STORAGE_BUCKET
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=SEU_MESSAGING_SENDER_ID
+        NEXT_PUBLIC_FIREBASE_APP_ID=SEU_APP_ID
+        ```
+5.  **Execute o servidor de desenvolvimento:**
+    ```bash
+    npm run dev
+    # ou
+    yarn dev
+    # ou
+    pnpm dev
+    ```
+6.  **Abra seu navegador em `http://localhost:3000` para visualizar o Connexus.**
 
-## Deploy on Vercel
+## Contribuição 🙏
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Contribuições são sempre bem-vindas! Se você tiver ideias para melhorias 💡, encontrou bugs 🐛 ou quer adicionar novas funcionalidades ✨, siga estas etapas:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1.  Faça um **fork** do repositório.
+2.  Crie uma **branch** para sua contribuição (`git checkout -b feature/sua-melhoria`).
+3.  Faça seus **commits** com mensagens claras e descritivas (`git commit -m 'Adiciona funcionalidade X'`).
+4.  Faça **push** para a sua branch (`git push origin feature/sua-melhoria`).
+5.  Abra um **Pull Request** para o repositório principal.
+
+## Licença 📄
+
+Este projeto está sob a licença [INSERIR LICENÇA AQUI - Ex: MIT]. Consulte o arquivo `LICENSE` para obter mais detalhes.
+
+## Autores ✍️
+
+* [Seu Nome/Nome da Equipe]([Link para seu GitHub ou outro perfil])
+
+## Status do Projeto 🚦
+
+Em desenvolvimento ativo. A versão `0.1.1` está em andamento com as novas funcionalidades planejadas.
+
+---
+
+Feito com ❤️ usando Next.js, Tailwind CSS e Firebase.

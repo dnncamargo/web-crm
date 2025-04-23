@@ -47,12 +47,12 @@ const PeopleDirectory = (): JSX.Element => {
       // Favoritos primeiro
       const sorted = peopleData.sort((a, b) => {
         // Ordenação primária: favoritos primeiro
-        if(a.favorite && !b.favorite) {
-          return (Number(b.favorite) || 0) - (Number(a.favorite) || 0); // true (1) vem antes de false (0)
+        const favDiff = Number(b.favorite) - Number(a.favorite);
+        if (favDiff !== 0) {
+          return favDiff;
         }
         return a.name.localeCompare(b.name); // Ordenação secundária: por nome
       });
-      console.log('Pessoas:', sorted);
       // Atualiza o estado 'person' com os dados ordenados.
       setPeople(sorted);
     } catch (error) {

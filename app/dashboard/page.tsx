@@ -12,7 +12,8 @@ import UpcomingEventCard from '../components/UpcomingEventCard';
 
 type GroupedEvents = {
   today: Event[],
-  week: Event[],
+  thisWeek: Event[],
+  thisMonth: Event[],
   nextMonth: Event[],
   future: Event[]
 }
@@ -26,7 +27,8 @@ export default function Dashboard(): JSX.Element {
   const [person, setPerson] = useState<Person[]>([])
   const [events, setEvents] = useState<GroupedEvents>({
     today: [],
-    week: [],
+    thisWeek: [],
+    thisMonth: [],
     nextMonth: [],
     future: []
   })
@@ -66,29 +68,47 @@ export default function Dashboard(): JSX.Element {
       orderBy('hour')
     )
     const querySnapshot = await getDocs(q)
-    const allEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Event[]
+    const allEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Event[];
+    groupEventsByTime(allEvents);
+  }
 
+  /**
+   * @function groupEventsByTime
+   * @description Agrupa uma lista de eventos (`allEvents`) em categorias temporais: hoje, esta semana, este mês, próximo mês e futuro.
+   * Utiliza as funções `parseISO`, `isToday`, `isThisWeek`, `isSameMonth`, e `addMonths` da biblioteca `date-fns` para realizar a categorização.
+   * O resultado da agrupamento é um objeto do tipo `GroupedEvents`, que é então utilizado para atualizar o estado `events`.
+   * @param {Event[]} allEvents - Um array de objetos `Event`, onde cada objeto deve ter uma propriedade `date` no formato ISO 8601.
+   * @returns {void} - Esta função não retorna um valor diretamente, mas atualiza o estado `events` com os eventos agrupados.
+   */
+  const groupEventsByTime = (allEvents: Event[]): void => {
     const grouped = allEvents.reduce<GroupedEvents>((acc, event) => {
-      const date = parseISO(event.date)
-      const now = new Date()
+      const date = parseISO(event.date);
+      const now = new Date();
+
+      const isSameMonth = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+      const isNextMonth = date.getMonth() === addMonths(now, 1).getMonth() && date.getFullYear() === addMonths(now, 1).getFullYear();
 
       if (isToday(date)) {
-        acc.today.push(event)
-      } else if (isThisWeek(date, { weekStartsOn: 1 })) {
-        acc.week.push(event)
-      } else if (
-        date.getMonth() === addMonths(now, 1).getMonth() &&
-        date.getFullYear() === now.getFullYear()
-      ) {
-        acc.nextMonth.push(event)
+        acc.today.push(event);
+      } else if (isThisWeek(date, { weekStartsOn: 1 }) && isSameMonth) {
+        acc.thisWeek.push(event);
+      } else if (isSameMonth) {
+        acc.thisMonth.push(event);
+      } else if (isNextMonth) {
+        acc.nextMonth.push(event);
       } else {
-        acc.future.push(event)
+        acc.future.push(event);
       }
 
-      return acc
-    }, { today: [], week: [], nextMonth: [], future: [] })
-
-    setEvents(grouped)
+      return acc;
+    }, {
+      today: [],
+      thisWeek: [],
+      thisMonth: [],
+      nextMonth: [],
+      future: []
+    });
+    setEvents(grouped);
   }
 
   /**
@@ -131,7 +151,8 @@ export default function Dashboard(): JSX.Element {
             <section key={groupName}>
               <h2 className="title-2">
                 {groupName === 'today' && `Hoje (${groupEvents.length})`} {/* Eventos do dia */}
-                {groupName === 'week' && `Esta Semana (${groupEvents.length})`} {/* Eventos da Semana */}
+                {groupName === 'thisWeek' && `Esta Semana (${groupEvents.length})`} {/* Eventos da Semana */}
+                {groupName === 'thisMonth' && `Este Mês (${groupEvents.length})`} {/* Eventos do Mês */}
                 {groupName === 'nextMonth' && `Próximo Mês (${groupEvents.length})`} {/* Eventos do Próximo Mês */}
                 {groupName === 'future' && `Futuro (${groupEvents.length})`} {/* Eventos sem Data Específica */}
               </h2>
