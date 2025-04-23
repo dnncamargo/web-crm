@@ -89,7 +89,7 @@ export default function TasksList() {
     return (
         <main className="p-4 space-y-6 bg-gray-50 min-h-screen">
             <MainMenu />
-            <h1 className="text-2xl font-bold">Tarefas</h1>
+            <h1 className="text-2xl font-bold">Lista de Tarefas</h1>
 
             {/* Campo para adicionar nova tarefa */}
             <div className="flex items-center gap-3 bg-white p-3 rounded shadow">
