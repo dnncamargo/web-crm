@@ -141,7 +141,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
           birthday,
           note,
         }),
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
       });
       onAdded();
       onClose();

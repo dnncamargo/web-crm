@@ -45,7 +45,7 @@ export interface Event {
 
 export interface Task {
   id: string;
-  title: string;
+  content: string;
   completed: boolean;
   date?: string; 
   event?: string;

@@ -11,7 +11,6 @@ import {
 import {
     arrayMove,
     SortableContext,
-    useSortable,
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { useState, useEffect } from 'react'
@@ -38,7 +37,14 @@ export default function TasksList() {
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor)
-    )
+      )
+
+    useSensor(PointerSensor, {
+        activationConstraint: {
+          delay: 300, // milissegundos
+          tolerance: 5,
+        },
+      })
 
     const handleDragEnd = (event: any) => {
         const { active, over } = event
@@ -54,7 +60,12 @@ export default function TasksList() {
 
     const handleAddTask = async (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && newTask.trim() !== '') {
-            await addDoc(collection(db, 'tasks-list'), { title: newTask, completed: false })
+            await addDoc(collection(db, 'tasks-list'), 
+            { 
+                content: newTask, 
+                completed: false,
+                createdAt: new Date().toISOString()
+            })
             setNewTask('')
             fetchTasks()
         }
@@ -64,6 +75,11 @@ export default function TasksList() {
         await updateDoc(doc(db, 'tasks-list', task.id), { completed: !task.completed })
         fetchTasks()
     }
+
+    const handleUpdateTask = async (task: Task, newContent: string) => {
+        await updateDoc(doc(db, 'tasks-list', task.id), { content: newContent })
+        fetchTasks()
+      }
 
     const handleDeleteTask = async (task: Task) => {
         await deleteDoc(doc(db, 'tasks-list', task.id))
@@ -101,6 +117,7 @@ export default function TasksList() {
                                 key={task.id}
                                 task={task}
                                 onToggle={handleToggleComplete}
+                                onUpdate={handleUpdateTask}
                                 onDelete={handleDeleteTask} />
                         ))}
                     </ul>

@@ -169,7 +169,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
         state,
         description,
         ...(associatePerson && selectedPersonId && { personId: selectedPersonId }),
-        createdAt: new Date(),
+        createdAt: new Date().toISOString(),
       });
       onAdded();
       onClose();
