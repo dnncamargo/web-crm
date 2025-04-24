@@ -27,14 +27,18 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
+      provider.setCustomParameters({ prompt: 'select_account' }); 
+      // Solicita acesso ao Google Calendar
+      provider.addScope('https://www.googleapis.com/auth/calendar');
 
       const result = await signInWithPopup(auth, provider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const token = credential?.accessToken;
 
       const user = result.user;
-      sessionStorage.setItem('googleAccessToken', token ?? '')
+      localStorage.setItem('googleAccessToken', token ?? '')
+
+      document.cookie = `token=${await user.getIdToken()}; path=/`;
 
       router.push('/');
     } catch (error: any) {
@@ -50,14 +54,15 @@ export default function LoginPage() {
         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} className="login-input" required />
         <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="login-input" required />
         <button type="submit" className="login-button">Entrar</button>
-      </form>
-      <button
+        <button
         type="button"
         onClick={handleGoogleLogin}
-        className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 w-full mt-4"
+        className="login-button-google"
       >
         Entrar com Google
       </button>
+      </form>
+
 
     </div>
   )

@@ -28,6 +28,10 @@
     @apply w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-red-600 transition;
   }
 
+  .login-button-google {
+    @apply w-full bg-white text-gray-800 py-2 px-4 rounded-md border hover:bg-red-600 hover:text-gray-200 transition;
+  }
+
   .login-error {
     @apply text-sm text-red-500 mt-2;
   }

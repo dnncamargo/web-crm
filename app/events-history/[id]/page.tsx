@@ -90,12 +90,53 @@ const EventDetails = () => {
             </div>
           )}
         </div>
+        
+          
+        {/* Botão para criar evento no Google Calendar */}
+        <button
+          onClick={async () => {createGoogleCalendarEvent(sessionStorage.getItem('googleAccessToken') as string, {
+            summary: event.title,
+            start: {
+              dateTime: event.date + 'T' + event.hour,
+              timeZone: 'America/Sao_Paulo',
+            },
+            end: {
+              dateTime: event.date + 'T' + event.hour,
+              timeZone: 'America/Sao_Paulo',
+            },
+            location: event.address + ', ' + event.number + ', ' + event.city + ', ' + event.state,
+            description: event.description,
+          })}}
+          className="btn-primary w-full">
+            Criar evento no Google Calendar
+          </button>
 
         {/* Botão Voltar */}
-        <button onClick={() => router.back()} className="btn-secondary w-full">Voltar</button>
+        <button 
+          onClick={() => router.back()} 
+          className="btn-secondary w-full">
+            Voltar
+        </button>
       </div>
     </ProtectedRoute>
   );
 };
 
 export default EventDetails;
+
+export   async function createGoogleCalendarEvent(accessToken: string, event: any) {
+  const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(event),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('Erro detalhado da API Google Calendar:', errorData);
+    throw new Error('Erro ao criar evento no Google Calendar');
+  }
+}
