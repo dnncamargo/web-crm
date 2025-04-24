@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signInWithEmailAndPassword } from 'firebase/auth'
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth'
 import { auth } from '../utils/firebaseConfig'
 import { useRouter } from 'next/navigation'
 import './login.css'
@@ -21,7 +21,31 @@ export default function LoginPage() {
     } catch (error: any) {
       alert('Erro no login: ' + error.message)
     }
-  }  
+  }
+
+
+  const handleGoogleLogin = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' }); // opcional
+
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+
+      const user = result.user;
+      console.log('Usuário:', user.displayName);
+      console.log('AccessToken:', token); // este token será usado para acessar a Google Calendar API
+
+      document.cookie = `token=${await user.getIdToken()}; path=/`;
+      // Você pode armazenar o accessToken num estado global seguro, ou enviá-lo para backend se necessário
+
+      router.push('/');
+    } catch (error: any) {
+      console.error('Erro ao fazer login com Google:', error);
+      alert('Erro ao fazer login com Google');
+    }
+  }
 
   return (
     <div className="login-container">
@@ -31,6 +55,14 @@ export default function LoginPage() {
         <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} className="login-input" required />
         <button type="submit" className="login-button">Entrar</button>
       </form>
+      <button
+        type="button"
+        onClick={handleGoogleLogin}
+        className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 w-full mt-4"
+      >
+        Entrar com Google
+      </button>
+
     </div>
   )
 }
