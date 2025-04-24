@@ -27,18 +27,14 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' }); // opcional
+      provider.setCustomParameters({ prompt: 'select_account' });
 
       const result = await signInWithPopup(auth, provider);
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const token = credential?.accessToken;
 
       const user = result.user;
-      console.log('Usuário:', user.displayName);
-      console.log('AccessToken:', token); // este token será usado para acessar a Google Calendar API
-
-      document.cookie = `token=${await user.getIdToken()}; path=/`;
-      // Você pode armazenar o accessToken num estado global seguro, ou enviá-lo para backend se necessário
+      sessionStorage.setItem('googleAccessToken', token ?? '')
 
       router.push('/');
     } catch (error: any) {

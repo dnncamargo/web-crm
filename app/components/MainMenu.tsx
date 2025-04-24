@@ -2,6 +2,7 @@
 
 import { useState, JSX, use, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
+import { useAuth } from './AuthProvider'
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 import LogoutButton from './LogoutButton'
@@ -32,17 +33,20 @@ const MainMenu = ({ externalCloseTrigger }: MainMenuProps): JSX.Element => {
    */
   const toggleMenu = (): void => setIsOpen(!isOpen)
 
+
   /**
    * @function linkClass
    * @description Gera as classes CSS para um link de navegação com base no caminho atual da URL. Aplica um estilo diferente para o link ativo.
    * @param {string} path - O caminho do link a ser estilizado.
    * @returns {string} Uma string contendo as classes CSS para o link.
-   */
+  */
   const linkClass = (path: string) =>
     `px-3 py-2 rounded-md text-sm font-medium transition ${pathname === path
       ? 'text-blue-900'
       : 'text-gray-600 hover:text-gray-900'
     }`
+
+  const { user } = useAuth() /** @const {object} user - Objeto que contém informações sobre o usuário autenticado, obtido do contexto de autenticação. */
 
   return (
     <header className="main-container-top">
@@ -52,6 +56,11 @@ const MainMenu = ({ externalCloseTrigger }: MainMenuProps): JSX.Element => {
         <Link href="/" className="title-logo">
           connexus
         </Link>
+
+        {/* Foto do usuário */}
+        <div className="flex items-center p-4">
+          {user?.photoURL && <img src={user.photoURL} className="w-5 h-5 rounded-full" alt="Foto do usuário" />}
+        </div>
 
         {/* Menu desktop */}
         <div className="menu-desktop">
