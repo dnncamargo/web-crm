@@ -9,6 +9,7 @@ import MainMenu from '../components/MainMenu';
 import PersonCard from '../components/PersonCard';
 import AddPersonModal from '../components/AddPersonModal';
 import EditPersonModal from '../components/EditPersonModal';
+import { UserPlusIcon } from '@heroicons/react/24/outline';
 
 /**
  * @component
@@ -21,7 +22,8 @@ const PeopleDirectory = (): JSX.Element => {
   const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);  /** @state {boolean} isAddPersonModalOpen - Controla a visibilidade do modal de adicionar uma nova pessoa. */
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);  /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de uma pessoa existente. */
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);  /** @state {Person | null} selectedPerson - A pessoa selecionada para edição. */
-
+  const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
+  
   useEffect(() => {
     // Chama a função fetchPeople quando o componente é montado.
     // Isso garante que a lista de pessoas seja carregada assim que o componente for exibido.
@@ -103,7 +105,7 @@ const PeopleDirectory = (): JSX.Element => {
       <main className="main-container-body">
 
         {/* Renderiza o menu principal da aplicação. */}
-        <MainMenu />
+        <MainMenu externalCloseTrigger={menuCloseTrigger}/>
         <h1 className="title-1">Diretório de Pessoas</h1>
 
         {/* Renderiza os cards de cada pessoa. */}
@@ -114,34 +116,38 @@ const PeopleDirectory = (): JSX.Element => {
               onToggleFavorite={toggleFavorite}
             />
           ))}
-
-          {/* Modal de adição de nova pessoa. Abre quando isAddPersonModalOpen é verdadeiro. */}
-          {isAddPersonModalOpen && (
-            <AddPersonModal
-              onClose={() => setIsAddPersonModalOpen(false)}
-              onAdded={fetchPeople}
-              isOpen={isAddPersonModalOpen}
-            />
-          )}
-
-          {/* Modal de edição de pessoa. Abre quando isEditModalOpen é verdadeiro e uma pessoa está selecionada. */}
-          {isEditModalOpen && selectedPerson && (
-            <EditPersonModal
-              person={selectedPerson}
-              isOpen={isEditModalOpen}
-              onClose={() => setIsEditModalOpen(false)}
-              onUpdated={fetchPeople}
-              onDeleted={handlePersonDeleted}
-            />
-          )}
         </div>
+
+        {/* Modal de adição de nova pessoa. Abre quando isAddPersonModalOpen é verdadeiro. */}
+        {isAddPersonModalOpen && (
+          <AddPersonModal
+            onClose={() => setIsAddPersonModalOpen(false)}
+            onAdded={fetchPeople}
+            isOpen={isAddPersonModalOpen}
+          />
+        )}
+
+        {/* Modal de edição de pessoa. Abre quando isEditModalOpen é verdadeiro e uma pessoa está selecionada. */}
+        {isEditModalOpen && selectedPerson && (
+          <EditPersonModal
+            person={selectedPerson}
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            onUpdated={fetchPeople}
+            onDeleted={handlePersonDeleted}
+          />
+        )}
 
         {/* Botão flutuante para adicionar uma nova pessoa. Ao clicar, abre o modal de adição. */}
         <button
-          onClick={() => setIsAddPersonModalOpen(true)}
+          onClick={() => 
+            {
+              setIsAddPersonModalOpen(true); // Abre o modal de adição
+              setMenuCloseTrigger(true)} // Fecha o menu principal ao abrir o modal de adição
+          }
           className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-green-600 transition"
         >
-          +
+          <UserPlusIcon className="w-6 h-6" />
         </button>
       </main>
 

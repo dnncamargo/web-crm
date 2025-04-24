@@ -34,5 +34,5 @@
 }
 
 .card-content-info-large {
-    @apply flex items-center text-base ;
+    @apply flex items-center text-base mb-2;
 }

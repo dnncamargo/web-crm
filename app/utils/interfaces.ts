@@ -19,6 +19,7 @@ export interface Person {
   note?: string;
   birthday?: string;
   favorite?: boolean;
+  contactFrequency?: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | null
   createdAt?: Date | Timestamp;
 }
 
@@ -53,4 +54,11 @@ export interface Task {
   parentId?: string; 
   order?: number;
   createdAt?: Date | Timestamp;
+}
+
+export interface EventSuggestion {
+  reason: 'birthday' | 'contactFrequency' | 'inactiveFavorite'
+  person: Person
+  suggestedDate: string // ISO
+  message?: string;
 }

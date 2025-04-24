@@ -51,7 +51,8 @@ export default function TaskCard({ task, onToggle, onUpdate, onDelete }: {
       className="grid grid-cols-[auto_1fr_auto] gap-3 bg-white p-3 rounded shadow group">
 
       {/* Alça de drag */}
-      <div 
+      <div
+        aria-label="Reordenar tarefa"
         className="cursor-grab active:cursor-grabbing"
         ref={setActivatorNodeRef}
         {...attributes}
@@ -76,6 +77,7 @@ export default function TaskCard({ task, onToggle, onUpdate, onDelete }: {
         {isEditing ? (
           <input
             value={editValue}
+            type='text'
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleKeyDown}
             onBlur={handleSave}
@@ -85,6 +87,8 @@ export default function TaskCard({ task, onToggle, onUpdate, onDelete }: {
         ) : (
           <button
             onClick={handleEdit}
+            aria-label="Editar tarefa"
+            type="button"
             className="w-full text-left text-sm hover:bg-gray-50 rounded px-1">
             <span className={`${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
               {task.content}
@@ -95,6 +99,8 @@ export default function TaskCard({ task, onToggle, onUpdate, onDelete }: {
       {/* Botão de Excluir */}
       <button
         onClick={() => onDelete(task)}
+        aria-label="Excluir tarefa"
+        type="button"
         className="text-xs text-gray-400 opacity-0 group-hover:opacity-100 justify-self-end self-end"
       >
         Excluir

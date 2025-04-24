@@ -1,19 +1,29 @@
 'use client'
 
-import { useState, JSX } from 'react'
+import { useState, JSX, use, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 import LogoutButton from './LogoutButton'
+
+interface MainMenuProps {
+  externalCloseTrigger?: boolean;
+}
 
 /**
  * @component
  * @description Componente para o menu principal de navegação do aplicativo. Exibe links para diferentes seções e um menu responsivo para telas menores.
  * @returns {JSX.Element} A interface do menu principal.
  */
-const MainMenu = (): JSX.Element => {
-  const [isOpen, setIsOpen] = useState(false) /** @state {boolean} isOpen - Controla a visibilidade do menu responsivo em telas menores. */
+const MainMenu = ({ externalCloseTrigger }: MainMenuProps): JSX.Element => {
+  const [isOpen, setIsOpen] = useState<boolean>(false) /** @state {boolean} isOpen - Controla a visibilidade do menu responsivo em telas menores. */
   const pathname = usePathname() /** @const {string} pathname - O caminho atual da URL, obtido usando `usePathname`. */
+
+  useEffect(() => {
+    if (externalCloseTrigger) {
+      setIsOpen(false)
+    }
+  }, [externalCloseTrigger])
 
   /**
    * @function toggleMenu

@@ -48,6 +48,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
   const [birthday, setBirthday] = useState(person.birthday || ''); /** @state {string} birthday - Data de nascimento. */
   const [note, setNote] = useState(''); /** @state {string} note - Alguma nota sobre a pessoa. */
   const [favorite, setFavorite] = useState(person.favorite || false); /** @state {boolean} favorite - Indica se a pessoa é favorita. */
+  const [contactFrequency, setContactFrequency] = useState<Person['contactFrequency']>(person.contactFrequency || null); /** @state {string | null} contactFrequency - Frequência de contato. */
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
   const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
@@ -130,22 +131,23 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
       return;
     }
 
-    try{
+    try {
       const personRef = doc(db, 'people-directory', person.id);
       await updateDoc(personRef, {
-        name, 
-        phone, 
-        email, 
+        name,
+        phone,
+        email,
         favorite,
+        contactFrequency,
         ...(showMore && {
-          zipcode, 
-          address, 
-          number, 
-          complement, 
-          district, 
-          city, 
-          state, 
-          birthday, 
+          zipcode,
+          address,
+          number,
+          complement,
+          district,
+          city,
+          state,
+          birthday,
           note
         }),
       });
@@ -156,22 +158,22 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
     }
   };
 
- /**
-   * @async
-   * @function handleDelete
-   * @description Exclui o documento atual do Firestore.
-   * @returns {Promise<void>}
-   */
- const handleDelete = async (): Promise<void> => {
-  try {
-    const personRef = doc(db, 'people-directory', person.id);
-    await deleteDoc(personRef);
-    onDeleted(); // Chama a função onDeleted para indicar sucesso na exclusão
-    onClose();
-  } catch (error) {
-    console.error("Erro ao excluir o cadastro da pessoa: ", error);
-  }
-};
+  /**
+    * @async
+    * @function handleDelete
+    * @description Exclui o documento atual do Firestore.
+    * @returns {Promise<void>}
+    */
+  const handleDelete = async (): Promise<void> => {
+    try {
+      const personRef = doc(db, 'people-directory', person.id);
+      await deleteDoc(personRef);
+      onDeleted(); // Chama a função onDeleted para indicar sucesso na exclusão
+      onClose();
+    } catch (error) {
+      console.error("Erro ao excluir o cadastro da pessoa: ", error);
+    }
+  };
 
   return (
 
@@ -354,6 +356,21 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
                 </div>
               </>
             )}
+            {/* Frequência de Contato */}
+            <div className="flex justify-between items-center mb-4">
+              <span>Frequência de contato</span>
+              <select
+                value={contactFrequency ?? ''}
+                onChange={(e) => setContactFrequency(e.target.value as Person['contactFrequency'])}
+                className="p-2 border border-gray-300 rounded"
+              >
+                <option value="">Sem frequência</option>
+                <option value="weekly">Semanal</option>
+                <option value="biweekly">Quinzenal</option>
+                <option value="monthly">Mensal</option>
+                <option value="quarterly">Trimestral</option>
+              </select>
+            </div>
 
             {/* Excluir Pessoa */}
             <div className="flex justify-end mt-6">

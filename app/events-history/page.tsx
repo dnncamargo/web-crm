@@ -9,6 +9,8 @@ import MainMenu from '../components/MainMenu';
 import EventCard from '../components/EventCard';
 import AddEventModal from '../components/AddEventModal';
 import EditEventModal from '../components/EditEventModal';
+import { CalendarDaysIcon } from '@heroicons/react/24/outline';
+import { PlusIcon } from '@heroicons/react/16/solid';
 
 /**
  * @component
@@ -21,6 +23,7 @@ const EventsHistory = (): JSX.Element => {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);  /** @state {Event | null} selectedEvent - O evento selecionado para edição. */
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);  /** @state {boolean} isAddEventModalOpen - Controla a visibilidade do modal de adicionar um novo evento. */
   const [isEditModalOpen, setIsEditModalOpen] = useState(false); /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de um evento existente. */
+  const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
 
   useEffect(() => {
     // Chama a função fetchEvents quando o componente é montado.
@@ -72,7 +75,7 @@ const EventsHistory = (): JSX.Element => {
       <main className="main-container-body">
 
         {/* Renderiza o menu principal da aplicação. */}
-        <MainMenu />
+        <MainMenu externalCloseTrigger={menuCloseTrigger}/>
         <h1 className="title-1">Histórico de Eventos</h1>
 
         {/* Renderiza os cards de cada evento. */}
@@ -110,10 +113,14 @@ const EventsHistory = (): JSX.Element => {
 
         {/* Botão flutuante para adicionar um novo evento */}
         <button
-          onClick={() => setIsAddEventModalOpen(true)}
+          onClick={() => {
+            setIsAddEventModalOpen(true); // Abre o modal de adição
+            setMenuCloseTrigger(true); // Fecha o menu principal ao abrir o modal
+          }}
           className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-blue-600 transition"
         >
-          +
+          <CalendarDaysIcon className="w-6 h-6 absolute mr-1"/>
+          <PlusIcon className="w-4 h-4 absolute ml-5 mb-5" />
         </button>
       </main>
       

@@ -4,11 +4,13 @@ import { useState, useEffect, JSX } from 'react';
 import { getDocs, query, where, orderBy, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { Event, Person } from '../utils/interfaces';
-import { format, isToday, isThisWeek, isThisMonth, addMonths, parseISO } from 'date-fns';
+import { format, isToday, isThisWeek, addMonths, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ProtectedRoute from '../components/ProtectedRoute'
 import MainMenu from '../components/MainMenu';
 import UpcomingEventCard from '../components/UpcomingEventCard';
+import { StarIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import SuggestionPanel from '../components/SuggestionPanel';
 
 type GroupedEvents = {
   today: Event[],
@@ -24,16 +26,20 @@ type GroupedEvents = {
  * @returns {JSX.Element} A interface da página inicial.
  */
 export default function Dashboard(): JSX.Element {
-  const [person, setPerson] = useState<Person[]>([])
+  const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore. */
   const [events, setEvents] = useState<GroupedEvents>({
     today: [],
     thisWeek: [],
     thisMonth: [],
     nextMonth: [],
     future: []
-  })
+  }); /** @state {GroupedEvents} events - Array de eventos agrupados por data. */
+  const [showSuggestions, setShowSuggestions] = useState(false); /** @state {boolean} showSuggestions - Controla a visibilidade do painel de sugestões de eventos. */
+  const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
 
   useEffect(() => {
+    // Chama as funções fetchPerson e fetchAndGroupEvents quando o componente é montado.
+    // Isso garante que a lista de pessoas e eventos seja carregada assim que o componente for exibido.
     fetchPerson();
     fetchAndGroupEvents()
   }, []);
@@ -111,6 +117,10 @@ export default function Dashboard(): JSX.Element {
     setEvents(grouped);
   }
 
+  const refreshDashboardEvents = async () => {
+    await fetchAndGroupEvents(); // invoca a função para buscar e agrupar eventos novamente
+  };
+
   /**
    * @function formatDate
    * @description Formata uma string de data (ISO 8601) para um formato legível em português brasileiro, opcionalmente incluindo a hora.
@@ -143,7 +153,7 @@ export default function Dashboard(): JSX.Element {
       <main className="main-container-body">
 
         {/* Renderiza o menu principal da aplicação. */}
-        <MainMenu />
+        <MainMenu externalCloseTrigger={menuCloseTrigger}/>
         <h1 className="title-1">Próximos Eventos</h1>
 
         {Object.entries(events).map(([groupName, groupEvents]) => (
@@ -166,6 +176,27 @@ export default function Dashboard(): JSX.Element {
         {Object.values(events).flat().length === 0 && (
           <p className="text-gray-600">Nenhum evento futuro agendado.</p>
         )}
+
+        {/* Renderiza o painel de sugestões de eventos. Abre quando showSuggestions é verdadeiro. */}
+        {showSuggestions && (
+          <SuggestionPanel
+            onClose={() => setShowSuggestions(false)}
+            onEventCreated={refreshDashboardEvents} // Passa a função de atualização para o painel de sugestões
+          />
+        )}
+
+        {/* Botão flutuante de Sugestão de Eventos */}
+        <button
+          onClick={() => {
+            setShowSuggestions(true); // Abre o painel de sugestões
+            setMenuCloseTrigger(true); // Fecha o menu principal ao abrir o painel de sugestões
+          }}
+          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg animate-pulse z-50"
+          aria-label="Ver sugestões"
+        >
+          <StarIcon className="w-6 h-6"/>
+          
+        </button>
 
       </main>
 

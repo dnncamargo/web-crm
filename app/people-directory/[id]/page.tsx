@@ -86,6 +86,24 @@ const PersonDetails = (): JSX.Element => {
           {person.note && <p><strong>Notas:</strong> {person.note}</p>}
         </div>
 
+        {/* Frequência de Contato */}
+        <div className="bg-white p-4 rounded-lg shadow space-y-2">
+          <span className="font-semibold mb-2">Frequência de Contato: </span>
+          {person.contactFrequency ? (
+            <span>
+              {
+                {
+                  weekly: 'Semanal',
+                  biweekly: 'Quinzenal',
+                  monthly: 'Mensal',
+                  quarterly: 'Trimestral',
+                }[person.contactFrequency]
+              }
+            </span>) : (
+            <span className="text-gray-500">Nenhuma frequência definida.</span>
+          )}
+        </div>
+
         {/* Eventos relacionados */}
         {events.length > 0 && (
           <div className="bg-white p-4 rounded-lg shadow space-y-3">
