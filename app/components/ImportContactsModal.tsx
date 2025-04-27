@@ -77,7 +77,7 @@ export default function ImportContactsPage() {
     try {
       const selectedContacts = contacts.filter(c => selectedIds.includes(c.resourceName));
       const batch = selectedContacts.map(contact =>
-        addDoc(collection(db, `users/${user.uid}/people-directory`), {
+        addDoc(collection(db, `users/${user!.uid}/people-directory`), {
           name: contact.displayName,
           phone: contact.phone,
           email: contact.email || '',
