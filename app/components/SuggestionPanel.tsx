@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { addDoc, getDocs, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { useAuth } from '../components/AuthProvider';
 import { motion } from 'framer-motion';
 import { differenceInDays, isAfter, parseISO, add } from 'date-fns'
 import { XMarkIcon } from '@heroicons/react/24/outline'
@@ -16,18 +17,25 @@ interface SuggestionPanelProps {
 }
 
 export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionPanelProps) {
+    const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
     const [suggestions, setSuggestions] = useState<EventSuggestion[]>([])
 
     useEffect(() => {
-        fetchSuggestions()
-    }, [])
+        if (user) {
+            fetchSuggestions()
+        }
+    }, [ user ])
+
+    if (!user) {
+        return <p>Carregando usuário...</p>;
+      }
 
     const fetchSuggestions = async () => {
         // buscar pessoas e eventos
         // aplicar a lógica de filtro
         // atualizar o estado
-        const peopleSnap = await getDocs(collection(db, 'people-directory'))
-        const eventsSnap = await getDocs(collection(db, 'events-history'))
+        const peopleSnap = await getDocs(collection(db, `users/${user.uid}/people-directory`))
+        const eventsSnap = await getDocs(collection(db, `users/${user.uid}/events-history`))
 
         const people = peopleSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Person[]
         const events = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Event[]
@@ -59,7 +67,7 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
             const birthday = person.birthday ? parseISO(person.birthday) : null
             const lastEvent = events
                 .filter(e => e.personId === person.id)
-                .sort((a, b) => (new Date(b.date)).getTime() - (new Date(a.date)).getTime())[0]
+                .sort((a, b) => (new Date(b.startDate)).getTime() - (new Date(a.startDate)).getTime())[0]
 
             {/* Aniversário nos próximos 7 dias */ }
             if (birthday) {
@@ -75,7 +83,7 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
             }
 
             {/* Frequência de contato vencida */ }
-            const nextContact = getNextContactDate(lastEvent?.date ? new Date(lastEvent.date) : null, person.contactFrequency)
+            const nextContact = getNextContactDate(lastEvent?.startDate ? new Date(lastEvent.startDate) : null, person.contactFrequency)
             if (nextContact && isAfter(now, nextContact)) {
                 suggestions.push({
                     reason: 'contactFrequency',
@@ -85,7 +93,7 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
             }
 
             {/* Favoritos sem eventos há muito tempo */ }
-            if (person.favorite && (!lastEvent || differenceInDays(now, new Date(lastEvent.date)) > 90)) {
+            if (person.favorite && (!lastEvent || differenceInDays(now, new Date(lastEvent.startDate)) > 90)) {
                 suggestions.push({
                     reason: 'inactiveFavorite',
                     person,
@@ -98,7 +106,7 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
 
     const handleAccept = async (suggestion: EventSuggestion) => {
         // Podemos futuramente abrir um modal para edição
-        await addDoc(collection(db, 'events-history'), {
+        await addDoc(collection(db, `users/${user.uid}/events-history`), {
             title: `Contato com ${suggestion.person.name}`,
             personId: suggestion.person.id,
             date: suggestion.suggestedDate.split('T')[0],
@@ -137,6 +145,9 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
                 </div>
                 {/* Sugestões de eventos */}
 
+                {Object.values(suggestions).flat().length === 0 && (
+          <p className="text-gray-600 text-center text-wrap ml-10 w-40">Adicione pessoas e eventos para ver sugestões.</p>
+        )}
 
             </div>
 

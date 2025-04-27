@@ -3,6 +3,7 @@
 import { useState, useEffect, JSX } from 'react';
 import { getDocs, query, orderBy, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { useAuth } from '../components/AuthProvider';
 import { Event } from '../utils/interfaces';
 import ProtectedRoute from '../components/ProtectedRoute';
 import MainMenu from '../components/MainMenu';
@@ -18,7 +19,7 @@ import { PlusIcon } from '@heroicons/react/16/solid';
  * @returns {JSX.Element} A interface do histórico de eventos.
  */
 const EventsHistory = (): JSX.Element => {
-
+  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
   const [events, setEvents] = useState<Event[]>([]);  /** @state {Event[]} events - Array de eventos buscados do Firestore. */
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);  /** @state {Event | null} selectedEvent - O evento selecionado para edição. */
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);  /** @state {boolean} isAddEventModalOpen - Controla a visibilidade do modal de adicionar um novo evento. */
@@ -28,8 +29,14 @@ const EventsHistory = (): JSX.Element => {
   useEffect(() => {
     // Chama a função fetchEvents quando o componente é montado.
     // Isso garante que a lista de eventos seja carregada assim que o componente for exibido.
-    fetchEvents();
-  }, []);
+    if (user) {
+      fetchEvents();
+    }
+  }, [ user ]);
+
+  if (!user) {
+    return <p>Carregando usuário...</p>;
+  }
 
   /**
    * @async
@@ -40,7 +47,7 @@ const EventsHistory = (): JSX.Element => {
   const fetchEvents = async (): Promise<void> => {
     try {
       // Obtém todos os documentos da coleção 'events-history' no banco de dados 'db'.
-      const q = query(collection(db, 'events-history'), orderBy('date', 'asc'), orderBy('hour', 'asc'));
+      const q = query(collection(db, `users/${user.uid}/events-history`), orderBy('startTime', 'asc'));
       const querySnapshot = await getDocs(q);
       // Mapeia os documentos para um array de objetos 'Event', incluindo o ID do documento.
       const eventData = querySnapshot.docs.map(doc => ({
@@ -72,11 +79,15 @@ const EventsHistory = (): JSX.Element => {
 
     <ProtectedRoute>
 
-      <main className="main-container-body">
+      <main className="main-container-body main-container-bg">
 
         {/* Renderiza o menu principal da aplicação. */}
-        <MainMenu externalCloseTrigger={menuCloseTrigger}/>
+        <MainMenu externalCloseTrigger={menuCloseTrigger} />
         <h1 className="title-1">Histórico de Eventos</h1>
+
+        {Object.values(events).flat().length === 0 && (
+          <p className="text-gray-600">Nenhum evento registrado.</p>
+        )}
 
         {/* Renderiza os cards de cada evento. */}
         <div className="card-spacing-bellow">
@@ -119,11 +130,11 @@ const EventsHistory = (): JSX.Element => {
           }}
           className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-blue-600 transition"
         >
-          <CalendarDaysIcon className="w-6 h-6 absolute mr-1"/>
+          <CalendarDaysIcon className="w-6 h-6 absolute mr-1" />
           <PlusIcon className="w-4 h-4 absolute ml-5 mb-5" />
         </button>
       </main>
-      
+
     </ProtectedRoute>
   );
 };

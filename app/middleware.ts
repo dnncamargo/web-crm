@@ -10,7 +10,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Protege rotas específicas
-  const protectedPaths = ['/dashboard', '/people-directory', '/events-history', '/task-list']
+  const protectedPaths = ['/dashboard', '/people-directory', '/events-history', '/tasks-list']
 
   const isProtectedRoute = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
 
@@ -37,6 +37,6 @@ export const config = {
     '/dashboard/:path*',
     '/people-directory/:path*',
     '/events-history/:path*',
-    '/task-list/:path*',
+    '/tasks-list/:path*',
   ],
 }

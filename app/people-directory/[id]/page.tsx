@@ -4,6 +4,7 @@ import { useState, useEffect, JSX } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc, getDocs, query, where, collection } from 'firebase/firestore';
 import { db } from '../../utils/firebaseConfig';
+import { useAuth } from '@/app/components/AuthProvider';
 import { Event, Person } from '@/app/utils/interfaces';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import MainMenu from '@/app/components/MainMenu';
@@ -15,44 +16,53 @@ import AddEventModal from '@/app/components/AddEventModal'; // certifique-se do 
  * @returns {JSX.Element} A interface de detalhes da pessoa.
  */
 const PersonDetails = (): JSX.Element => {
-  const { id } = useParams(); /** @const {string | undefined} id - O ID da pessoa obtido dos parâmetros da URL. */
+  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const { id } = useParams();  /** @const {string} id - O ID do evento a ser exibido, extraído da URL. */
   const router = useRouter(); /** @const {object} router - O objeto de roteamento do Next.js. */
+
   const [person, setPerson] = useState<Person | null>(null); /** @state {Person | null} person - Os detalhes da pessoa buscada do Firestore. Inicialmente null. */
   const [events, setEvents] = useState<Event[]>([]); /** @state {Event[]} events - A lista de eventos associados à pessoa, buscados do Firestore. Inicialmente um array vazio. */
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false); /** @state {boolean} isAddEventModalOpen - Controla a visibilidade do modal para adicionar um novo evento para esta pessoa. */
 
   useEffect(() => {
-    /**
-   * @async
-   * @function fetchPerson
-   * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
-   * @returns {Promise<void>}
-   */
-    const fetchPerson = async (): Promise<void> => {
-      try {
-        const docRef = doc(db, 'people-directory', id as string);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setPerson({ id: docSnap.id, ...docSnap.data() } as Person);
-        }
-      }
-      catch (error) {
-        console.error('Erro ao buscar pessoa:', error);
-      }
-    };
-    const fetchEvents = async () => {
-      const q = query(collection(db, 'events-history'), where('personId', '==', id));
-      const querySnapshot = await getDocs(q);
-      const eventData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Event[];
-      setEvents(eventData);
-    };
+    if (user && id) {
+      fetchPerson();
+      fetchEvents();
+    }
+  }, [ user, id] );
 
-    fetchPerson();
-    fetchEvents();
-  }, [id]);
+  if (!user) {
+    return <p>Carregando usuário...</p>;
+  }
+
+/**
+ * @async
+ * @function fetchPerson
+ * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
+ * @returns {Promise<void>}
+ */
+  const fetchPerson = async (): Promise<void> => {
+    try {
+      const docRef = doc(db, `users/${user.uid}/people-directory/${id}`);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setPerson({ id: docSnap.id, ...docSnap.data() } as Person);
+      }
+    }
+    catch (error) {
+      console.error('Erro ao buscar pessoa:', error);
+    }
+  };
+
+  const fetchEvents = async () => {
+    const q = query(collection(db, `users/${user.uid}/events-history`), where('personId', '==', `${id}`));
+    const querySnapshot = await getDocs(q);
+    const eventData = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Event[];
+    setEvents(eventData);
+  };
 
   if (!person) return <p className="p-6">Carregando dados...</p>;
 
@@ -111,7 +121,7 @@ const PersonDetails = (): JSX.Element => {
             {events.map(e => (
               <div key={e.id} className="border p-3 rounded-lg">
                 <p className="font-medium">{e.title}</p>
-                <p className="text-sm text-gray-500">{e.date} {e.hour && `• ${e.hour}`}</p>
+                <p className="text-sm text-gray-500">{e.startDate} {e.startTime && `• ${e.startTime}`}</p>
                 {e.description && <p className="text-sm mt-1">{e.description}</p>}
               </div>
             ))}
@@ -140,7 +150,7 @@ const PersonDetails = (): JSX.Element => {
               setIsAddEventModalOpen(false);
               // Refaz a lista de eventos depois de adicionar
               const fetchEvents = async () => {
-                const q = query(collection(db, 'events-history'), where('personId', '==', id));
+                const q = query(collection(db, `users/${user.uid}/events-history`), where('personId', '==', user.uid));
                 const querySnapshot = await getDocs(q);
                 const eventData = querySnapshot.docs.map(doc => ({
                   id: doc.id,

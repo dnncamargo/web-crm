@@ -3,9 +3,9 @@
 import { useState, useEffect, JSX } from 'react';
 import { getDocs, query, where, orderBy, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { useAuth } from '../components/AuthProvider';
 import { Event, Person } from '../utils/interfaces';
 import { format, isToday, isThisWeek, addMonths, parseISO } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import ProtectedRoute from '../components/ProtectedRoute'
 import MainMenu from '../components/MainMenu';
 import UpcomingEventCard from '../components/UpcomingEventCard';
@@ -26,6 +26,7 @@ type GroupedEvents = {
  * @returns {JSX.Element} A interface da página inicial.
  */
 export default function Dashboard(): JSX.Element {
+  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
   const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore. */
   const [events, setEvents] = useState<GroupedEvents>({
     today: [],
@@ -40,9 +41,16 @@ export default function Dashboard(): JSX.Element {
   useEffect(() => {
     // Chama as funções fetchPerson e fetchAndGroupEvents quando o componente é montado.
     // Isso garante que a lista de pessoas e eventos seja carregada assim que o componente for exibido.
-    fetchPerson();
-    fetchAndGroupEvents()
-  }, []);
+    if(user) {
+      fetchAndGroupEvents()
+      fetchPerson();
+    }
+  }, [ user ]); // <- Executa quando user estiver pronto
+
+  if (!user) {
+    return <p>Carregando usuário...</p>;
+  }
+  console.log('user', user.uid)
 
   /**
   * @async
@@ -51,7 +59,7 @@ export default function Dashboard(): JSX.Element {
   * @returns {Promise<void>}
   */
   const fetchPerson = async (): Promise<void> => {
-    const querySnapshot = await getDocs(collection(db, 'people-directory'));
+    const querySnapshot = await getDocs(collection(db, `users/${user.uid}/people-directory`));
     const personData = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -67,11 +75,12 @@ export default function Dashboard(): JSX.Element {
    */
   const fetchAndGroupEvents = async (): Promise<void> => {
     const today = new Date()
+    console.log('today', today)
     const q = query(
-      collection(db, 'events-history'),
-      where('date', '>=', format(today, 'yyyy-MM-dd')),
-      orderBy('date'),
-      orderBy('hour')
+      collection(db, `users/${user.uid}/events-history`),
+      where('startDate', '>=', format(today, 'yyyy-MM-dd')),
+      orderBy('startDate'),
+      orderBy('startTime')
     )
     const querySnapshot = await getDocs(q)
     const allEvents = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Event[];
@@ -88,7 +97,7 @@ export default function Dashboard(): JSX.Element {
    */
   const groupEventsByTime = (allEvents: Event[]): void => {
     const grouped = allEvents.reduce<GroupedEvents>((acc, event) => {
-      const date = parseISO(event.date);
+      const date = parseISO(event.startDate);
       const now = new Date();
 
       const isSameMonth = date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
@@ -122,19 +131,6 @@ export default function Dashboard(): JSX.Element {
   };
 
   /**
-   * @function formatDate
-   * @description Formata uma string de data (ISO 8601) para um formato legível em português brasileiro, opcionalmente incluindo a hora.
-   * @param {string} stringDate - A string de data no formato ISO 8601 (ex: "2023-10-26").
-   * @param {string | undefined} hour - Uma string opcional representando a hora (ex: "10:30").
-   * @returns {string} A data formatada como "Dia da semana, dia de Mês" ou "Dia da semana, dia de Mês às Hora".
-   */
-  const formatDate = (stringDate: string, hour?: string): string => {
-    const date = parseISO(stringDate);
-    const textCard = format(date, "EEEE, d 'de' MMMM", { locale: ptBR });
-    return hour ? `${textCard} às ${hour}` : textCard;
-  };
-
-  /**
    * @function renderEvent
    * @description Renderiza um cartão de resumo de evento, buscando a pessoa associada na lista de pessoas (se houver).
    * @param {Event}
@@ -150,7 +146,7 @@ export default function Dashboard(): JSX.Element {
 
     <ProtectedRoute>
 
-      <main className="main-container-body">
+      <main className="main-container-body main-container-bg">
 
         {/* Renderiza o menu principal da aplicação. */}
         <MainMenu externalCloseTrigger={menuCloseTrigger}/>

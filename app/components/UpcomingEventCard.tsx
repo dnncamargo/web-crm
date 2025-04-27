@@ -53,7 +53,7 @@ export default function UpcomingEventCard({ event, person }: UpcomingEventCardPr
         {/* Data e Hora */}
         <div className="card-content-info text-gray-600">
           <CalendarIcon className="w-4 h-4 mr-2" />
-          {formatDate(event.date, event.hour)}
+          {formatDate(event.startDate, event.startTime)}
         </div>
         {/* Pessoa associada */}
         {person && (

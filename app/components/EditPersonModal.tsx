@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { useAuth } from '../components/AuthProvider';
 import { searchAddress } from '../utils/helpers';
 import { Person } from '../utils/interfaces';
 import { motion } from 'framer-motion';
@@ -33,12 +34,14 @@ interface EditPersonModalProps {
  * @returns {JSX.Element | null} O componente modal de edição, ou `null` se `isOpen` for `false`.
  */
 const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: EditPersonModalProps) => {
+  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
   const [name, setName] = useState(person.name); /** @state {string} name - Nome da pessoa. */
   const [phone, setPhone] = useState(person.phone); /** @state {string} phone - Número de telefone da pessoa. */
   const [email, setEmail] = useState(person.email); /** @state {string} email - Endereço de e-mail da pessoa. */
   const [showMore, setShowMore] = useState(!!person.address); /** @state {boolean} showMore - Controla a visibilidade de campos adicionais. */
-  const [useAddressAPI, setUseAddressAPI] = useState(false);  /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
   const [zipcode, setZipcode] = useState(person.zipcode || ''); /** @state {string} zipcode - Código postal. */
+  const [useAddressAPI, setUseAddressAPI] = useState(zipcode !== '');  /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
   const [address, setAddress] = useState(person.address || ''); /** @state {string} address - Endereço. */
   const [number, setNumber] = useState(person.number || ''); /** @state {string} number - Número do endereço. */
   const [complement, setComplement] = useState(person.complement || ''); /** @state {string} complement - Complemento do endereço. */
@@ -50,21 +53,12 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
   const [favorite, setFavorite] = useState(person.favorite || false); /** @state {boolean} favorite - Indica se a pessoa é favorita. */
   const [contactFrequency, setContactFrequency] = useState<Person['contactFrequency']>(person.contactFrequency || null); /** @state {string | null} contactFrequency - Frequência de contato. */
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
-  const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
-  if (!isOpen) return null;
+  // Proteção: Se não for open ou sem usuário, nem carrega.
+  if (!isOpen || !user) return null;
 
   useLayoutEffect(() => {
-    {/* Conflito drag vs. scroll vertical */ }
-    const modal = document.getElementById('add-person-modal');
-    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
-    if (modal && modal.scrollHeight > window.innerHeight) {
-      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
-      setIsDraggable(false);
-    } else {
-      // Caso contrário, habilita a funcionalidade de arrastar.
-      setIsDraggable(true);
-    }
+    adjustModalDraggable(); // Ajusta a propriedade de arrastar do modal com base na altura do conteúdo.
   }, [isOpen, useAddressAPI]);
 
   useEffect(() => {
@@ -132,7 +126,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
     }
 
     try {
-      const personRef = doc(db, 'people-directory', person.id);
+      const personRef = doc(db, `users/${user.uid}/people-directory/${person.id}`);
       await updateDoc(personRef, {
         name,
         phone,
@@ -166,7 +160,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
     */
   const handleDelete = async (): Promise<void> => {
     try {
-      const personRef = doc(db, 'people-directory', person.id);
+      const personRef = doc(db, 'users', user.uid, 'people-directory', person.id);
       await deleteDoc(personRef);
       onDeleted(); // Chama a função onDeleted para indicar sucesso na exclusão
       onClose();
@@ -174,6 +168,19 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
       console.error("Erro ao excluir o cadastro da pessoa: ", error);
     }
   };
+
+  function adjustModalDraggable() {
+    {/* Conflito drag vs. scroll vertical */ }
+    const modal = document.getElementById('edit-person-modal');
+    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
+    if (modal && modal.scrollHeight > window.innerHeight) {
+      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
+      setIsDraggable(false);
+    } else {
+      // Caso contrário, habilita a funcionalidade de arrastar.
+      setIsDraggable(true);
+    }
+  }
 
   return (
 

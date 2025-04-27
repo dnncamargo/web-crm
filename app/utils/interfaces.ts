@@ -3,10 +3,8 @@ import { Timestamp } from 'firebase/firestore';
 export interface Person {
   id: string;
   name: string;
-  phone: string;
-  email: string;
-
-  // Endereço (opcional)
+  phone?: string;
+  email?: string;
   address?: string;
   number?: string;
   complement?: string;
@@ -14,10 +12,10 @@ export interface Person {
   city?: string;
   state?: string;
   zipcode?: string;
-
-  // Outros
+  usingAddressAPI?: boolean;
   note?: string;
   birthday?: string;
+  urls?: string[];
   favorite?: boolean;
   contactFrequency?: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | null
   createdAt?: Date | Timestamp;
@@ -26,10 +24,21 @@ export interface Person {
 export interface Event {
   id: string;
   title: string;
-  date: string;
-  hour: string;
-  
-  // Endereço (opcional)
+  allDay: boolean;
+  start: {
+    date?: string; // usado para all-day
+    dateTime?: string; // usado para eventos cronometrados
+    timeZone?: string;
+  };
+  end: {
+    date?: string;
+    dateTime?: string;
+    timeZone?: string;
+  };
+  startDate: string;  // para formulário
+  endDate: string;    // para formulário
+  startTime?: string; // para formulário (não usado se allDay = true)
+  endTime?: string;
   zipcode?: string;
   address?: string;
   number?: string;
@@ -37,8 +46,7 @@ export interface Event {
   district?: string;
   city?: string;
   state?: string;
-  
-  // Outros
+  location?: string;
   personId?: string;
   description?: string;
   createdAt?: Date;
@@ -47,9 +55,7 @@ export interface Event {
 export interface Task {
   id: string;
   content: string;
-  completed: boolean;
-  date?: string; 
-  event?: string;
+  status:  0 | 1 | 2 ; // 0 = not_started, 1 = doing, 2 = done
   groupId?: string;
   parentId?: string; 
   order?: number;

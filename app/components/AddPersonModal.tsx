@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { useAuth } from '../components/AuthProvider';
 import { searchAddress } from '../utils/helpers';
 import { motion } from 'framer-motion';
 import ProtectedRoute from './ProtectedRoute';
@@ -28,12 +29,14 @@ interface AddPersonModalProps {
  * @returns {JSX.Element | null} O componente modal, ou `null` se `isOpen` for `false`.
  */
 const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdded }) => {
+  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
   const [name, setName] = useState(''); /** @state {string} name - Nome da pessoa. */
-  const [phone, setPhone] = useState(''); /** @state {string} phone - Número de telefone da pessoa. */
+  const [phone, setPhone] = useState('') /** @state {array of strings} phone - Números de telefone da pessoa. */
   const [email, setEmail] = useState('');  /** @state {string} email - Endereço de e-mail da pessoa. */
   const [showMore, setShowMore] = useState(false);  /** @state {boolean} showMore - Controla a visibilidade de campos adicionais. */
-  const [useAddressAPI, setUseAddressAPI] = useState(false);  /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
   const [zipcode, setZipcode] = useState('');  /** @state {string} zipcode - Código postal. */
+  const [useAddressAPI, setUseAddressAPI] = useState(false);  /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
   const [address, setAddress] = useState('');  /** @state {string} address - Endereço. */
   const [number, setNumber] = useState('');  /** @state {string} number - Número do endereço. */
   const [complement, setComplement] = useState('');  /** @state {string} complement - Complemento do endereço. */
@@ -43,21 +46,12 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
   const [birthday, setBirthday] = useState('');  /** @state {string} birthday - Data de nascimento. */
   const [note, setNote] = useState('');  /** @state {string} note - Alguma nota sobre a pessoa. */
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
-  const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
-  if (!isOpen) return null;
+  // Proteção: Se não for open ou sem usuário, nem carrega.
+  if (!isOpen || !user) return null;
 
   useLayoutEffect(() => {
-    {/* Conflito drag vs. scroll vertical */ }
-    const modal = document.getElementById('add-person-modal');
-    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
-    if (modal && modal.scrollHeight > window.innerHeight) {
-      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
-      setIsDraggable(false);
-    } else {
-      // Caso contrário, habilita a funcionalidade de arrastar.
-      setIsDraggable(true);
-    }
+    adjustModalDraggable(); // Ajusta a propriedade de arrastar do modal com base na altura do conteúdo.
   }, [isOpen, useAddressAPI]);
 
   useEffect(() => {
@@ -126,7 +120,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
     }
 
     try {
-      await addDoc(collection(db, 'people-directory'), {
+      await addDoc(collection(db, `users/${user.uid}/people-directory`), {
         name,
         phone,
         email,
@@ -149,6 +143,19 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
       console.error('Erro ao adicionar pessoa: ', error);
     }
   };
+
+  function adjustModalDraggable() {
+    {/* Conflito drag vs. scroll vertical */ }
+    const modal = document.getElementById('add-person-modal');
+    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
+    if (modal && modal.scrollHeight > window.innerHeight) {
+      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
+      setIsDraggable(false);
+    } else {
+      // Caso contrário, habilita a funcionalidade de arrastar.
+      setIsDraggable(true);
+    }
+  }
 
   return (
 

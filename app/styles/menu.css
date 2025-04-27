@@ -1,8 +1,12 @@
 
 .menu-container {
-  @apply flex items-end justify-between max-w-5xl mx-auto px-4 h-14 py-2 border-gray-200;
+  @apply flex justify-between max-w-5xl mx-auto px-4 h-14 py-2 border-gray-200;
 }
 
+.menu-button {
+  @apply flex items-center justify-center w-10 h-10 rounded-full bg-gray-100 hover:bg-gray-200 transition duration-200 ease-in-out;
+}
+/* md:hidden p-2 rounded hover:bg-gray-100 transition */
 .menu-desktop {
   @apply hidden md:flex items-center gap-4
 }

@@ -3,6 +3,7 @@
 import { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { Event } from '../utils/interfaces';
+import { formatDate } from '../utils/helpers';
 import { ClockIcon, MapPinIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 
 /**
@@ -23,7 +24,7 @@ interface EventCardProps {
  * @returns {JSX.Element} Um cartão representando as informações do evento.
  */
 const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
-  const router = useRouter();
+  const router = useRouter(); /** @const {NextRouter} router - O roteador do Next.js para navegação entre páginas. */
 
   return (
     <div
@@ -37,18 +38,18 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
         {/* Data */}
         <span
           className="card-header-far-right color-eh-light">
-          {event.date}
+          {formatDate(event.startDate, event.endDate)}
         </span>
       </div>
 
       {/* Conteúdo */}
       <div className="card-content-large">
         {/* Hora */}
-        {event.hour && (
+        {event.startTime && (
           <div className="card-content-info-large text-gray-500 mb-2">
             <ClockIcon className="w-4 h-4 mr-2 mt-0.5" />
             {/* {event.hour && `${event.hour} - `}{event.address} */}
-            {event.hour}
+            {event.startTime}
           </div>
         )}
         {/* Endereço */}

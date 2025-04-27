@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, JSX } from 'react';
 import { doc, getDocs, updateDoc, deleteDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
+import { useAuth } from '../components/AuthProvider';
 import { searchAddress } from '../utils/helpers';
 import { Event, Person } from '../utils/interfaces';
 import { motion } from 'framer-motion';
@@ -31,12 +32,17 @@ interface EditEventModalProps {
  * @returns {JSX.Element | null} O componente renderizado ou null se `isOpen` for falso.
  */
 const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalProps) => {
+  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
+
+  const defaultTime = new Date().toTimeString().slice(0, 5); // "14:00"
 
   const [title, setTitle] = useState(event.title); /** @state {string} title - Título do evento. */
-  const [date, setDate] = useState(event.date); /** @state {string} date - Data do evento no formato 'YYYY-MM-DD'. */
-  const [hour, setHour] = useState(event.hour); /** @state {string} hour - Hora do evento no formato 'HH:MM'. Vazio se `allDay` for true. */
-  const [allDay, setAllDay] = useState(!event.hour); /** @state {boolean} allDay - Indica se o evento é de dia inteiro (sem hora específica). */
-  const [useAddressAPI, setUseAddressAPI] = useState(false);   /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
+  const [startDate, setStartDate] = useState(event.startDate); /** @state {string} startDate - Data de início do evento no formato 'YYYY-MM-DD'. */
+  const [endDate, setEndDate] = useState(event.endDate); /** @state {string} endDate - Data de término do evento no formato 'YYYY-MM-DD'. */
+  const [startTime, setStartTime] = useState(event.startTime || defaultTime); /** @state {string} startTime - Hora de início do evento no formato 'HH:MM'. */
+  const [endTime, setEndTime] = useState(event.endTime || defaultTime); /** @state {string} endTime - Hora de término do evento no formato 'HH:MM'. */
+  const [allDay, setAllDay] = useState(event.allDay); /** @state {boolean} allDay - Indica se o evento é de dia inteiro (sem hora específica). */  const [useAddressAPI, setUseAddressAPI] = useState(false);   /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
   const [zipcode, setZipcode] = useState(event.zipcode || '');   /** @state {string} zipcode - Código postal do local do evento. */
   const [address, setAddress] = useState(event.address || '');   /** @state {string} address - Endereço do local do evento. */
   const [number, setNumber] = useState(event.number || '');  /** @state {string} number - Número do local do evento. */
@@ -48,47 +54,15 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
   const [selectedPersonId, setSelectedPersonId] = useState('');  /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
   const [person, setPerson] = useState<Person[]>([]);  /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
   const [isDraggable, setIsDraggable] = useState(true);  /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
-  const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
-  if (!isOpen) return null;
+  // Proteção: Se não for open ou sem usuário, nem carrega.
+  if (!isOpen || !user) return null;
 
   useLayoutEffect(() => {
-    {/* Conflito drag vs. scroll vertical */ }
-    const modal = document.getElementById('edit-event-modal');
-    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
-    if (modal && modal.scrollHeight > window.innerHeight) {
-      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
-      setIsDraggable(false);
-    } else {
-      // Caso contrário, habilita a funcionalidade de arrastar.
-      setIsDraggable(true);
-    }
+    adjustModalDraggable(); // Ajusta a propriedade de arrastar do modal com base na altura do conteúdo.
   }, [isOpen, useAddressAPI]);
 
   useEffect(() => {
-    /**
-     * @async
-     * @function fetchPeople
-     * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
-     * @returns {Promise<void>}
-     */
-    const fetchPeople = async (): Promise<void> => {
-      try {
-        // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
-        const querySnapshot = await getDocs(collection(db, 'people-directory'));
-        // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
-        const personData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Person[];
-        // Atualiza o estado 'person' com os dados das pessoas buscadas.
-        setPerson(personData);
-      } catch (error) {
-        console.error('Erro ao buscar pessoas:', error);
-        //todo: Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
-      }
-    };
-
     {/* Ações ao abrir ou fechar o modal */ }
     if (isOpen) {
 
@@ -96,20 +70,15 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
 
       fetchPeople(); // Chama a função para buscar os dados das pessoas.
 
-      {/* Associação de pessoa ao Evento */ }
-      if (event.personId) {
-        setAssociatePerson(true); // Se 'personId' existir, indica que um contato deve ser associado ao evento.
-        setSelectedPersonId(event.personId); // Define o ID da pessoa selecionada com o valor de 'event.personId'.
-      } else {
-        setAssociatePerson(false); // Se 'personId' não existir, indica que nenhum contato deve ser associado.
-        setSelectedPersonId(''); // Limpa o ID da pessoa selecionada.
-      }
+      handleAssociatePerson(); // Chama a função para lidar com a associação de pessoas ao evento.
 
     } else {
       // Se 'isOpen' for falso (modal fechado), remove a classe 'overflow-hidden' do body
       // para permitir o scroll novamente na tela de fundo.
       document.body.classList.remove('overflow-hidden'); // Libera scroll da tela de fundo
     }
+
+    dateControl(); // Chama a função de controle de data para garantir que as datas estejam corretas.
 
     /**
      * @function cleanup
@@ -119,7 +88,52 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
     return (): void => {
       document.body.classList.remove('overflow-hidden');
     };
-  }, [isOpen]);
+  }, [isOpen, startDate, startTime, allDay]);
+
+  /**
+   * @async
+   * @function fetchPeople
+   * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
+   * @returns {Promise<void>}
+   */
+  const fetchPeople = async (): Promise<void> => {
+    try {
+      // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
+      const querySnapshot = await getDocs(collection(db, `users/${user.uid}/people-directory`));
+      // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
+      const personData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Person[];
+      // Atualiza o estado 'person' com os dados das pessoas buscadas.
+      setPerson(personData);
+    } catch (error) {
+      console.error('Erro ao buscar pessoas:', error);
+      //todo: Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
+    }
+  };
+
+  function dateControl() {
+    // Só faz a checagem se não for all-day (ou seja, está lidando com horário)
+    if (!allDay) {
+      const start = new Date(`${startDate}T${startTime}`);
+      const end = new Date(`${endDate}T${endTime}`);
+
+      if (start >= end) {
+        const adjustedEnd = new Date(start.getTime() + 30 * 60000); // adiciona 30 minutos
+        const newEndDate = adjustedEnd.toISOString().split('T')[0];
+        const newEndTime = adjustedEnd.toTimeString().slice(0, 5);
+
+        setEndDate(newEndDate);
+        setEndTime(newEndTime);
+      }
+    } else {
+      // Caso seja evento all-day, manter endDate igual ou maior que startDate
+      if (new Date(endDate) < new Date(startDate)) {
+        setEndDate(startDate);
+      }
+    }
+  }
 
   /**
   * @function validateEvent
@@ -127,7 +141,16 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
   * @returns {string | null} Uma string contendo a mensagem de erro se a validação falhar, ou `null` se a validação for bem-sucedida.
   */
   function validateEvent(): string | null {
-    if (title.length === 0) return "O Nome do Evento é obrigatório.";
+    if (!title.trim()) return 'O título do evento é obrigatório';
+    if (!startDate || !endDate) return 'Informe as datas de início e término';
+
+    if (!allDay) {
+      if (!startTime || !endTime) return 'Informe os horários de início e término';
+
+      const start = new Date(`${startDate}T${startTime}`);
+      const end = new Date(`${endDate}T${endTime}`);
+      if (start >= end) return 'O horário de término deve ser após o horário de início';
+    }
     return null;
   }
 
@@ -148,6 +171,56 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
     }
   };
 
+  function formatEvent(): any {
+    const base = {
+      title: title.trim(),
+      allDay,
+      startDate,
+      endDate,
+      startTime,
+      endTime,
+      zipcode,
+      address,
+      number,
+      district,
+      city,
+      state,
+      location: [address, number, city, state].filter(Boolean).join(', ') || "",
+      description: description?.trim() || '',
+      createdAt: new Date(),
+    }
+
+    if (associatePerson && selectedPersonId) {
+      (base as any).personId = selectedPersonId
+    }
+
+    if (allDay) {
+      return {
+        ...base,
+        start: { date: startDate },
+        end: { date: getNextDay(endDate) }, // precisa somar um dia inteiro para eventos allDay
+      }
+    } else {
+      return {
+        ...base,
+        start: {
+          dateTime: `${startDate}T${startTime.padEnd(5, '0')}`,
+          timeZone: 'America/Sao_Paulo',
+        },
+        end: {
+          dateTime: `${endDate}T${endTime.padEnd(5, '0')}`,
+          timeZone: 'America/Sao_Paulo',
+        },
+      }
+    }
+  }
+
+  function getNextDay(dateStr: string): string {
+    const date = new Date(dateStr);
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().split('T')[0];
+  }
+
   /**
    * @async
    * @function handleUpdate
@@ -157,6 +230,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
    */
   const handleUpdate = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
+
     const errorMsg = validateEvent();
     if (errorMsg) {
       alert(errorMsg);
@@ -164,20 +238,8 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
     }
 
     try {
-      const eventRef = doc(db, 'events-history', event.id);
-      await updateDoc(eventRef, {
-        title,
-        date,
-        hour: allDay ? '' : hour,
-        zipcode,
-        address,
-        number,
-        district,
-        city,
-        state,
-        description,
-        ...(associatePerson && selectedPersonId && { personId: selectedPersonId }),
-      });
+      const eventRef: any = formatEvent(); // Formata os dados do evento para o Firestore
+      await updateDoc(doc(db, `users/${user.uid}/events-history/${event.id}`), eventRef);
       onUpdated();
       onClose();
     } catch (error) {
@@ -193,7 +255,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
    */
   const handleDelete = async (): Promise<void> => {
     try {
-      const eventRef = doc(db, 'events-history', event.id);
+      const eventRef = doc(db, 'users', user.uid, 'events-history', event.id);
       await deleteDoc(eventRef);
       onUpdated();
       onClose();
@@ -201,6 +263,30 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
       console.error('Erro ao excluir o evento: ', error);
     }
   };
+
+  function adjustModalDraggable() {
+    {/* Conflito drag vs. scroll vertical */ }
+    const modal = document.getElementById('edit-event-modal');
+    // Verifica se o modal é maior que a altura da tela e ajusta a propriedade 'isDraggable' do modal.
+    if (modal && modal.scrollHeight > window.innerHeight) {
+      // Se o conteúdo do modal for maior que a tela, desabilita a funcionalidade de arrastar (draggable).
+      setIsDraggable(false);
+    } else {
+      // Caso contrário, habilita a funcionalidade de arrastar.
+      setIsDraggable(true);
+    }
+  }
+
+  function handleAssociatePerson() {
+    {/* Associação de pessoa ao Evento */ }
+    if (event.personId) {
+      setAssociatePerson(true); // Se 'personId' existir, indica que um contato deve ser associado ao evento.
+      setSelectedPersonId(event.personId); // Define o ID da pessoa selecionada com o valor de 'event.personId'.
+    } else {
+      setAssociatePerson(false); // Se 'personId' não existir, indica que nenhum contato deve ser associado.
+      setSelectedPersonId(''); // Limpa o ID da pessoa selecionada.
+    }
+  }
 
   return (
 
@@ -224,7 +310,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
       >
         {/* Formulário */}
         <form onSubmit={handleUpdate}>
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 mb-4">
             {/* Topo do Modal de Edição de Evento */}
             <div className="flex justify-between items-center mb-6">
               <button onClick={onClose} className="color-eh-base text-lg">
@@ -273,44 +359,52 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
               </>
             )}
 
-            {/* All-day + Data e Hora */}
-            <div className="border-gray-200 pt-4 mb-6">
-              <div className="flex justify-between items-center mb-2">
+            {/* All-day e Data */}
+            <div className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
+              {/* Switch All-day */}
+              <div className="flex justify-between items-center">
                 <span>Dia inteiro</span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setAllDay(!allDay);
-                    if (!allDay) setHour('');
-                    else setHour('12:00');
-                  }}
-                  className={clsx(
-                    'w-12 h-6 rounded-full transition flex items-center p-1',
-                    allDay ? 'color-eh-base-bg' : 'bg-gray-300'
-                  )}
+                  onClick={() => setAllDay(!allDay)}
+                  className={`w-12 h-6 rounded-full transition flex items-center p-1 ${allDay ? 'bg-blue-500' : 'bg-gray-300'}`}
                 >
-                  <div
-                    className={clsx(
-                      'bg-white w-4 h-4 rounded-full shadow transform transition',
-                      allDay ? 'translate-x-6' : 'translate-x-0'
-                    )}
-                  />
+                  <div className={`bg-white w-4 h-4 rounded-full shadow transform transition ${allDay ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
-              <div className="flex space-x-2">
+              {/* Data de Início */}
+              <div className="flex items-center mt-2 gap-2">
+                <span className="w-20">Início</span>
                 <input
                   type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="form-input bg-gray-50 rounded-lg border flex-1"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="flex-1 p-2 border rounded"
                 />
-                {/* Incluir Hora */}
                 {!allDay && (
                   <input
                     type="time"
-                    value={hour}
-                    onChange={(e) => setHour(e.target.value)}
-                    className="form-input bg-gray-50 rounded-lg border w-28"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="w-24 p-2 border rounded"
+                  />
+                )}
+              </div>
+              {/* Data de Término */}
+              <div className="flex items-center mt-2 mb-2 gap-2">
+                <span className="w-20">Término</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="flex-1 p-2 border rounded"
+                />
+                {!allDay && (
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="w-24 p-2 border rounded"
                   />
                 )}
               </div>

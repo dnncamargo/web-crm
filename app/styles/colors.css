@@ -3,6 +3,10 @@
  * It uses Tailwind CSS for styling.
  */
 
+.main-container-bg {
+    @apply bg-gray-50
+}
+
 /* People Directory */
 .color-pd-base {
     @apply text-green-600
