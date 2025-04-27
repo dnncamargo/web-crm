@@ -8,6 +8,11 @@ import { db } from '../utils/firebaseConfig'
 import { addDoc, collection } from 'firebase/firestore'
 import { motion } from 'framer-motion'
 
+interface ImportContactsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
 interface Contact {
   resourceName: string;
   displayName: string;
@@ -19,7 +24,7 @@ interface Contact {
   
 }
 
-export default function ImportContactsPage() {
+export default function ImportContactsPage({ isOpen, onClose }: ImportContactsModalProps) {
   const { user, googleAccessToken } = useAuth();
   const router = useRouter();
 

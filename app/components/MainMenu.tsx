@@ -19,7 +19,7 @@ export default function MainMenu({ externalCloseTrigger }: MainMenuProps): JSX.E
   const [darkMode, setDarkMode] = useState(false); // futuro uso
   const pathname = usePathname();
 
-  if (!user) return null;
+  if (!user) return <p className="p-6">Carregando usuário...</p>;
 
   const toggleMenu = (): void => setIsOpen(!isOpen);
 
@@ -95,7 +95,9 @@ export default function MainMenu({ externalCloseTrigger }: MainMenuProps): JSX.E
 
               {/* Links de configuração */}
               <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
-                <button className={linkClass('')} onClick={() => { /* abrir modal Import Contacts */ {toggleMenu();setShowImportContacts(true)} }}>
+                <button className={linkClass('')} onClick={() => { /* abrir modal Import Contacts */ {
+                  toggleMenu();
+                  setShowImportContacts(true)} }}>
                   Importar Contatos
                 </button>
 
