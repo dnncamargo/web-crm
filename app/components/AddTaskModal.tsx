@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { addDoc, collection } from 'firebase/firestore'
+import { addDoc, collection, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../utils/firebaseConfig'
 import { useAuth } from '../components/AuthProvider'
 
@@ -27,17 +27,28 @@ export default function AddTaskModal({ isOpen, onClose, onAdded }: AddTaskModalP
 
     setAdding(true)
     try {
-      await addDoc(collection(db, `users/${user.uid}/tasks-list`), {
+      // Primeiro, busca quantas tarefas "not_started" já existem
+      const q = query(
+        collection(db, `users/${user!.uid}/tasks-list`),
+        where('status', '==', 0) // status 0 = not_started
+      );
+      const snapshot = await getDocs(q);
+      const currentTasksCount = snapshot.size;
+  
+      // Adiciona a nova task com order = quantidade atual
+      await addDoc(collection(db, `users/${user!.uid}/tasks-list`), {
         content: content.trim(),
         status: 0,
+        order: currentTasksCount, // <----- aqui!!
         createdAt: new Date(),
-      })
-      onAdded()
-      setContent('') // 🧹 limpa o campo
-      onClose()
-    } catch (error) {
+      });
+  
+      onAdded();
+      onClose();
+    }catch (error) {
       console.error('Erro ao adicionar tarefa:', error)
     } finally {
+      setContent('') // 🧹 limpa o campo
       setAdding(false)
     }
   }

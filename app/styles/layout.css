@@ -13,5 +13,5 @@
 } */
 
 .main-container-body{
-  @apply p-4 space-y-6 min-h-screen;
+  @apply p-4 space-y-6 min-h-screen pb-16;
 }
