@@ -14,9 +14,10 @@ interface TaskSectionProps {
     status: 0 | 1 | 2
     tasks: Task[]
     refreshTasks: () => void
+    updateTasksLocally: (tasks: Task[]) => void;
 }
 
-export default function TaskSection({ section, tasks, refreshTasks }: TaskSectionProps) {
+export default function TaskSection({ section, tasks, refreshTasks, updateTasksLocally }: TaskSectionProps) {
     const { user } = useAuth()
     
     const sensors = useSensors(
@@ -31,24 +32,26 @@ export default function TaskSection({ section, tasks, refreshTasks }: TaskSectio
     const handleDragEnd = async (event: any) => {
         const { active, over } = event
         if (!over || active.id === over.id) return
-        
+      
         const oldIndex = tasks.findIndex(task => task.id === active.id)
         const newIndex = tasks.findIndex(task => task.id === over.id)
-        
+      
         if (oldIndex === -1 || newIndex === -1) return
-        
+      
         const reorderedTasks = arrayMove(tasks, oldIndex, newIndex)
-        
-        // Atualizar as ordens no Firestore
-        for (let i = 0; i < reorderedTasks.length; i++) {
-            const task = reorderedTasks[i]
-            await updateDoc(doc(db, `users/${user!.uid}/tasks-list`, task.id), {
-                order: i,
-            })
+        updateTasksLocally(reorderedTasks)
+      
+        try {
+          const updates = reorderedTasks.map((task, i) =>
+            updateDoc(doc(db, `users/${user!.uid}/tasks-list`, task.id), { order: i })
+          )
+          await Promise.all(updates)
+          console.log('🔥 Ordem atualizada no Firestore com sucesso!')
+        } catch (error) {
+          console.error('Erro ao atualizar ordem:', error)
         }
-        
-        refreshTasks()
-    }
+      }
+      
     
     if (!user) return null
     return (

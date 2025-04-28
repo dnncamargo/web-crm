@@ -34,7 +34,7 @@ export default function AddTaskModal({ isOpen, onClose, onAdded }: AddTaskModalP
       );
       const snapshot = await getDocs(q);
       const currentTasksCount = snapshot.size;
-  
+
       // Adiciona a nova task com order = quantidade atual
       await addDoc(collection(db, `users/${user!.uid}/tasks-list`), {
         content: content.trim(),
@@ -42,10 +42,10 @@ export default function AddTaskModal({ isOpen, onClose, onAdded }: AddTaskModalP
         order: currentTasksCount, // <----- aqui!!
         createdAt: new Date(),
       });
-  
+
       onAdded();
       onClose();
-    }catch (error) {
+    } catch (error) {
       console.error('Erro ao adicionar tarefa:', error)
     } finally {
       setContent('') // 🧹 limpa o campo
@@ -71,6 +71,11 @@ export default function AddTaskModal({ isOpen, onClose, onAdded }: AddTaskModalP
           type="text"
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleAdd();
+            }
+          }}
           placeholder="Descrição da tarefa"
           className="border w-full p-2 rounded mb-4"
         />

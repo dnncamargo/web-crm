@@ -53,6 +53,7 @@ export default function TasksList() {
                     status={1}
                     tasks={tasks.filter(t => t.status === 1)}
                     refreshTasks={fetchTasks}
+                    updateTasksLocally={setTasks}
                 //onToggleStatus={handleToggleStatus}
                 //onEditTask={handleEditTask}
                 //onDeleteTask={handleDeleteTask}
@@ -63,6 +64,7 @@ export default function TasksList() {
                     status={0}
                     tasks={tasks.filter(t => t.status === 0)}
                     refreshTasks={fetchTasks}
+                    updateTasksLocally={setTasks}
                 //onToggleStatus={handleToggleStatus}
                 //onEditTask={handleEditTask}
                 //onDeleteTask={handleDeleteTask}
@@ -73,6 +75,7 @@ export default function TasksList() {
                     status={2}
                     tasks={tasks.filter(t => t.status === 2)}
                     refreshTasks={fetchTasks}
+                    updateTasksLocally={setTasks}
                 //onToggleStatus={handleToggleStatus}
                 //onEditTask={handleEditTask}
                 //onDeleteTask={handleDeleteTask}
@@ -88,7 +91,7 @@ export default function TasksList() {
             {/* Botão flutuante de Nova Tarefa */}
             <button
                 onClick={() => setIsAddTaskModalOpen(true)}
-                className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-yellow-600 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-yellow-800 transition"
+                className="fixed bottom-6 right-6 w-14 h-14 z-10 rounded-full bg-yellow-600 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-yellow-800 transition"
 
                 aria-label="Nova Tarefa"
             >
