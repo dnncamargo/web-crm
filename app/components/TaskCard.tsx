@@ -24,7 +24,7 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
   const [x, setX] = useState(0)
   const [showActionsOn, setShowActionsOn] = useState<'left' | 'right' | null>(null)
 
-  const maxSwipe = 100 // quanto deve ser arrastado até o engate
+  const maxSwipe = 200 // quanto deve ser arrastado até o engate
   const threshold = 50 // espaçamento para abrir os botões de ação
 
   const handleResetPosition = () => {
@@ -113,7 +113,7 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
       {/* Área arrastável */}
       <motion.div
         drag="x"
-        dragElastic={0.2}
+        dragElastic={1}
         dragConstraints={{ left: -maxSwipe, right: maxSwipe }}
         animate={{ x }}
         // Limitar movimento
