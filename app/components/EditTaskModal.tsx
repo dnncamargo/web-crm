@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { updateDoc, doc } from 'firebase/firestore'
 import { db } from '../utils/firebaseConfig'
@@ -16,12 +16,18 @@ interface EditTaskModalProps {
 
 export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: EditTaskModalProps) {
   const { user } = useAuth()
-  const [content, setContent] = useState(task.content)
+  const [content, setContent] = useState(task.content || '')
   const [addingDate, setAddingDate] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [startTime, setStartTime] = useState('')
 
-  if (!isOpen || !user) return null
+  if (!isOpen || !user || !task) return null
+
+  useEffect(() => {
+    if (task) {
+      setContent(task.content)
+    }
+  }, [task]) 
 
   const handleUpdate = async () => {
     if (!content.trim()) {
@@ -60,6 +66,11 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
           type="text"
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleUpdate();
+            }
+          }}
           placeholder="Descrição da tarefa"
           className="border w-full p-2 rounded mb-4"
         />

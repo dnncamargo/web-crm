@@ -110,7 +110,6 @@ const EventsHistory = (): JSX.Element => {
           />
         )}
 
-
         {/* Modal de edição de evento. Abre quando isEditModalOpen é verdadeiro e um evento está selecionado */}
         {isEditModalOpen && selectedEvent && (
           <EditEventModal
@@ -120,7 +119,6 @@ const EventsHistory = (): JSX.Element => {
             onUpdated={fetchEvents}
           />
         )}
-
 
         {/* Botão flutuante para adicionar um novo evento */}
         <button

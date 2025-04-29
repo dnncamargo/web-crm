@@ -13,11 +13,12 @@ interface TaskSectionProps {
     section: string
     status: 0 | 1 | 2
     tasks: Task[]
+    onEditTask: (task: Task) => void
     refreshTasks: () => void
     updateTasksLocally: (tasks: Task[]) => void;
 }
 
-export default function TaskSection({ section, tasks, refreshTasks, updateTasksLocally }: TaskSectionProps) {
+export default function TaskSection({ section, tasks, onEditTask, refreshTasks, updateTasksLocally }: TaskSectionProps) {
     const { user } = useAuth()
     
     const sensors = useSensors(
@@ -73,6 +74,7 @@ export default function TaskSection({ section, tasks, refreshTasks, updateTasksL
                             <TaskCard
                                 key={task.id}
                                 task={task}
+                                onEditTask={onEditTask}
                                 refreshTasks={refreshTasks}
                             />
                         ))}
