@@ -24,7 +24,7 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
   const [x, setX] = useState(0)
   const [showActionsOn, setShowActionsOn] = useState<'left' | 'right' | null>(null)
 
-  const maxSwipe = 40 // quanto deve ser arrastado até o engate
+  const maxSwipe = 10 // quanto deve ser arrastado até o engate
   const threshold = 80 // espaçamento para abrir os botões de ação
 
   const handleResetPosition = () => {
@@ -88,7 +88,6 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
             </>
           )}
         </div>
-
         {/* Direita */}
         <div className="flex gap-2">
           {showActionsOn === 'right' && (
