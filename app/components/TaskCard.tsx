@@ -24,8 +24,8 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
   const [x, setX] = useState(0)
   const [showActionsOn, setShowActionsOn] = useState<'left' | 'right' | null>(null)
 
-  const maxSwipe = 200 // quanto deve ser arrastado até o engate
-  const threshold = 50 // espaçamento para abrir os botões de ação
+  const maxSwipe = 100 // quanto deve ser arrastado até o engate
+  const threshold = 80 // espaçamento para abrir os botões de ação
 
   const handleResetPosition = () => {
     setX(0)
