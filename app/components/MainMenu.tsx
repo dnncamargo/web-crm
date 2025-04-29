@@ -88,7 +88,7 @@ export default function MainMenu({ externalCloseTrigger }: MainMenuProps): JSX.E
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="absolute top-14 left-0 w-full bg-white border-t shadow-md md:rounded-b-md md:max-w-5xl md:mx-auto"
+              className="absolute top-14 left-0 w-full bg-white border-t justify-items-end shadow-md md:rounded-b-md md:max-w-5xl md:mx-auto"
             >
               <div className="flex flex-col md:flex-row md:justify-between p-4 gap-6">
 
