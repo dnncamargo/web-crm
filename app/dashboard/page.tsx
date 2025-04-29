@@ -6,10 +6,10 @@ import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
 import { Event, Person } from '../utils/interfaces';
 import { format, isToday, isThisWeek, addMonths, parseISO } from 'date-fns';
+import { StarIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import ProtectedRoute from '../components/ProtectedRoute'
 import MainMenu from '../components/MainMenu';
 import UpcomingEventCard from '../components/UpcomingEventCard';
-import { StarIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import SuggestionPanel from '../components/SuggestionPanel';
 
 type GroupedEvents = {

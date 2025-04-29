@@ -24,8 +24,8 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
   const [x, setX] = useState(0)
   const [showActionsOn, setShowActionsOn] = useState<'left' | 'right' | null>(null)
 
-  const maxSwipe = 10 // quanto deve ser arrastado até o engate
-  const threshold = 80 // espaçamento para abrir os botões de ação
+  const maxSwipe = 100 // quanto deve ser arrastado até o engate
+  const threshold = 50 // espaçamento para abrir os botões de ação
 
   const handleResetPosition = () => {
     setX(0)
@@ -69,41 +69,46 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
       ref={setNodeRef}
       style={style}
       className="relative overflow-hidden rounded shadow bg-white">
-
-      {/* Botões de fundo */}
-      <div className="absolute inset-0 flex justify-between items-center px-4 bg-gray-100 z-0">
-        {/* Esquerda */}
-        <div className="flex gap-2">
-          {showActionsOn === 'left' && (
-            <>
-              <button
-                onClick={() => handleStatusSwitch(task.status === 2 ? 0 : 2)}
-              >
-                {task.status === 2 ? <FlagIcon className="w-5 h-5 text-gray-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-600" />}
-              </button>
-              <button
-                onClick={() => handleStatusSwitch(1)}>
-                <PlayCircleIcon className="w-5 h-5 text-blue-600" />
-              </button>
-            </>
-          )}
+      <motion.div
+        initial={{ opacity: 0, x: showActionsOn === 'left' ? -20 : 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        {/* Botões de fundo */}
+        <div className="absolute inset-0 flex justify-between items-center px-4 bg-gray-100 z-0">
+          {/* Esquerda */}
+          <div className="flex gap-2">
+            {showActionsOn === 'left' && (
+              <>
+                <button
+                  onClick={() => handleStatusSwitch(task.status === 2 ? 0 : 2)}
+                >
+                  {task.status === 2 ? <FlagIcon className="w-5 h-5 text-gray-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-600" />}
+                </button>
+                <button
+                  onClick={() => handleStatusSwitch(1)}>
+                  <PlayCircleIcon className="w-5 h-5 text-blue-600" />
+                </button>
+              </>
+            )}
+          </div>
+          {/* Direita */}
+          <div className="flex gap-2">
+            {showActionsOn === 'right' && (
+              <>
+                <button
+                  onClick={() => makeSubtask()}>
+                  <ArrowTurnDownRightIcon className="w-5 h-5 text-orange-500" />
+                </button>
+                <button
+                  onClick={() => handleEditTask()}>
+                  <PenSquareIcon className="w-5 h-5 text-yellow-600" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
-        {/* Direita */}
-        <div className="flex gap-2">
-          {showActionsOn === 'right' && (
-            <>
-              <button
-                onClick={() => makeSubtask()}>
-                <ArrowTurnDownRightIcon className="w-5 h-5 text-orange-500" />
-              </button>
-              <button
-                onClick={() => handleEditTask()}>
-                <PenSquareIcon className="w-5 h-5 text-yellow-600" />
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+      </motion.div>
 
       {/* Área arrastável */}
       <motion.div
@@ -116,6 +121,7 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
           const limitedX = Math.max(-maxSwipe, Math.min(maxSwipe, info.offset.x))
           console.log('info.offset.x', info.offset.x)
           setX(limitedX)
+          document.body.classList.add('overflow-hidden')
         }}
         // Ao soltar o card, verifica se o movimento foi maior que o limite
         onDragEnd={(event, info) => {
@@ -133,6 +139,7 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
           } else {
             handleResetPosition()
           }
+          document.body.classList.remove('overflow-hidden')
         }}
         onTap={handleResetPosition} // << Se clicar no Card, reseta
         className="relative z-10 grid grid-cols-[auto_1fr_auto] items-center gap-3 p-3 bg-white rounded"

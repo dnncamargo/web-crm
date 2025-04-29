@@ -24,7 +24,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
-                delay: 150,
+                delay: 100,
                 tolerance: 5,
             },
         })

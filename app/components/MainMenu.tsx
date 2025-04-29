@@ -20,7 +20,7 @@ export default function MainMenu({ externalCloseTrigger }: MainMenuProps): JSX.E
   const [darkMode, setDarkMode] = useState(false); // futuro uso
   const pathname = usePathname();
 
-  if (!user) return <p className="p-6">Carregando usuário...</p>;
+  if (!user) return <p></p>;
 
   const toggleMenu = (): void => setIsOpen(!isOpen);
   const device = useDeviceType()
