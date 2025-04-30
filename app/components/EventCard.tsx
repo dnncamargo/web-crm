@@ -3,8 +3,10 @@
 import { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { Event } from '../utils/interfaces';
-import { formatDate } from '../utils/helpers';
+import { format, parseISO, isSameMonth, isSameYear } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { ClockIcon, MapPinIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { formatDate } from '../utils/helpers';
 
 /**
  * @interface EventCardProps
@@ -26,7 +28,7 @@ interface EventCardProps {
 const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
   const router = useRouter(); /** @const {NextRouter} router - O roteador do Next.js para navegação entre páginas. */
 
-  return (
+    return (
     <div
       // information: onClick={() => router.push(`/events-history/${event.id}`)}
       onClick={() => router.push(`/events-history/${event.id}`)}
@@ -38,7 +40,7 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
         {/* Data */}
         <span
           className="card-header-far-right color-eh-light">
-          {formatDate(event.startDate, event.endDate)}
+          {formatDate(event.startDate, event.endDate, event.startTime, event.startTime, event.allDay)}
         </span>
       </div>
 

@@ -48,7 +48,7 @@ export default function Dashboard(): JSX.Element {
   }, [ user ]); // <- Executa quando user estiver pronto
 
   if (!user) {
-    return <p>Carregando usuário...</p>;
+    return <p></p>;
   }
   console.log('user', user.uid)
 

@@ -48,7 +48,10 @@ const EventDetails = () => {
       const docRef = doc(db, `users/${user.uid}/events-history/${id}`);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        const eventData = { id: docSnap.id, ...docSnap.data() } as Event;
+        
+        const eventData = { id: docSnap.id, ...docSnap.data() 
+
+        } as Event;
         setEvent(eventData);
 
         // Se evento tiver personId, buscar pessoa associada
@@ -56,7 +59,9 @@ const EventDetails = () => {
           const personRef = doc(db, `users/${user.uid}/people-directory`, eventData.personId);
           const personSnap = await getDoc(personRef);
           if (personSnap.exists()) {
-            setPerson({ id: personSnap.id, ...personSnap.data() } as Person);
+            setPerson({ id: personSnap.id, ...personSnap.data() 
+
+            } as Person);
           }
         }
       }
