@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ArrowTurnDownRightIcon, ArrowTurnUpLeftIcon, PencilSquareIcon, Bars3Icon, CheckCircleIcon, FlagIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
+import { ArrowTurnDownRightIcon, ArrowTurnUpLeftIcon, PencilSquareIcon, CheckCircleIcon, FlagIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
+import { GripVerticalIcon } from 'lucide-react'
 import { Task } from '../utils/interfaces'
 import { useAuth } from './AuthProvider'
 import { db } from '../utils/firebaseConfig'
@@ -149,7 +150,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, refreshTasks
         }}
         onTap={handleResetPosition} // << Se clicar no Card, reseta
         className={`relative overflow-hidden rounded shadow z-10 grid grid-cols-[auto_1fr_auto] items-center
-        ${task.parentId ? 'bg-gray-50 gap-0 pl-6 p-2'  : 'bg-white  gap-3 p-3'}`}
+        ${task.parentId ? 'bg-gray-50 gap-0 pl-5 p-2'  : 'bg-white  gap-3 p-3'}`}
       >
         {/* Grip de arraste vertical */}
         <div
@@ -158,7 +159,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, refreshTasks
           {...listeners}
           className="cursor-grab active:cursor-grabbing"
         >
-          <Bars3Icon className="w-7 h-7 text-gray-500" />
+          <GripVerticalIcon className="w-7 h-7  text-gray-500" />
         </div>
 
         {/* Texto */}
