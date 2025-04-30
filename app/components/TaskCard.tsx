@@ -4,20 +4,20 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ArrowTurnDownRightIcon, PencilSquareIcon, Bars3Icon, CheckCircleIcon, FlagIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
+import { ArrowTurnDownRightIcon, ArrowTurnUpLeftIcon, PencilSquareIcon, Bars3Icon, CheckCircleIcon, FlagIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
 import { Task } from '../utils/interfaces'
 import { useAuth } from './AuthProvider'
 import { db } from '../utils/firebaseConfig'
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
-import { PenSquareIcon } from 'lucide-react'
 
 interface TaskCardProps {
   task: Task
   onEditTask: (task: Task) => void // Função para abrir o modal de edição
+  onMakeSubtask: (task: Task) => void
   refreshTasks: () => void // Função para atualizar a lista de tarefas
 }
 
-export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardProps) {
+export default function TaskCard({ task, onEditTask, onMakeSubtask, refreshTasks }: TaskCardProps) {
   const { user } = useAuth()
   const { attributes, listeners, setNodeRef, transform, transition, setActivatorNodeRef } = useSortable({ id: task.id })
 
@@ -42,7 +42,7 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
   }
 
   const makeSubtask = () => {
-    console.log('Criar sub-tarefa...')
+    onMakeSubtask(task)
     handleResetPosition()
   }
 
@@ -68,7 +68,8 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
     <li
       ref={setNodeRef}
       style={style}
-      className="relative overflow-hidden rounded shadow bg-white">
+      className="relative overflow-hidden rounded shadow">
+
       {/* Botões de fundo */}
       <div className="absolute inset-0 flex justify-between items-center px-4 bg-gray-100 z-0 transition-opacity duration-300">
         <div className="flex gap-2 transition-all duration-300 ease-in-out">
@@ -90,7 +91,7 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
                 <ArrowTurnDownRightIcon className="w-5 h-5 text-orange-500" />
               </button>
               <button onClick={handleEditTask}>
-                <PenSquareIcon className="w-5 h-5 text-yellow-600" />
+                <PencilSquareIcon className="w-5 h-5 text-yellow-600" />
               </button>
             </>
           )}
@@ -147,7 +148,8 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
           document.body.classList.remove('overflow-hidden')
         }}
         onTap={handleResetPosition} // << Se clicar no Card, reseta
-        className="relative z-10 grid grid-cols-[auto_1fr_auto] items-center gap-3 p-3 bg-white rounded"
+        className={`relative overflow-hidden rounded shadow z-10 grid grid-cols-[auto_1fr_auto] items-center
+        ${task.parentId ? 'bg-gray-50 gap-0 pl-6 p-2'  : 'bg-white  gap-3 p-3'}`}
       >
         {/* Grip de arraste vertical */}
         <div
@@ -161,7 +163,8 @@ export default function TaskCard({ task, onEditTask, refreshTasks }: TaskCardPro
 
         {/* Texto */}
         <span className={`flex items-center text-wrap mr-4 
-          ${task.status === 2 ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+            ${task.parentId ? 'text-sm text-gray-600 ml-2' : ''}
+            ${task.status === 2 ? 'line-through text-gray-400' : 'text-gray-800'}`}>
           {task.content}
         </span>
 

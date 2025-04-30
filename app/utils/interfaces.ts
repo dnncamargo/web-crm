@@ -49,6 +49,7 @@ export interface Event {
   location?: string;
   personId?: string;
   description?: string;
+  rating?: number;
   createdAt?: Date;
 }
 

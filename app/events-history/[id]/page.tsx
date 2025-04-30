@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebaseConfig';
 import { useAuth } from '@/app/components/AuthProvider';
 import { Event, Person } from '@/app/utils/interfaces';
 import { createGoogleCalendarEvent } from '@/app/utils/googleCalendar';
 import ProtectedRoute from '@/app/components/ProtectedRoute';
 import MainMenu from '@/app/components/MainMenu';
+import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
+import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 
 /**
  * @component
@@ -22,12 +24,13 @@ const EventDetails = () => {
 
   const [event, setEvent] = useState<Event | null>(null); /** @state {Event | null} event - Os detalhes do evento buscado do Firestore. Inicialmente null. */
   const [person, setPerson] = useState<Person | null>(null); /** @state {Person | null} person - Os detalhes da pessoa associada ao evento, buscados do Firestore. Inicialmente null. */
+  const [rating, setRating] = useState(0);
 
   useEffect(() => {
     if (user && id) {
       fetchEvent();
     }
-  }, [ user, id ]);
+  }, [user, id]);
 
   if (!user) {
     return <p>Carregando usuário...</p>;
@@ -61,6 +64,19 @@ const EventDetails = () => {
       console.error('Erro ao buscar evento:', error);
     }
   };
+
+  const handleRating = async (star: number) => {
+    if (rating === star) {
+      setRating(star - 1) // Apaga estrela atual e posteriores
+    } else {
+      setRating(star) // Acende até a estrela clicada
+    }
+    if (user && id) {
+      await updateDoc(doc(db, `users/${user.uid}/events-history/${id}`), {
+        rating: star
+      })
+    }
+  }
 
   if (!event) return <p className="p-6">Carregando dados do evento...</p>;
 
@@ -101,6 +117,26 @@ const EventDetails = () => {
           )}
         </div>
 
+        {/* Avaliação do Evento */}
+        <div className="bg-white flex items-center p-4 rounded-lg shadow space-y-2">
+          <p><strong>Avaliação:</strong></p>
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map(star => (
+              <button
+                key={star}
+                onClick={() => handleRating(star)}
+                className="p-1"
+                aria-label={`Avaliar com ${star} estrela${star > 1 ? 's' : ''}`}
+              >
+                {star <= rating ? (
+                  <StarSolid className='h-5 w-5 text-yellow-500 mb-2' />
+                ) : (
+                  < StarOutline className='h-5 w-5 text-gray-500 mb-2' />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Botão para criar evento no Google Calendar */}
         <button
