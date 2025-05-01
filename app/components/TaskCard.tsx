@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ArrowTurnDownRightIcon, ArrowTurnUpLeftIcon, PencilSquareIcon, CheckCircleIcon, FlagIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
+import { ArrowTurnDownRightIcon, ArrowTurnLeftUpIcon, PencilSquareIcon, CheckCircleIcon, FlagIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
 import { GripVerticalIcon } from 'lucide-react'
 import { Task } from '../utils/interfaces'
 import { useAuth } from './AuthProvider'
@@ -15,10 +15,11 @@ interface TaskCardProps {
   task: Task
   onEditTask: (task: Task) => void // Função para abrir o modal de edição
   onMakeSubtask: (task: Task) => void
+  onStatusSwitch: (status: number | any) => void
   refreshTasks: () => void // Função para atualizar a lista de tarefas
 }
 
-export default function TaskCard({ task, onEditTask, onMakeSubtask, refreshTasks }: TaskCardProps) {
+export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwitch, refreshTasks }: TaskCardProps) {
   const { user } = useAuth()
   const { attributes, listeners, setNodeRef, transform, transition, setActivatorNodeRef } = useSortable({ id: task.id })
 
@@ -33,15 +34,6 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, refreshTasks
     setShowActionsOn(null)
   }
 
-  const handleStatusSwitch = async (newStatus: 0 | 1 | 2) => {
-    if (!user) return
-    await updateDoc(doc(db, `users/${user.uid}/tasks-list`, task.id), {
-      status: newStatus,
-    })
-    refreshTasks()
-    handleResetPosition()
-  }
-
   const makeSubtask = () => {
     onMakeSubtask(task)
     handleResetPosition()
@@ -50,6 +42,11 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, refreshTasks
   const handleEditTask = () => {
     if (!user) return
     onEditTask(task) // Chama a função de edição passando a tarefa atual
+    handleResetPosition()
+  }
+
+  const handleStatusSwitch = (status: number | any) => {
+    onStatusSwitch(status)
     handleResetPosition()
   }
 
@@ -75,22 +72,58 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, refreshTasks
       <div className="absolute inset-0 flex justify-between items-center px-4 bg-gray-100 z-0 transition-opacity duration-300">
         <div className="flex gap-2 transition-all duration-300 ease-in-out">
           {showActionsOn === 'left' && (
-            <>
-              <button onClick={() => handleStatusSwitch(task.status === 2 ? 0 : 2)}>
-                {task.status === 2 ? <FlagIcon className="w-5 h-5 text-gray-500" /> : <CheckCircleIcon className="w-5 h-5 text-green-600" />}
-              </button>
-              <button onClick={() => handleStatusSwitch(1)}>
-                <PlayCircleIcon className="w-5 h-5 text-blue-600" />
-              </button>
-            </>
+            <div>
+              {task.status === 0 && (
+                <>
+                  <button onClick={() => handleStatusSwitch(1)}>
+                    {/* Switch: Processing */}
+                    <PlayCircleIcon className="w-5 h-5 text-blue-600" />
+                  </button>
+                  <button onClick={() => handleStatusSwitch(2)}>
+                    {/* Switch: Checked */}
+                    <CheckCircleIcon className="w-5 h-5 text-green-600" />
+                  </button>
+                </>
+              )}
+
+              {task.status === 1 && (
+                <>
+                  <button onClick={() => handleStatusSwitch(0)}>
+                    {/* Switch: Not Started */}
+                    <FlagIcon className="w-5 h-5 text-gray-400" />
+                  </button>
+                  <button onClick={() => handleStatusSwitch(2)}>
+                    {/* Switch: Checked */}
+                    <CheckCircleIcon className="w-5 h-5 text-green-600" />
+                  </button>
+                </>
+              )}
+
+              {task.status === 2 && (
+                <>
+                  <button onClick={() => handleStatusSwitch(0)}>
+                    {/* Switch: Not Started */}
+                    <FlagIcon className="w-5 h-5 text-gray-500" />
+                  </button>
+                  <button onClick={() => handleStatusSwitch(1)}>
+                    {/* Switch: Processing */}
+                    <PlayCircleIcon className="w-5 h-5 text-blue-600" />
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
         <div className="flex gap-2 transition-all duration-300 ease-in-out">
           {showActionsOn === 'right' && (
             <>
+              {/* Switch: Subtask / Task Parent */}
               <button onClick={makeSubtask}>
-                <ArrowTurnDownRightIcon className="w-5 h-5 text-orange-500" />
+                {task.parentId == null ?
+                  <ArrowTurnDownRightIcon className="w-5 h-5 text-purple-500" /> :
+                  <ArrowTurnLeftUpIcon className="w-5 h-5 text-purple-500" />}
               </button>
+              {/* Modal Editar Task */}
               <button onClick={handleEditTask}>
                 <PencilSquareIcon className="w-5 h-5 text-yellow-600" />
               </button>
@@ -150,7 +183,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, refreshTasks
         }}
         onTap={handleResetPosition} // << Se clicar no Card, reseta
         className={`relative overflow-hidden rounded shadow z-10 grid grid-cols-[auto_1fr_auto] items-center
-        ${task.parentId ? 'bg-gray-50 gap-0 pl-5 p-2'  : 'bg-white  gap-3 p-3'}`}
+        ${task.parentId ? 'bg-gray-50 gap-0 pl-5 p-2' : 'bg-white  gap-3 p-3'}`}
       >
         {/* Grip de arraste vertical */}
         <div

@@ -7,7 +7,7 @@ import { db } from "../utils/firebaseConfig"
 import { useAuth } from "../components/AuthProvider"
 import { Task } from "../utils/interfaces"
 import { DocumentCheckIcon } from "@heroicons/react/24/outline"
-import { Edit, PlusIcon } from "lucide-react"
+import { PlusIcon } from "lucide-react"
 import ProtectedRoute from '../components/ProtectedRoute'
 import MainMenu from "../components/MainMenu"
 import AddTaskModal from "../components/AddTaskModal"
