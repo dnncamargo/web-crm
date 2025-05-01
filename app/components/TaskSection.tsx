@@ -215,8 +215,16 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
             <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
-                modifiers={[restrictToVerticalAxis]} // <=== AQUI
-                onDragEnd={handleDragEnd}
+                modifiers={[restrictToVerticalAxis]}
+                onDragStart={() => {
+                    // Desativa scroll da página
+                    document.body.style.overflow = 'hidden';
+                  }}
+                  onDragEnd={(event) => {
+                    // Reativa scroll da página
+                    document.body.style.overflow = '';
+                    handleDragEnd(event);
+                  }}
             >
                 <SortableContext
                     items={tasks.map(task => task.id)}
