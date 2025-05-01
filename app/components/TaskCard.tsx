@@ -166,7 +166,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
         onDragEnd={(event, info) => {
           const offset = info.offset.x
 
-          if (offset < deleteSwipe) {
+          if (offset > deleteSwipe) {
             handleDelete()
           } else {
             setX(0)
