@@ -37,7 +37,6 @@ export async function createGoogleCalendarEvent(event: any) {
   if (!accessToken) throw new Error('Token de acesso do Google não encontrado');
 
   const formatedEvent = formatForGoogleCalendar(event); // Formata o evento para o Google Calendar
-
   const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events', {
     method: 'POST',
     headers: {
@@ -47,7 +46,8 @@ export async function createGoogleCalendarEvent(event: any) {
     body: JSON.stringify(formatedEvent),
   });
 
-  console.log('[Google Event]', JSON.stringify(formatedEvent, null, 2))
+  //console.log('[Google Event]', JSON.stringify(formatedEvent, null, 2))
+  console.log("🚀 Evento enviado ao Google Calendar")
 
   if (!response.ok) {
     const errorData = await response.json();

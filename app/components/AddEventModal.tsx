@@ -49,6 +49,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
   const [associatePerson, setAssociatePerson] = useState(false); /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
   const [selectedPersonId, setSelectedPersonId] = useState(initialPersonId || ''); /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
   const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
+  const [error, setError] = useState('');
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
   // Proteção: Se não for open ou sem usuário, nem carrega.
@@ -84,7 +85,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
     return (): void => {
       document.body.classList.remove('overflow-hidden');
     };
-  }, [isOpen, startDate, startTime, allDay]);
+  }, [isOpen, startDate, startTime, endDate, endTime, allDay]);
 
   if (!isOpen) return null; // Se o modal não estiver aberto, não renderiza nada.
 
@@ -113,23 +114,31 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
 
     const dateControl = () => {
     // Só faz a checagem se não for all-day (ou seja, está lidando com horário)
-    if (!allDay) {
-      const start = new Date(`${startDate}T${startTime}`);
-      const end = new Date(`${endDate}T${endTime}`);
-
-      if (start >= end) {
-        const adjustedEnd = new Date(start.getTime() + 30 * 60000); // adiciona 30 minutos
-        const newEndDate = adjustedEnd.toISOString().split('T')[0];
-        const newEndTime = adjustedEnd.toTimeString().slice(0, 5);
-
-        setEndDate(newEndDate);
-        setEndTime(newEndTime);
-      }
-    } else {
-      // Caso seja evento all-day, manter endDate igual ou maior que startDate
-      if (new Date(endDate) < new Date(startDate)) {
+    if (allDay) {
+      // All-day: endDate sempre ≥ startDate
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      if (end < start) {
         setEndDate(startDate);
       }
+      setStartTime('');
+      setEndTime('');
+      setError('');
+      return;
+    }
+  
+    // Horário: monta as datas completas
+    const start = new Date(`${startDate}T${startTime}`);
+    const end = new Date(`${endDate}T${endTime}`);
+  
+    if (start >= end) {
+      // Se end está inválido, define end para +30min após start
+      const newEnd = new Date(start.getTime() + 30 * 60000);
+      setEndDate(newEnd.toISOString().split('T')[0]);
+      setEndTime(newEnd.toTimeString().slice(0, 5));
+      setError('');
+    } else {
+      setError('');
     }
   }
 
@@ -302,7 +311,10 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
               <h3 className="text-lg font-semibold">
                 Novo Evento
               </h3>
-              <button type="submit" className="color-eh-base text-lg">
+              <button 
+                type="submit" 
+                disabled={!!error}
+                className="color-eh-base text-lg hover:bg-green-700 disabled:opacity-50">
                 Salvar
               </button>
             </div>
@@ -355,20 +367,28 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
                   <div className={`bg-white w-4 h-4 rounded-full shadow transform transition ${allDay ? 'translate-x-6' : 'translate-x-0'}`} />
                 </button>
               </div>
-              {/* Data de Início */}
+
+              {/* Data e Hora */}
               <div className="flex items-center mt-2 gap-2">
+                {/* Data de Início */}
                 <span className="w-20">Início</span>
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                  }}
                   className="flex-1 p-2 border rounded"
                 />
+                {/* Hora de Início */}
                 {!allDay && (
                   <input
                     type="time"
+                    step="300" // 5 minutos
                     value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
+                    onChange={(e) => {
+                      setStartTime(e.target.value);
+                    }}
                     className="w-24 p-2 border rounded"
                   />
                 )}
@@ -379,15 +399,21 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
                 <input
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="flex-1 p-2 border rounded"
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                  }}
+                  className={`flex-1 p-2 border rounded ${error && 'border-red-500'}`}
                 />
+                {/* Hora de Término */}
                 {!allDay && (
                   <input
                     type="time"
+                    step="300"
                     value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="w-24 p-2 border rounded"
+                    onChange={(e) => {
+                      setEndTime(e.target.value);
+                    }}
+                    className={`w-24 p-2 border rounded ${error && 'border-red-500'}`}
                   />
                 )}
               </div>
@@ -497,6 +523,10 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
                 </div>
               )}
             </div>
+            {error && (
+              <p className="text-sm text-red-600 mt-1">{error}</p>
+            )}
+
           </div>
         </form>
 
