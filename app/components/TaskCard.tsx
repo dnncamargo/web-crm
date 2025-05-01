@@ -4,12 +4,19 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { ArrowTurnDownRightIcon, ArrowTurnLeftUpIcon, PencilSquareIcon, CheckCircleIcon, FlagIcon, PlayCircleIcon } from '@heroicons/react/24/outline'
+import {
+  ArrowTurnDownRightIcon,
+  ArrowTurnLeftUpIcon,
+  PencilSquareIcon,
+  CheckCircleIcon,
+  FlagIcon,
+  PlayCircleIcon
+} from '@heroicons/react/24/outline'
 import { GripVerticalIcon } from 'lucide-react'
 import { Task } from '../utils/interfaces'
 import { useAuth } from './AuthProvider'
 import { db } from '../utils/firebaseConfig'
-import { doc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { doc, deleteDoc } from 'firebase/firestore'
 
 interface TaskCardProps {
   task: Task
@@ -26,8 +33,8 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
   const [x, setX] = useState(0)
   const [showActionsOn, setShowActionsOn] = useState<'left' | 'right' | null>(null)
 
-  const maxSwipe = 100 // quanto deve ser arrastado até o engate
-  const threshold = 80 // espaçamento para abrir os botões de ação
+  const threshold = 80  // deslocamento mínimo para considerar um gesto de arraste para ação
+  const deleteSwipe = 160 // distância mínima para considerar como tentativa de exclusão
 
   const handleResetPosition = () => {
     setX(0)
@@ -55,8 +62,11 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
     if (confirm('Deseja excluir esta tarefa?')) {
       await deleteDoc(doc(db, `users/${user.uid}/tasks-list`, task.id))
       refreshTasks()
+    } else {
+      handleResetPosition()
     }
   }
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -132,58 +142,38 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
         </div>
       </div>
 
-      {/* Área arrastável */}
+      {/* Área principal arrastável / clicável */}
       <motion.div
         drag="x"
-        dragElastic={1}
-        dragConstraints={{ left: -maxSwipe, right: maxSwipe }}
+        dragElastic={0.7}
+        dragConstraints={{ left: -deleteSwipe, right: deleteSwipe }}
         animate={{ x }}
-
-        // Ao tocar
         onClick={(e) => {
-          if (showActionsOn) {
-            handleResetPosition()
-          } else {
-            const { left, width } = e.currentTarget.getBoundingClientRect()
-            const xPos = e.clientX - left
-            if (xPos > width / 2) {
-              setX(-threshold)
-              setShowActionsOn('right')
-            } else {
-              setX(threshold)
-              setShowActionsOn('left')
-            }
-          }
-        }}
-
-        // Limitar movimento
-        onDrag={(event, info) => {
-          const limitedX = Math.max(-maxSwipe, Math.min(maxSwipe, info.offset.x))
-          console.log('info.offset.x', info.offset.x)
-          setX(limitedX)
-          document.body.classList.add('overflow-hidden')
-        }}
-        // Ao soltar o card, verifica se o movimento foi maior que o limite
-        onDragEnd={(event, info) => {
-          const { offset } = info
-          if (offset.x > threshold) {
-            setX(threshold) // magnetiza 100px
-            setShowActionsOn('left')
-            console.log('Puxa para a direita: ', info.offset.x)
-            console.log('posição x', x)
-          } else if (offset.x < -threshold) {
+          const { left, width } = e.currentTarget.getBoundingClientRect()
+          const xPos = e.clientX - left
+          if (xPos > width / 2) {
             setX(-threshold)
             setShowActionsOn('right')
-            console.log('Puxa para a esquerda: ', info.offset.x)
-            console.log('posição x', x)
           } else {
-            handleResetPosition()
+            setX(threshold)
+            setShowActionsOn('left')
           }
-          document.body.classList.remove('overflow-hidden')
         }}
-        onTap={handleResetPosition} // << Se clicar no Card, reseta
-        className={`relative overflow-hidden rounded shadow z-10 grid grid-cols-[auto_1fr_auto] items-center
-        ${task.parentId ? 'bg-gray-50 gap-0 pl-5 p-2' : 'bg-white  gap-3 p-3'}`}
+        onDrag={(event, info) => {
+          const limitedX = Math.max(-deleteSwipe, Math.min(deleteSwipe, info.offset.x))
+          setX(limitedX)
+        }}
+        onDragEnd={(event, info) => {
+          const offset = info.offset.x
+
+          if (offset < -deleteSwipe) {
+            handleDelete()
+          } else {
+            setX(0)
+            setShowActionsOn(null)
+          }
+        }}
+        className="relative z-10 grid grid-cols-[auto_1fr_auto] items-center bg-white gap-3 p-3 cursor-pointer"
       >
         {/* Grip de arraste vertical */}
         <div
