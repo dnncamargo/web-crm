@@ -151,13 +151,15 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
         onClick={(e) => {
           const { left, width } = e.currentTarget.getBoundingClientRect()
           const xPos = e.clientX - left
-          if (xPos > width / 2) {
-            setX(-threshold)
-            setShowActionsOn('right')
-          } else {
-            setX(threshold)
-            setShowActionsOn('left')
-          }
+          if(showActionsOn == null) {
+            if (xPos > width / 2) {
+              setX(-threshold)
+              setShowActionsOn('right')
+            } else {
+              setX(threshold)
+              setShowActionsOn('left')
+            }
+          } else {handleResetPosition()}
         }}
         onDrag={(event, info) => {
           const limitedX = Math.max(-deleteSwipe, Math.min(deleteSwipe, info.offset.x))
