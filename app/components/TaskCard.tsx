@@ -85,13 +85,13 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
             <div>
               {task.status === 0 && (
                 <>
+                  <button onClick={() => handleStatusSwitch(2)}>
+                    {/* Switch: Checked */}
+                    <CheckCircleIcon className="w-5 h-5 text-green-600 mr-2" />
+                  </button>
                   <button onClick={() => handleStatusSwitch(1)}>
                     {/* Switch: Processing */}
                     <PlayCircleIcon className="w-5 h-5 text-blue-600" />
-                  </button>
-                  <button onClick={() => handleStatusSwitch(2)}>
-                    {/* Switch: Checked */}
-                    <CheckCircleIcon className="w-5 h-5 text-green-600" />
                   </button>
                 </>
               )}
@@ -100,7 +100,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
                 <>
                   <button onClick={() => handleStatusSwitch(0)}>
                     {/* Switch: Not Started */}
-                    <FlagIcon className="w-5 h-5 text-gray-400" />
+                    <FlagIcon className="w-5 h-5 text-gray-400 mr-2" />
                   </button>
                   <button onClick={() => handleStatusSwitch(2)}>
                     {/* Switch: Checked */}
@@ -113,7 +113,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
                 <>
                   <button onClick={() => handleStatusSwitch(0)}>
                     {/* Switch: Not Started */}
-                    <FlagIcon className="w-5 h-5 text-gray-500" />
+                    <FlagIcon className="w-5 h-5 text-gray-500 mr-2" />
                   </button>
                   <button onClick={() => handleStatusSwitch(1)}>
                     {/* Switch: Processing */}
