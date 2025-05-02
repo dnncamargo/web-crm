@@ -12,6 +12,13 @@ import MainMenu from '@/app/components/MainMenu';
 import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 
+type OptionalField = {
+  id: string;
+  type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
+  label: string;
+  value: string;
+};
+
 /**
  * @component
  * @description Componente para exibir os detalhes de um evento específico, incluindo informações sobre a pessoa associada (se houver).
@@ -48,8 +55,9 @@ const EventDetails = () => {
       const docRef = doc(db, `users/${user.uid}/events-history/${id}`);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        
-        const eventData = { id: docSnap.id, ...docSnap.data() 
+
+        const eventData = {
+          id: docSnap.id, ...docSnap.data()
 
         } as Event;
         setEvent(eventData);
@@ -59,7 +67,8 @@ const EventDetails = () => {
           const personRef = doc(db, `users/${user.uid}/people-directory`, eventData.personId);
           const personSnap = await getDoc(personRef);
           if (personSnap.exists()) {
-            setPerson({ id: personSnap.id, ...personSnap.data() 
+            setPerson({
+              id: personSnap.id, ...personSnap.data()
 
             } as Person);
           }
@@ -84,6 +93,25 @@ const EventDetails = () => {
   }
 
   if (!event) return <p className="p-6">Carregando dados do evento...</p>;
+
+  function renderOptionalFieldValue(field: OptionalField) {
+    switch (field.type) {
+      case 'url':
+        return <a href={field.value} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{field.value}</a>
+      case 'tasks':
+        return (
+          <ul className="list-disc ml-5 space-y-1">
+            {field.value.split('\n').map((task, i) => (
+              <li key={i} className="text-gray-700">{task}</li>
+            ))}
+          </ul>
+        )
+      case 'textarea':
+        return <p className="whitespace-pre-wrap">{field.value}</p>
+      default:
+        return <span>{field.value}</span>
+    }
+  }
 
   return (
 
@@ -112,6 +140,23 @@ const EventDetails = () => {
 
           {/* Outras informações */}
           {event.description && <p><strong>Notas:</strong> {event.description}</p>}
+
+          {event.optionalFields && event.optionalFields.length > 0 && (
+            <div className="mt-6 space-y-4">
+              <h3 className="text-base font-semibold text-gray-700">Campos adicionais</h3>
+              {event.optionalFields.map((field: OptionalField) => (
+                <div key={field.id} className="bg-gray-50 p-3 rounded border">
+                  <p className="text-sm font-medium text-gray-600">{field.label}</p>
+                  <div className="mt-1 text-gray-800 text-sm break-words">
+                    {renderOptionalFieldValue(field)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+
+
 
           {/* Pessoa associada */}
           {person && (

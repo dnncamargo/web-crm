@@ -25,6 +25,13 @@ interface EditEventModalProps {
   onUpdated: () => void;
 }
 
+type OptionalField = {
+  id: string;                 // UUID para controle único
+  type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
+  label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
+  value: string;
+};
+
 /**
  * @component
  * @description Modal para editar os detalhes de um evento existente. Permite modificar título, data, hora, endereço, notas e associar a uma pessoa. Também oferece a opção de excluir o evento.
@@ -53,6 +60,8 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
   const [associatePerson, setAssociatePerson] = useState(false);  /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
   const [selectedPersonId, setSelectedPersonId] = useState('');  /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
   const [person, setPerson] = useState<Person[]>([]);  /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
+  const [optionalFields, setOptionalFields] = useState<OptionalField[]>(event.optionalFields || []);
+  const [showOptionalFieldModal, setShowOptionalFieldModal] = useState(false);
   const [error, setError] = useState('');
   const [isDraggable, setIsDraggable] = useState(true);  /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
@@ -196,6 +205,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
       state,
       location: [address, number, city, state].filter(Boolean).join(', ') || "",
       description: description?.trim() || '',
+      optionalFields: [...optionalFields],
       createdAt: new Date(),
     }
 
@@ -319,7 +329,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
       >
         {/* Formulário */}
         <form onSubmit={handleUpdate}>
-          <div className="p-4 space-y-4 mb-4">
+          <div className="p-4 space-y-4 mb-16">
             {/* Topo do Modal de Edição de Evento */}
             <div className="flex justify-between items-center mb-6">
               <button onClick={onClose} className="color-eh-base text-lg">
@@ -335,6 +345,40 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
                 Salvar
               </button>
             </div>
+
+            {/* Modal de Campos Opcionais */}
+            {showOptionalFieldModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white p-4 rounded-lg w-full max-w-sm shadow-lg">
+                  <h2 className="text-lg font-semibold mb-4">Adicionar campo opcional</h2>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'text',
+                        label: 'Nota',
+                        value: '',
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    Campo de texto
+                  </button>
+
+                  <button
+                    onClick={() => setShowOptionalFieldModal(false)}
+                    className="mt-3 w-full px-4 py-2 text-sm text-gray-500 hover:text-black"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Título e Local */}
             {!useAddressAPI && (
               <>
@@ -539,6 +583,38 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
                 </div>
               )}
             </div>
+
+            {optionalFields.map((field) => (
+              <div key={field.id} className="mb-3">
+                <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
+                <input
+                  type="text"
+                  value={field.value}
+                  onChange={(e) => {
+                    setOptionalFields((prev) =>
+                      prev.map((f) =>
+                        f.id === field.id ? { ...f, value: e.target.value } : f
+                      )
+                    )
+                  }}
+                  className="w-full border p-2 rounded"
+                />
+                <button
+                  onClick={() => setOptionalFields((prev) => prev.filter(f => f.id !== field.id))}
+                  className="text-xs text-red-500 mt-1"
+                >
+                  Remover
+                </button>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setShowOptionalFieldModal(true)}
+              className="text-blue-600 font-medium text-sm underline mb-2"
+            >
+              + Adicionar campo
+            </button>
 
             {error && (
               <p className="text-sm text-red-600 mt-1">{error}</p>

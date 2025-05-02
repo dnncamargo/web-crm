@@ -50,6 +50,7 @@ export interface Event {
   personId?: string;
   description?: string;
   rating?: number;
+  optionalFields?: any;
   createdAt?: Date;
 }
 

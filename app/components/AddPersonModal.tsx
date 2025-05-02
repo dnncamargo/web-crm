@@ -178,7 +178,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
       >
         {/* Formulário */}
         <form onSubmit={handleSubmit}>
-          <div className="p-4">
+          <div className="p-4 space-y-4 mb-16">
             {/* Topo do Modal de Inclusão de Pessoa */}
             <div className="flex justify-between items-center mb-6">
               <button onClick={onClose}

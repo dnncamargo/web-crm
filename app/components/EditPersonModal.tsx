@@ -203,7 +203,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
       >
         {/* Formulário */}
         <form onSubmit={handleUpdate}>
-          <div className="p-4">
+          <div className="p-4 space-y-4 mb-16">
             {/* Topo do Modal de Edição da Pessoa */}
             <div className="flex justify-between items-center mb-6">
               <button onClick={onClose}

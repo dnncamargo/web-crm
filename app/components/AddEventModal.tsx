@@ -25,6 +25,14 @@ interface AddEventModalProps {
   initialPersonId?: string;
 }
 
+type OptionalField = {
+  id: string;                 // UUID para controle único
+  type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
+  label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
+  value: string;
+};
+
+
 const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded, initialPersonId }) => {
   const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
   const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
@@ -49,6 +57,8 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
   const [associatePerson, setAssociatePerson] = useState(false); /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
   const [selectedPersonId, setSelectedPersonId] = useState(initialPersonId || ''); /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
   const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
+  const [optionalFields, setOptionalFields] = useState<OptionalField[]>([]);
+  const [showOptionalFieldModal, setShowOptionalFieldModal] = useState(false);
   const [error, setError] = useState('');
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
@@ -76,7 +86,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
     }
 
     dateControl(); // Chama a função de controle de data para garantir que as datas estejam corretas.
-    
+
     /**
      * @function cleanup
      * @description Função de limpeza executada quando o componente é desmontado ou as dependências mudam. Remove a classe 'overflow-hidden' do body.
@@ -89,30 +99,30 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
 
   if (!isOpen) return null; // Se o modal não estiver aberto, não renderiza nada.
 
-    /**
-     * @async
-     * @function fetchPeople
-     * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
-     * @returns {Promise<void>}
-     */
-    const fetchPeople = async (): Promise<void> => {
-      try {
-        // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
-        const querySnapshot = await getDocs(collection(db, `users/${user.uid}/people-directory`));
-        // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
-        const personData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Person[];
-        // Atualiza o estado 'person' com os dados das pessoas buscadas.
-        setPerson(personData);
-      } catch (error) {
-        console.error('Erro ao buscar pessoas:', error);
-        //todo: Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
-      }
-    };
+  /**
+   * @async
+   * @function fetchPeople
+   * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
+   * @returns {Promise<void>}
+   */
+  const fetchPeople = async (): Promise<void> => {
+    try {
+      // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
+      const querySnapshot = await getDocs(collection(db, `users/${user.uid}/people-directory`));
+      // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
+      const personData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Person[];
+      // Atualiza o estado 'person' com os dados das pessoas buscadas.
+      setPerson(personData);
+    } catch (error) {
+      console.error('Erro ao buscar pessoas:', error);
+      //todo: Lide com o erro de forma apropriada (ex: exibir uma mensagem ao usuário)
+    }
+  };
 
-    const dateControl = () => {
+  const dateControl = () => {
     // Só faz a checagem se não for all-day (ou seja, está lidando com horário)
     if (allDay) {
       // All-day: endDate sempre ≥ startDate
@@ -126,11 +136,11 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
       setError('');
       return;
     }
-  
+
     // Horário: monta as datas completas
     const start = new Date(`${startDate}T${startTime}`);
     const end = new Date(`${endDate}T${endTime}`);
-  
+
     if (start >= end) {
       // Se end está inválido, define end para +30min após start
       const newEnd = new Date(start.getTime() + 30 * 60000);
@@ -150,16 +160,16 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
   function validateEvent(): string | null {
     if (!title.trim()) return 'O título do evento é obrigatório';
     if (!startDate || !endDate) return 'Informe as datas de início e término';
-  
+
     if (!allDay) {
       if (!startTime || !endTime) return 'Informe os horários de início e término';
-  
+
       const start = new Date(`${startDate}T${startTime}`);
       const end = new Date(`${endDate}T${endTime}`);
       if (start >= end) return 'O horário de término deve ser após o horário de início';
     }
     return null;
-  }  
+  }
 
   /**
    * @async
@@ -194,13 +204,14 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
       state,
       location: [address, number, city, state].filter(Boolean).join(', ') || "",
       description: description?.trim() || '',
+      optionalFields: [...optionalFields],
       createdAt: new Date(),
     }
-  
+
     if (associatePerson && selectedPersonId) {
       (base as any).personId = selectedPersonId
     }
-  
+
     if (allDay) {
       return {
         ...base,
@@ -227,7 +238,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
     date.setDate(date.getDate() + 1);
     return date.toISOString().split('T')[0];
   }
-  
+
   /**
  * @async
  * @function handleSubmit
@@ -237,13 +248,13 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
  */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-  
+
     const errorMsg = validateEvent();
     if (errorMsg) {
       alert(errorMsg);
       return;
     }
-  
+
     try {
       const eventRef = formatEvent();
       console.log([eventRef], eventRef);
@@ -278,10 +289,12 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
       setSelectedPersonId(''); // Limpa o ID da pessoa selecionada.
     }
   }
-  
+
   return (
 
     <ProtectedRoute>
+
+
 
       <motion.div
         // Framer-Motion
@@ -302,7 +315,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
 
         {/* Formulário */}
         <form onSubmit={handleSubmit}>
-          <div className="p-4 space-y-4 mb-4">
+          <div className="p-4 space-y-4 mb-16">
             {/* Topo do Modal de Inclusão de Evento */}
             <div className="flex justify-between items-center mb-6">
               <button onClick={onClose} className="color-eh-base text-lg">
@@ -311,13 +324,49 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
               <h3 className="text-lg font-semibold">
                 Novo Evento
               </h3>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={!!error}
                 className="color-eh-base text-lg hover:bg-green-700 disabled:opacity-50">
                 Salvar
               </button>
             </div>
+
+
+            {/* Modal de Campos Opcionais */}
+            {showOptionalFieldModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white p-4 rounded-lg w-full max-w-sm shadow-lg">
+                  <h2 className="text-lg font-semibold mb-4">Adicionar campo opcional</h2>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'text',
+                        label: 'Nota',
+                        value: '',
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  >
+                    Campo de texto
+                  </button>
+
+                  <button
+                    onClick={() => setShowOptionalFieldModal(false)}
+                    className="mt-3 w-full px-4 py-2 text-sm text-gray-500 hover:text-black"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+
             {/* Título e Local */}
             {!useAddressAPI && (
               <>
@@ -523,6 +572,39 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
                 </div>
               )}
             </div>
+
+            {optionalFields.map((field) => (
+              <div key={field.id} className="mb-3">
+                <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
+                <input
+                  type="text"
+                  value={field.value}
+                  onChange={(e) => {
+                    setOptionalFields((prev) =>
+                      prev.map((f) =>
+                        f.id === field.id ? { ...f, value: e.target.value } : f
+                      )
+                    )
+                  }}
+                  className="w-full border p-2 rounded"
+                />
+                <button
+                  onClick={() => setOptionalFields((prev) => prev.filter(f => f.id !== field.id))}
+                  className="text-xs text-red-500 mt-1"
+                >
+                  Remover
+                </button>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => setShowOptionalFieldModal(true)}
+              className="text-blue-600 font-medium text-sm underline mb-2"
+            >
+              + Adicionar campo
+            </button>
+
             {error && (
               <p className="text-sm text-red-600 mt-1">{error}</p>
             )}
