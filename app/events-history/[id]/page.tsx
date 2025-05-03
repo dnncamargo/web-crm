@@ -11,12 +11,19 @@ import ProtectedRoute from '@/app/components/ProtectedRoute';
 import MainMenu from '@/app/components/MainMenu';
 import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
+import { v4 as uuidv4 } from 'uuid';
+
+type TaskItem = {
+  id: string;
+  text: string;
+  done: boolean;
+};
 
 type OptionalField = {
-  id: string;
+  id: string;                 // UUID para controle único
   type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
-  label: string;
-  value: string;
+  label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
+  value: string | TaskItem[]; // string para os outros tipos, array para tasks
 };
 
 /**
@@ -31,7 +38,7 @@ const EventDetails = () => {
 
   const [event, setEvent] = useState<Event | null>(null); /** @state {Event | null} event - Os detalhes do evento buscado do Firestore. Inicialmente null. */
   const [person, setPerson] = useState<Person | null>(null); /** @state {Person | null} person - Os detalhes da pessoa associada ao evento, buscados do Firestore. Inicialmente null. */
-  const [rating, setRating] = useState(0);
+  const [rating, setRating] = useState(event?.rating | 0);
 
   useEffect(() => {
     if (user && id) {
@@ -94,22 +101,135 @@ const EventDetails = () => {
 
   if (!event) return <p className="p-6">Carregando dados do evento...</p>;
 
+  const updateOptionalFieldTasks = async (fieldId: string, updatedTasks: TaskItem[]) => {
+    if (!event || !user) return;
+  
+    const updatedFields = event.optionalFields.map(field => {
+      if (field.id === fieldId && field.type === 'tasks') {
+        return { ...field, value: updatedTasks };
+      }
+      return field;
+    });
+  
+    setEvent({ ...event, optionalFields: updatedFields });
+  
+    await updateDoc(doc(db, `users/${user.uid}/events-history/${event.id}`), {
+      optionalFields: updatedFields
+    });
+  };
+  
+  const addTask = (fieldId: string) => {
+    const newTask: TaskItem = {
+      id: uuidv4(),
+      text: '',
+      done: false
+    };
+  
+    const targetField = event?.optionalFields.find(f => f.id === fieldId);
+    if (!targetField || targetField.type !== 'tasks') return;
+  
+    const currentTasks = targetField.value as TaskItem[];
+    updateOptionalFieldTasks(fieldId, [...currentTasks, newTask]);
+  };
+  
+  const updateTaskText = (fieldId: string, taskId: string, newText: string) => {
+    const field = event?.optionalFields.find(f => f.id === fieldId && f.type === 'tasks');
+    if (!field) return;
+  
+    const updatedTasks = (field.value as TaskItem[]).map(task =>
+      task.id === taskId ? { ...task, text: newText } : task
+    );
+  
+    updateOptionalFieldTasks(fieldId, updatedTasks);
+  };
+  
+  const toggleTaskDone = (fieldId: string, taskId: string) => {
+    const field = event?.optionalFields.find(f => f.id === fieldId && f.type === 'tasks');
+    if (!field) return;
+  
+    const updatedTasks = (field.value as TaskItem[]).map(task =>
+      task.id === taskId ? { ...task, done: !task.done } : task
+    );
+  
+    updateOptionalFieldTasks(fieldId, updatedTasks);
+  };
+  
+  const deleteTask = (fieldId: string, taskId: string) => {
+    const field = event?.optionalFields.find(f => f.id === fieldId && f.type === 'tasks');
+    if (!field) return;
+  
+    const updatedTasks = (field.value as TaskItem[]).filter(task => task.id !== taskId);
+    updateOptionalFieldTasks(fieldId, updatedTasks);
+  };
+ 
+
   function renderOptionalFieldValue(field: OptionalField) {
     switch (field.type) {
       case 'url':
-        return <a href={field.value} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{field.value}</a>
-      case 'tasks':
         return (
-          <ul className="list-disc ml-5 space-y-1">
-            {field.value.split('\n').map((task, i) => (
-              <li key={i} className="text-gray-700">{task}</li>
-            ))}
-          </ul>
-        )
+          <a
+            href={field.value as string}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 underline"
+          >
+            {typeof field.value === 'string'
+              ? field.value
+              : '[Tipo de campo não suportado para exibição direta]'}
+          </a>
+        );
+
+        case 'tasks':
+          const tasks = Array.isArray(field.value) ? field.value as TaskItem[] : [];
+          return (
+            <div className="space-y-2">
+              <ul className="space-y-1">
+                {tasks.map(task => (
+                  <li key={task.id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={task.done}
+                      onChange={() => toggleTaskDone(field.id, task.id)}
+                      className="h-4 w-4 text-green-600"
+                    />
+                    <input
+                      type="text"
+                      value={task.text}
+                      onChange={(e) => updateTaskText(field.id, task.id, e.target.value)}
+                      className="flex-1 text-sm border border-gray-300 rounded px-2 py-1"
+                      placeholder="Descrição da tarefa"
+                    />
+                    <button
+                      onClick={() => deleteTask(field.id, task.id)}
+                      className="text-red-500 text-xs"
+                    >
+                      Excluir
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => addTask(field.id)}
+                className="text-blue-600 text-sm underline mt-2"
+              >
+                + Nova tarefa
+              </button>
+            </div>
+          );       
+
       case 'textarea':
-        return <p className="whitespace-pre-wrap">{field.value}</p>
+        return (
+          <div className="whitespace-pre-wrap text-sm leading-relaxed">
+            {typeof field.value === 'string'
+              ? field.value
+              : '[Tipo de campo não suportado para exibição direta]'}
+          </div>
+        );
+
       default:
-        return <span>{field.value}</span>
+        return <span>{typeof field.value === 'string'
+          ? field.value
+          : '[Tipo de campo não suportado para exibição direta]'}</span>;
     }
   }
 
@@ -139,7 +259,7 @@ const EventDetails = () => {
           {event.state && <p><strong>Estado:</strong> {event.state}</p>}
 
           {/* Outras informações */}
-          {event.description && <p><strong>Notas:</strong> {event.description}</p>}
+          {/* {event.description && <p><strong>Notas:</strong> {event.description}</p>} */}
 
           {event.optionalFields && event.optionalFields.length > 0 && (
             <div className="mt-6 space-y-4">
@@ -154,9 +274,6 @@ const EventDetails = () => {
               ))}
             </div>
           )}
-
-
-
 
           {/* Pessoa associada */}
           {person && (

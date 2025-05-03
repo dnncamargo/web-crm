@@ -9,6 +9,7 @@ import { Event, Person } from '../utils/interfaces';
 import { motion } from 'framer-motion';
 import ProtectedRoute from './ProtectedRoute';
 import clsx from 'clsx';
+import { OptionalFieldTasksList } from './OptionalFieldTasksList';
 
 /**
  * @interface EditEventModalProps
@@ -25,11 +26,17 @@ interface EditEventModalProps {
   onUpdated: () => void;
 }
 
+type TaskItem = {
+  id: string;
+  text: string;
+  done: boolean;
+};
+
 type OptionalField = {
   id: string;                 // UUID para controle único
   type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
   label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
-  value: string;
+  value: string | TaskItem[]; // string para os outros tipos, array para tasks
 };
 
 /**
@@ -56,7 +63,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
   const [district, setDistrict] = useState(event.district || '');  /** @state {string} district - Bairro do local do evento. */
   const [city, setCity] = useState(event.city || '');  /** @state {string} city - Cidade do local do evento. */
   const [state, setState] = useState(event.state || '');  /** @state {string} state - Estado (UF) do local do evento. */
-  const [description, setDescription] = useState(event.description || '');  /** @state {string} description - Notas ou descrição adicional do evento. */
+  //const [description, setDescription] = useState(event.description || '');  /** @state {string} description - Notas ou descrição adicional do evento. */
   const [associatePerson, setAssociatePerson] = useState(false);  /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
   const [selectedPersonId, setSelectedPersonId] = useState('');  /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
   const [person, setPerson] = useState<Person[]>([]);  /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
@@ -204,7 +211,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
       city,
       state,
       location: [address, number, city, state].filter(Boolean).join(', ') || "",
-      description: description?.trim() || '',
+      //description: description?.trim() || '',
       optionalFields: [...optionalFields],
       createdAt: new Date(),
     }
@@ -358,15 +365,32 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
                       const newField: OptionalField = {
                         id: crypto.randomUUID(),
                         type: 'text',
-                        label: 'Nota',
+                        label: 'Descrição',
                         value: '',
                       }
                       setOptionalFields(prev => [...prev, newField])
                       setShowOptionalFieldModal(false)
                     }}
-                    className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
                   >
                     Campo de texto
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'tasks',
+                        label: 'Lista de Tarefas',
+                        value: [],
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    Lista de Tarefas
                   </button>
 
                   <button
@@ -532,7 +556,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
             </div>
 
             {/* Descrição */}
-            <div className="bg-gray-50 rounded-lg overflow-hidden border">
+            {/* <div className="bg-gray-50 rounded-lg overflow-hidden border">
               <textarea
                 placeholder="Notas"
                 value={description}
@@ -540,7 +564,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
                 className="w-full p-4 bg-transparent focus:outline-none resize-none"
                 rows={4}
               />
-            </div>
+            </div> */}
 
             {/* Associar Pessoa */}
             <div className="border-gray-200 pt-4 mb-6">
@@ -584,30 +608,66 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
               )}
             </div>
 
+            {/* Campos Personalizados Adicionados   */}
             {optionalFields.map((field) => (
-              <div key={field.id} className="mb-3">
+              <div key={field.id} className="mb-4">
                 <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
-                <input
-                  type="text"
-                  value={field.value}
-                  onChange={(e) => {
-                    setOptionalFields((prev) =>
-                      prev.map((f) =>
-                        f.id === field.id ? { ...f, value: e.target.value } : f
+
+                {field.type === 'text' && (
+                  <input
+                    type="text"
+                    value={field.value as string}
+                    onChange={(e) =>
+                      setOptionalFields(prev =>
+                        prev.map(f =>
+                          f.id === field.id ? { ...f, value: e.target.value } : f
+                        )
                       )
-                    )
-                  }}
-                  className="w-full border p-2 rounded"
-                />
+                    }
+                    className="w-full border p-2 rounded"
+                  />
+                )}
+
+                {field.type === 'textarea' && (
+                  <textarea
+                    rows={4}
+                    value={field.value as string}
+                    onChange={(e) =>
+                      setOptionalFields(prev =>
+                        prev.map(f =>
+                          f.id === field.id ? { ...f, value: e.target.value } : f
+                        )
+                      )
+                    }
+                    className="w-full border p-2 rounded"
+                  />
+                )}
+
+                {field.type === 'tasks' && (
+                  <OptionalFieldTasksList
+                    tasks={(field.value as TaskItem[]) ?? []}
+                    onChange={(newTasks) =>
+                      setOptionalFields(prev =>
+                        prev.map(f =>
+                          f.id === field.id ? { ...f, value: newTasks } : f
+                        )
+                      )
+                    }
+                  />
+                )}
+
                 <button
-                  onClick={() => setOptionalFields((prev) => prev.filter(f => f.id !== field.id))}
-                  className="text-xs text-red-500 mt-1"
+                  onClick={() =>
+                    setOptionalFields(prev => prev.filter(f => f.id !== field.id))
+                  }
+                  className="text-xs text-red-500 mt-2"
                 >
                   Remover
                 </button>
               </div>
             ))}
 
+            {/* Adicionar Campo Personalizado */}
             <button
               type="button"
               onClick={() => setShowOptionalFieldModal(true)}

@@ -48,7 +48,6 @@ export interface Event {
   state?: string;
   location?: string;
   personId?: string;
-  description?: string;
   rating?: number;
   optionalFields?: any;
   createdAt?: Date;
