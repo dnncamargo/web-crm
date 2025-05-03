@@ -63,12 +63,15 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
         )}
         {/* todo: incluir Pessoa associada no card */}
         {/* Descrição */}
-        {event.description && (
+        
+
+
+        {/* {event.description && (
           <div className="card-content-info-large text-gray-500 mb-2">
             <PencilSquareIcon className="w-4 h-4 mr-2 mt-0.5" />
             {event.description}
           </div>
-        )}
+        )} */}
 
       </div>
       {/* Botão de editar */}

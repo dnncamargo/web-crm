@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, MouseEventHandler } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebaseConfig';
@@ -33,18 +33,24 @@ type OptionalField = {
  */
 const EventDetails = () => {
   const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
-  const { id } = useParams();  /** @const {string} id - O ID do evento a ser exibido, extraído da URL. */
+  const params = useParams();
+  const id = typeof params.id === 'string' ? params.id : params.id?.[0];  /** @const {string} id - O ID do evento a ser exibido, extraído da URL. */
   const router = useRouter(); /** @const {object} router - O objeto de roteamento do Next.js. */
 
   const [event, setEvent] = useState<Event | null>(null); /** @state {Event | null} event - Os detalhes do evento buscado do Firestore. Inicialmente null. */
   const [person, setPerson] = useState<Person | null>(null); /** @state {Person | null} person - Os detalhes da pessoa associada ao evento, buscados do Firestore. Inicialmente null. */
-  const [rating, setRating] = useState(event?.rating | 0);
+  const [rating, setRating] = useState(event?.rating ?? 0);
+  const [currentRating, setCurrentRating] = useState(0);
+
 
   useEffect(() => {
     if (user && id) {
       fetchEvent();
     }
-  }, [user, id]);
+    if (typeof event?.rating === 'number') {
+      setCurrentRating(event.rating);
+    }
+  }, [user, id, event]);
 
   if (!user) {
     return <p>Carregando usuário...</p>;
@@ -87,11 +93,11 @@ const EventDetails = () => {
   };
 
   const handleRating = async (star: number) => {
-    if (rating === star) {
-      setRating(star - 1) // Apaga estrela atual e posteriores
-    } else {
-      setRating(star) // Acende até a estrela clicada
-    }
+    setRating(star === rating ? star - 1 : star);
+
+    // Atualiza também localmente o estado do evento:
+    setEvent(prev => prev ? { ...prev, rating: star === rating ? star - 1 : star } : prev);
+
     if (user && id) {
       await updateDoc(doc(db, `users/${user.uid}/events-history/${id}`), {
         rating: star
@@ -103,65 +109,65 @@ const EventDetails = () => {
 
   const updateOptionalFieldTasks = async (fieldId: string, updatedTasks: TaskItem[]) => {
     if (!event || !user) return;
-  
-    const updatedFields = event.optionalFields.map(field => {
+
+    const updatedFields = event.optionalFields.map((field: { id: string; type: string; }) => {
       if (field.id === fieldId && field.type === 'tasks') {
         return { ...field, value: updatedTasks };
       }
       return field;
     });
-  
+
     setEvent({ ...event, optionalFields: updatedFields });
-  
+
     await updateDoc(doc(db, `users/${user.uid}/events-history/${event.id}`), {
       optionalFields: updatedFields
     });
   };
-  
+
   const addTask = (fieldId: string) => {
     const newTask: TaskItem = {
       id: uuidv4(),
       text: '',
       done: false
     };
-  
-    const targetField = event?.optionalFields.find(f => f.id === fieldId);
+
+    const targetField = event?.optionalFields.find((f: { id: string; }) => f.id === fieldId);
     if (!targetField || targetField.type !== 'tasks') return;
-  
+
     const currentTasks = targetField.value as TaskItem[];
     updateOptionalFieldTasks(fieldId, [...currentTasks, newTask]);
   };
-  
+
   const updateTaskText = (fieldId: string, taskId: string, newText: string) => {
-    const field = event?.optionalFields.find(f => f.id === fieldId && f.type === 'tasks');
+    const field = event?.optionalFields.find((f: { id: string; type: string; }) => f.id === fieldId && f.type === 'tasks');
     if (!field) return;
-  
+
     const updatedTasks = (field.value as TaskItem[]).map(task =>
       task.id === taskId ? { ...task, text: newText } : task
     );
-  
+
     updateOptionalFieldTasks(fieldId, updatedTasks);
   };
-  
+
   const toggleTaskDone = (fieldId: string, taskId: string) => {
-    const field = event?.optionalFields.find(f => f.id === fieldId && f.type === 'tasks');
+    const field = event?.optionalFields.find((f: { id: string; type: string; }) => f.id === fieldId && f.type === 'tasks');
     if (!field) return;
-  
+
     const updatedTasks = (field.value as TaskItem[]).map(task =>
       task.id === taskId ? { ...task, done: !task.done } : task
     );
-  
+
     updateOptionalFieldTasks(fieldId, updatedTasks);
   };
-  
+
   const deleteTask = (fieldId: string, taskId: string) => {
-    const field = event?.optionalFields.find(f => f.id === fieldId && f.type === 'tasks');
+    const field = event?.optionalFields.find((f: { id: string; type: string; }) => f.id === fieldId && f.type === 'tasks');
     if (!field) return;
-  
+
     const updatedTasks = (field.value as TaskItem[]).filter(task => task.id !== taskId);
     updateOptionalFieldTasks(fieldId, updatedTasks);
   };
- 
+
 
   function renderOptionalFieldValue(field: OptionalField) {
     switch (field.type) {
@@ -179,43 +185,44 @@ const EventDetails = () => {
           </a>
         );
 
-        case 'tasks':
-          const tasks = Array.isArray(field.value) ? field.value as TaskItem[] : [];
-          return (
-            <div className="space-y-2">
-              <ul className="space-y-1">
-                {tasks.map(task => (
-                  <li key={task.id} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={task.done}
-                      onChange={() => toggleTaskDone(field.id, task.id)}
-                      className="h-4 w-4 text-green-600"
-                    />
-                    <input
-                      type="text"
-                      value={task.text}
-                      onChange={(e) => updateTaskText(field.id, task.id, e.target.value)}
-                      className="flex-1 text-sm border border-gray-300 rounded px-2 py-1"
-                      placeholder="Descrição da tarefa"
-                    />
-                    <button
-                      onClick={() => deleteTask(field.id, task.id)}
-                      className="text-red-500 text-xs"
-                    >
-                      Excluir
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => addTask(field.id)}
-                className="text-blue-600 text-sm underline mt-2"
-              >
-                + Nova tarefa
-              </button>
-            </div>
-          );       
+      case 'tasks':
+        const tasks = Array.isArray(field.value) ? field.value as TaskItem[] : [];
+        return (
+          <div className="space-y-2">
+            <ul className="space-y-1">
+              {tasks.map(task => (
+                <li key={task.id} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={task.done}
+                    onChange={() => toggleTaskDone(field.id, task.id)}
+                    className="h-4 w-4 text-green-600"
+                  />
+                  <input
+                    type="text"
+                    value={task.text}
+                    onChange={(e) => updateTaskText(field.id, task.id, e.target.value)}
+                    className="flex-1 text-sm border border-gray-300 rounded px-2 py-1"
+                    placeholder="Descrição da tarefa"
+                  />
+                  <button
+                    onClick={() => deleteTask(field.id, task.id)}
+                    className="text-red-500 text-xs"
+                  >
+                    Excluir
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={() => addTask(field.id)}
+              className="text-blue-600 text-sm underline mt-2"
+            >
+              + Nova tarefa
+            </button>
+          </div>
+        );
+
 
       case 'textarea':
         return (
@@ -227,16 +234,24 @@ const EventDetails = () => {
         );
 
       default:
-        return <span>{typeof field.value === 'string'
-          ? field.value
-          : '[Tipo de campo não suportado para exibição direta]'}</span>;
+        return (
+          <span
+            className="italic text-gray-400">
+            {typeof field.value === 'string'
+              ? field.value
+              : `Campo não suportado: {field.label}`}
+          </span>);
     }
   }
+
+  const handleRatingChange = async (value: number) => {
+    setCurrentRating(value);
+    await updateDoc(doc(db, `users/${user.uid}/events-history/${id}`), { rating: value });
+  };
 
   return (
 
     <ProtectedRoute>
-
       <div className="p-6 space-y-6 gap-2">
 
         {/* Renderiza o menu principal da aplicação. */}
@@ -257,13 +272,13 @@ const EventDetails = () => {
           {event.district && <p><strong>Bairro:</strong> {event.district}</p>}
           {event.city && <p><strong>Cidade:</strong> {event.city}</p>}
           {event.state && <p><strong>Estado:</strong> {event.state}</p>}
+        </div>
 
-          {/* Outras informações */}
-          {/* {event.description && <p><strong>Notas:</strong> {event.description}</p>} */}
-
+        {/* Outras informações */}
+        <div className="bg-white p-4 rounded-lg shadow space-y-2">
           {event.optionalFields && event.optionalFields.length > 0 && (
-            <div className="mt-6 space-y-4">
-              <h3 className="text-base font-semibold text-gray-700">Campos adicionais</h3>
+            <div className="space-y-4">
+              <h3 className="text-base font-semibold text-gray-700">Outras informações</h3>
               {event.optionalFields.map((field: OptionalField) => (
                 <div key={field.id} className="bg-gray-50 p-3 rounded border">
                   <p className="text-sm font-medium text-gray-600">{field.label}</p>
@@ -277,7 +292,7 @@ const EventDetails = () => {
 
           {/* Pessoa associada */}
           {person && (
-            <div className="bg-gray-50 rounded border">
+            <div className="bg-gray-50 rounded border pl-2">
               <p><strong>{person.name}</strong></p>
               <p className="text-sm text-gray-500">{person.phone}</p>
             </div>
@@ -287,21 +302,22 @@ const EventDetails = () => {
         {/* Avaliação do Evento */}
         <div className="bg-white flex items-center p-4 rounded-lg shadow space-y-2">
           <p><strong>Avaliação:</strong></p>
-          <div className="flex items-center gap-1">
-            {[1, 2, 3, 4, 5].map(star => (
-              <button
-                key={star}
-                onClick={() => handleRating(star)}
-                className="p-1"
-                aria-label={`Avaliar com ${star} estrela${star > 1 ? 's' : ''}`}
-              >
-                {star <= rating ? (
-                  <StarSolid className='h-5 w-5 text-yellow-500 mb-2' />
-                ) : (
-                  < StarOutline className='h-5 w-5 text-gray-500 mb-2' />
-                )}
-              </button>
-            ))}
+          <div className="flex items-center space-x-2">
+            {[1, 2, 3, 4, 5].map((star) =>
+              star <= currentRating ? (
+                <StarSolid
+                  key={star}
+                  className="h-5 w-5 text-yellow-500 mb-2 cursor-pointer"
+                  onClick={() => handleRatingChange(star)}
+                />
+              ) : (
+                <StarOutline
+                  key={star}
+                  className="h-5 w-5 text-gray-500 mb-2 cursor-pointer"
+                  onClick={() => handleRatingChange(star)}
+                />
+              )
+            )}
           </div>
         </div>
 

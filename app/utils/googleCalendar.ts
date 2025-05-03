@@ -1,13 +1,49 @@
-function formatForGoogleCalendar(event : any) {
+function formatOptionalFields(optionalFieldsArray: any[]) {
+  if (!Array.isArray(optionalFieldsArray)) return '';
+
+  let description = '';
+  let tasks: { text: string; done: boolean }[] = [];
+
+  for (const field of optionalFieldsArray) {
+    if (field.type === 'text' && typeof field.value === 'string') {
+      description = field.value.trim();
+    } else if (field.type === 'tasks' && Array.isArray(field.value)) {
+      tasks = field.value;
+    }
+  }
+
+  let output = '';
+
+  if (description) {
+    output += `Descrição do Evento\n${description}\n`;
+  }
+
+  if (tasks.length > 0) {
+    if (output) output += '\n';
+    output += 'Lista de Tarefas\n';
+    output += tasks
+      .map((task) => `${task.done ? '☑' : '☐'} ${task.text.trim()}`)
+      .join('\n');
+  }
+
+  return output;
+}
+
+function formatForGoogleCalendar(event: any) {
   const padTime = (time: string) => (time.length === 5 ? `${time}:00` : time);
-  const tzOffset = '-03:00'; // Brasil (horário padrão, pode ser dinâmico se quiser)
+  const tzOffset = '-03:00'; // Brasil
+
+  console.log('[Event Object]', JSON.stringify(event, null, 2))
+  const description = formatOptionalFields(event.optionalFields) || '';
+
+  console.log('[Description]', JSON.stringify(description, null, 2)) // [Description] ""
 
   if (event.allDay) {
     return {
       summary: event.title.trim(),
       start: { date: event.startDate },
       end: { date: event.endDate },
-      description: event.description?.trim() || '',
+      description,
       ...(event.address && {
         location: [event.address, event.number, event.city, event.state].filter(Boolean).join(', ')
       })
@@ -23,14 +59,13 @@ function formatForGoogleCalendar(event : any) {
         dateTime: `${event.endDate}T${padTime(event.endTime)}${tzOffset}`,
         timeZone: 'America/Sao_Paulo'
       },
-      description: event.description?.trim() || '',
+      description,
       ...(event.address && {
         location: [event.address, event.number, event.city, event.state].filter(Boolean).join(', ')
       })
     };
   }
 }
-
 
 export async function createGoogleCalendarEvent(event: any) {
   const accessToken = localStorage.getItem('googleAccessToken');
@@ -46,13 +81,13 @@ export async function createGoogleCalendarEvent(event: any) {
     body: JSON.stringify(formatedEvent),
   });
 
-  //console.log('[Google Event]', JSON.stringify(formatedEvent, null, 2))
-  console.log("🚀 Evento enviado ao Google Calendar")
-
   if (!response.ok) {
     const errorData = await response.json();
-    console.error('Erro detalhado da API Google Calendar:', errorData);
-    throw new Error(errorData.error.message || 'Erro ao criar evento');
+
+    console.log('[Google Event]', JSON.stringify(formatedEvent, null, 2))
+    throw new Error("🚧 Erro detalhado da API Google Calendar:", errorData.error.message);
+  } else {
+    console.log("🚀 Evento enviado ao Google Calendar")
   }
 
   return await response.json();

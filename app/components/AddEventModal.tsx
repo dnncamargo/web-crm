@@ -142,21 +142,23 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
       setEndTime('');
       setError('');
       return;
-    }
-
-    // Horário: monta as datas completas
-    const start = new Date(`${startDate}T${startTime}`);
-    const end = new Date(`${endDate}T${endTime}`);
-
-    if (start >= end) {
-      // Se end está inválido, define end para +30min após start
-      const newEnd = new Date(start.getTime() + 30 * 60000);
-      setEndDate(newEnd.toISOString().split('T')[0]);
-      setEndTime(newEnd.toTimeString().slice(0, 5));
-      setError('');
     } else {
-      setError('');
+
+      // Horário: monta as datas completas
+      const start = new Date(`${startDate}T${startTime}`);
+      const end = new Date(`${endDate}T${endTime}`);
+
+      if (start >= end) {
+        // Se end está inválido, define end para +30min após start
+        const newEnd = new Date(start.getTime() + 30 * 60000);
+        setEndDate(newEnd.toISOString().split('T')[0]);
+        setEndTime(newEnd.toTimeString().slice(0, 5));
+        setError('');
+      } else {
+        setError('');
+      }
     }
+
   }
 
   /**
