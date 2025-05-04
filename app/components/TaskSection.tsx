@@ -1,12 +1,11 @@
 'use client'
 
 import { useAuth } from "../components/AuthProvider"
-import { useState } from "react"
-import { updateDoc, doc } from 'firebase/firestore'
+import { updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore'
 import { db } from '../utils/firebaseConfig'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers' // <=== AQUI
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { Task } from '../utils/interfaces'
 import TaskCard from './TaskCard'
 
@@ -21,9 +20,6 @@ interface TaskSectionProps {
 
 export default function TaskSection({ section, tasks, onEditTask, refreshTasks, updateTasksLocally }: TaskSectionProps) {
     const { user } = useAuth()
-    const [modalTask, setModalTask] = useState<Task | null>(null)
-    const [modalMode, setModalMode] = useState<'subtask' | 'parent' | null>(null)
-    const [pendingStatus, setPendingStatus] = useState<0 | 1 | 2 | null>(null)
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -34,154 +30,166 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
         })
     )
 
+    const handlePromoteSubtask = async (subtask: Task, parentTaskId: string) => {
+        if (!user) return;
+        const parentRef = doc(db, `users/${user.uid}/tasks-list`, parentTaskId);
+        const parentSnap = await getDoc(parentRef);
+
+        if (!parentSnap.exists()) return;
+
+        const parentTask = parentSnap.data() as Task;
+
+        // Remove a subtask do pai
+        const updatedParent: Task = {
+            ...parentTask,
+            subtasks: (parentTask.subtasks || []).filter(st => st.id !== subtask.id)
+        };
+
+        // Criar subtask como nova tarefa principal
+        const promotedTask: Task = {
+            parentTaskId: "", // zerar a parentTaskId
+            ...subtask,
+            subtasks: [] // assume que subtarefas não têm subtarefas
+        };
+
+        await Promise.all([
+            setDoc(doc(db, `users/${user.uid}/tasks-list`, updatedParent.id), updatedParent),
+            setDoc(doc(db, `users/${user.uid}/tasks-list`, promotedTask.id), promotedTask)
+        ]);
+        console.log("⏫ Subtask promovida", subtask)
+    };
+
     const handleMakeSubtask = async (currentTask: Task) => {
         if (!user) return;
+        // Transformar a tarefa como subtask da tarefa acima
+        const index = tasks.findIndex(t => t.id === currentTask.id);
+        if (index <= 0) return alert("Não há tarefa acima para agrupar.");
 
-        const index = tasks.findIndex(t => t.id === currentTask.id)
-        if (index <= 0) return alert("Não há tarefa acima para agrupar.")
+        const aboveTask = tasks[index - 1];
+        currentTask.parentTaskId = aboveTask.id // armazenar o id da tarefa pai
 
-        const aboveTask = tasks[index - 1]
-        const resolvedParentId = aboveTask.parentId ?? aboveTask.id
+        // Remover currentTask da lista principal
+        const updatedTasks = tasks.filter(t => t.id !== currentTask.id);
 
-        // Se já é subtask, promover
-        const isAlreadySubtask = !!currentTask.parentId
+        // Atualizar aboveTask com nova subtask
+        const updatedAboveTask: Task = {
+            ...aboveTask,
+            subtasks: [...(aboveTask.subtasks || []), currentTask]
+        };
 
-        await updateDoc(doc(db, `users/${user.uid}/tasks-list`, currentTask.id), {
-            parentId: isAlreadySubtask ? null : resolvedParentId,
-        })
+        await Promise.all([
+            setDoc(doc(db, `users/${user.uid}/tasks-list`, updatedAboveTask.id), updatedAboveTask),
+            deleteDoc(doc(db, `users/${user.uid}/tasks-list`, currentTask.id))
+        ]);
 
-        refreshTasks()
-    }
+        refreshTasks();
+        console.log("⏬ Task agora é Subtask", currentTask)
+    };
 
     const handleStatusSwitch = async (task: Task, newStatus: 0 | 1 | 2) => {
         if (!user) return;
-
-        const isParent = !task.parentId;
-
-        if (isParent) {
-            // Atualiza a task pai
-            await updateDoc(doc(db, `users/${user.uid}/tasks-list`, task.id), { status: newStatus });
-
-            // Busca e atualiza todas as subtasks
-            const subtasks = tasks.filter(t => t.parentId === task.id);
-            for (const sub of subtasks) {
-                await updateDoc(doc(db, `users/${user.uid}/tasks-list`, sub.id), { status: newStatus });
-            }
-
+    
+        const isParent = task.subtasks !== undefined;
+        const isSubtask = task.parentTaskId !== undefined && task.parentTaskId !== null;
+    
+        // 1. CASO 1: Tarefa sem dependências
+        if (!isParent && !isSubtask) {
+            // Tarefa independente → apenas altera o status
+            const updatedTask = { ...task, status: newStatus };
+            await setDoc(doc(db, `users/${user.uid}/tasks-list`, task.id), updatedTask);
             refreshTasks();
-        } else {
-            const confirmacao = window.confirm(
-                "Esta é uma subtarefa. Deseja:\n\n" +
-                "- OK: aplicar o novo status à tarefa pai e suas subtarefas\n" +
-                "- Cancelar: cancelar a ação\n" +
-                "Ou pressione 'Cancelar' para escolher manualmente"
+            return;
+        }
+    
+        // 2. CASO 2: Tarefa pai com subtasks
+        if (isParent) {
+            const confirm = window.confirm(
+                "Esta tarefa possui subtarefas.\n\nDeseja alterar o status de todas elas para refletir essa mudança?"
             );
-
-            if (confirmacao) {
-                // Atualiza a task pai e subtasks
-                const parentTask = tasks.find(t => t.id === task.parentId);
-                if (!parentTask) return;
-
-                const allToUpdate = [parentTask, ...tasks.filter(t => t.parentId === parentTask.id)];
-                for (const t of allToUpdate) {
-                    await updateDoc(doc(db, `users/${user.uid}/tasks-list`, t.id), { status: newStatus });
-                }
-                refreshTasks();
+            if (!confirm) return;
+    
+            const updatedTask: Task = {
+                ...task,
+                status: newStatus,
+                subtasks: (task.subtasks || []).map(sub => ({ ...sub, status: newStatus }))
+            };
+    
+            await setDoc(doc(db, `users/${user.uid}/tasks-list`, task.id), updatedTask);
+            refreshTasks();
+            return;
+        }
+    
+        // 3. CASO 3: Subtarefa
+        if (isSubtask) {
+            const parentTask = tasks.find(t => t.id === task.parentTaskId);
+            if (!parentTask) return;
+    
+            const choice = window.confirm(
+                "Esta é uma subtarefa.\n\n" +
+                "Deseja:\n" +
+                "- OK: aplicar o novo status à tarefa pai e todas as subtarefas\n" +
+                "- Cancelar: transformar esta subtarefa em tarefa independente e alterar apenas o status dela"
+            );
+    
+            if (choice) {
+                // Atualiza o status do pai e todas as subtarefas
+                const updatedParent: Task = {
+                    ...parentTask,
+                    status: newStatus,
+                    subtasks: (parentTask.subtasks || []).map(sub => ({ ...sub, status: newStatus }))
+                };
+    
+                await setDoc(doc(db, `users/${user.uid}/tasks-list`, updatedParent.id), updatedParent);
             } else {
-                const leaveSubtask = window.confirm("Deseja tornar esta subtarefa uma tarefa normal?");
-                if (leaveSubtask) {
-                    await updateDoc(doc(db, `users/${user.uid}/tasks-list`, task.id), {
-                        parentId: null,
-                        status: newStatus
-                    });
-                    refreshTasks();
-                }
+                // Remover da lista de subtasks e inserir como task independente
+                await handlePromoteSubtask({ ...task, status: newStatus }, parentTask.id);
             }
+    
+            refreshTasks();
         }
     };
 
-    const handleStatusSwitch_new = (task: Task, newStatus: 0 | 1 | 2) => {
-        const isSubtask = !!task.parentId
-        const isParent = !task.parentId && tasks.some(t => t.parentId === task.id)
-      
-        if (isSubtask || isParent) {
-          setModalTask(task)
-          setModalMode(isSubtask ? 'subtask' : 'parent')
-          setPendingStatus(newStatus)
-        } else {
-          updateTaskStatus([task], newStatus)
+    const handleDeleteTask = async (task: Task) => {
+        if (!user) return;
+        console.log(task.id)
+    
+        const isParent = task.subtasks && task.subtasks.length > 0;
+        const isSubtask = !isParent && tasks.some(t => t.subtasks?.some(sub => sub.id === task.id));
+
+        if (isParent && task.subtasks?.length) {
+            const confirmed = window.confirm(
+                `Esta tarefa possui ${task.subtasks.length} subtarefas. Todas serão excluídas junto com ela.\n\nDeseja continuar?`
+            );
+            if (!confirmed) return;
+    
+            await deleteDoc(doc(db, `users/${user.uid}/tasks-list`, task.id));
+            refreshTasks();
+            return;
         }
-      }
-
-      const updateTaskStatus = async (affectedTasks: Task[], newStatus: 0 | 1 | 2) => {
-        if (!user) return
-        await Promise.all(
-          affectedTasks.map(t =>
-            updateDoc(doc(db, `users/${user.uid}/tasks-list`, t.id), {
-              status: newStatus,
-              ...(t.parentId && newStatus === 2 ? { parentId: null } : {}),
-            })
-          )
-        )
-        refreshTasks()
-        closeModal()
-      }
-      
-      const closeModal = () => {
-        setModalTask(null)
-        setModalMode(null)
-        setPendingStatus(null)
-      }
-      
-
-      const handlePromoteSubtask = async () => {
-        if (!user || !modalTask || pendingStatus === null) return
-        await updateDoc(doc(db, `users/${user.uid}/tasks-list`, modalTask.id), {
-          parentId: null,
-          status: pendingStatus,
-        })
-        refreshTasks()
-        closeModal()
-      }
-      
-      const handleApplyToAll = () => {
-        if (!modalTask || pendingStatus === null) return
-      
-        if (modalMode === 'subtask') {
-          const parent = tasks.find(t => t.id === modalTask.parentId)
-          const subtasks = tasks.filter(t => t.parentId === parent?.id)
-          if (parent) updateTaskStatus([parent, ...subtasks], pendingStatus)
-        } else if (modalMode === 'parent') {
-          const subtasks = tasks.filter(t => t.parentId === modalTask.id)
-          updateTaskStatus([modalTask, ...subtasks], pendingStatus)
+    
+        if (isSubtask) {
+            const parent = tasks.find(t => t.subtasks?.some(sub => sub.id === task.id));
+            if (!parent) return;
+    
+            const confirmed = window.confirm(
+                "Esta tarefa é uma subtarefa. Deseja removê-la do grupo, promovê-la a tarefa principal e então excluí-la?"
+            );
+            if (!confirmed) return;
+    
+            // Promove e então exclui
+            await handlePromoteSubtask(task, parent.id);
+            await deleteDoc(doc(db, `users/${user.uid}/tasks-list`, task.id));
+            refreshTasks();
+            return;
         }
-      }
-      
-
-    /**
-     * Ordena a lista de tarefas, colocando as tarefas pai antes de suas respectivas subtarefas.
-     *
-     * @returns {Task[]} Uma nova array contendo as tarefas ordenadas.
-     */
-    const getOrderedTasksWithSubtasks = () => {
-        const ordered: Task[] = []; // Inicializa uma array vazia para armazenar as tarefas ordenadas.
-
-        // Filtra a lista de tarefas para obter apenas as tarefas que não possuem um parentId (tarefas de nível superior).
-        const parents = tasks.filter(t => !t.parentId);
-
-        // Itera sobre cada tarefa pai encontrada.
-        for (const parent of parents) {
-            ordered.push(parent); // Adiciona a tarefa pai à lista ordenada.
-
-            // Filtra a lista de tarefas para obter todas as tarefas cujo parentId corresponde ao id da tarefa pai atual.
-            const children = tasks.filter(t => t.parentId === parent.id);
-
-            // Adiciona todas as subtarefas encontradas à lista ordenada, logo após a tarefa pai.
-            ordered.push(...children); // O operador spread (...) expande a array de subtarefas, adicionando cada uma individualmente.
-        }
-
-        return ordered; // Retorna a nova array contendo as tarefas ordenadas.
-    };
+    
+        // Task independente sem dependências
+        const confirmed = window.confirm("Deseja excluir esta tarefa?");
+        if (!confirmed) return;
+    
+        await deleteDoc(doc(db, `users/${user.uid}/tasks-list`, task.id));
+        refreshTasks();
+    };   
 
     const handleDragEnd = async (event: any) => {
         const { active, over } = event
@@ -219,27 +227,45 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
                 onDragStart={() => {
                     // Desativa scroll da página
                     document.body.style.overflow = 'hidden';
-                  }}
-                  onDragEnd={(event) => {
+                }}
+                onDragEnd={(event) => {
                     // Reativa scroll da página
                     document.body.style.overflow = '';
                     handleDragEnd(event);
-                  }}
+                }}
             >
                 <SortableContext
                     items={tasks.map(task => task.id)}
                     strategy={verticalListSortingStrategy}
                 >
                     <ul className="space-y-1">
-                        {getOrderedTasksWithSubtasks().map(task => (
-                            <TaskCard
-                                key={task.id}
-                                task={task}
-                                onEditTask={onEditTask}
-                                onMakeSubtask={handleMakeSubtask}
-                                onStatusSwitch={(newStatus) => handleStatusSwitch(task, newStatus)}
-                                refreshTasks={refreshTasks}
-                            />
+                        {tasks.map(task => (
+                            <li key={task.id}>
+                                <TaskCard
+                                    task={task}
+                                    onEditTask={onEditTask}
+                                    onPromoteSubtask={() => handlePromoteSubtask(task, task.id)}
+                                    onMakeSubtask={handleMakeSubtask}
+                                    onStatusSwitch={(newStatus) => handleStatusSwitch(task, newStatus)}
+                                    parentTaskId={null} // ✅ tarefas pai não têm parentTaskId
+                                    onDelete={() => handleDeleteTask(task)}
+                                    refreshTasks={refreshTasks}
+                                />
+                                {task.subtasks?.map(subtask => (
+                                    <div key={subtask.id} className="">
+                                        <TaskCard
+                                            task={subtask}
+                                            onEditTask={onEditTask}
+                                            onPromoteSubtask={() => handlePromoteSubtask(subtask, task.id)}
+                                            onMakeSubtask={handleMakeSubtask}
+                                            onStatusSwitch={(newStatus) => handleStatusSwitch(subtask, newStatus)}
+                                            parentTaskId={task.id} // ✅ subtasks têm o ID do pai
+                                            onDelete={() => handleDeleteTask(subtask)}
+                                            refreshTasks={refreshTasks}
+                                        />
+                                    </div>
+                                ))}
+                            </li>
                         ))}
                     </ul>
                 </SortableContext>

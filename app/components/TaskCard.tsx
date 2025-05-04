@@ -21,12 +21,15 @@ import { doc, deleteDoc } from 'firebase/firestore'
 interface TaskCardProps {
   task: Task
   onEditTask: (task: Task) => void // Função para abrir o modal de edição
+  onPromoteSubtask: (task: Task) => void
   onMakeSubtask: (task: Task) => void
   onStatusSwitch: (status: number | any) => void
+  parentTaskId?: string | null // Adicionado para evitar erro
+  onDelete: () => void
   refreshTasks: () => void // Função para atualizar a lista de tarefas
 }
 
-export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwitch, refreshTasks }: TaskCardProps) {
+export default function TaskCard({ task, onEditTask, onPromoteSubtask, onMakeSubtask, onStatusSwitch, parentTaskId, onDelete, refreshTasks }: TaskCardProps) {
   const { user } = useAuth()
   const { attributes, listeners, setNodeRef, transform, transition, setActivatorNodeRef } = useSortable({ id: task.id })
 
@@ -41,31 +44,32 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
     setShowActionsOn(null)
   }
 
-  const makeSubtask = () => {
-    onMakeSubtask(task)
-    handleResetPosition()
+  const makeSubtask = async () => {
+    await onMakeSubtask(task);
+    handleResetPosition();
   }
 
-  const handleEditTask = () => {
+  const promoteSubtask = async () => {
+    if (!user) return;
+    await onPromoteSubtask(task);
+    refreshTasks();
+  };
+
+  const editTask = () => {
     if (!user) return
     onEditTask(task) // Chama a função de edição passando a tarefa atual
     handleResetPosition()
   }
 
-  const handleStatusSwitch = (status: number | any) => {
+  const statusSwitch = (status: number | any) => {
     onStatusSwitch(status)
     handleResetPosition()
   }
 
-  const handleDelete = async () => {
-    if (!user) return
-    if (confirm('Deseja excluir esta tarefa?')) {
-      await deleteDoc(doc(db, `users/${user.uid}/tasks-list`, task.id))
-      refreshTasks()
-    } else {
-      handleResetPosition()
-    }
-  }
+  const deleteTask = async () => {
+    if (onDelete) onDelete();
+    handleResetPosition(); // ou o fallback padrão
+  };
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -73,7 +77,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
   }
 
   return (
-    <li
+    <div
       ref={setNodeRef}
       style={style}
       className="relative overflow-hidden rounded shadow">
@@ -85,11 +89,11 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
             <div>
               {task.status === 0 && (
                 <>
-                  <button onClick={() => handleStatusSwitch(2)}>
+                  <button onClick={() => statusSwitch(2)}>
                     {/* Switch: Checked */}
                     <CheckCircleIcon className="w-5 h-5 text-green-600 mr-2" />
                   </button>
-                  <button onClick={() => handleStatusSwitch(1)}>
+                  <button onClick={() => statusSwitch(1)}>
                     {/* Switch: Processing */}
                     <PlayCircleIcon className="w-5 h-5 text-blue-600" />
                   </button>
@@ -98,11 +102,11 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
 
               {task.status === 1 && (
                 <>
-                  <button onClick={() => handleStatusSwitch(0)}>
+                  <button onClick={() => statusSwitch(0)}>
                     {/* Switch: Not Started */}
                     <FlagIcon className="w-5 h-5 text-gray-400 mr-2" />
                   </button>
-                  <button onClick={() => handleStatusSwitch(2)}>
+                  <button onClick={() => statusSwitch(2)}>
                     {/* Switch: Checked */}
                     <CheckCircleIcon className="w-5 h-5 text-green-600" />
                   </button>
@@ -111,11 +115,11 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
 
               {task.status === 2 && (
                 <>
-                  <button onClick={() => handleStatusSwitch(0)}>
+                  <button onClick={() => statusSwitch(0)}>
                     {/* Switch: Not Started */}
                     <FlagIcon className="w-5 h-5 text-gray-500 mr-2" />
                   </button>
-                  <button onClick={() => handleStatusSwitch(1)}>
+                  <button onClick={() => statusSwitch(1)}>
                     {/* Switch: Processing */}
                     <PlayCircleIcon className="w-5 h-5 text-blue-600" />
                   </button>
@@ -128,13 +132,27 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
           {showActionsOn === 'right' && (
             <>
               {/* Switch: Subtask / Task Parent */}
-              <button onClick={makeSubtask}>
-                {task.parentId == null ?
-                  <ArrowTurnDownRightIcon className="w-5 h-5 text-purple-500" /> :
-                  <ArrowTurnLeftUpIcon className="w-5 h-5 text-purple-500" />}
-              </button>
+              {parentTaskId ? (
+                <button onClick={promoteSubtask}>
+                  <ArrowTurnLeftUpIcon className="w-5 h-5 text-purple-500" />
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (task.subtasks && task.subtasks.length > 0) {
+                      alert("Essa tarefa já possui subtarefas e não pode ser transformada em subtask.");
+                      handleResetPosition();
+                      return;
+                    }
+                    makeSubtask();
+                  }}
+                >
+                  <ArrowTurnDownRightIcon className="w-5 h-5 text-purple-500" />
+                </button>
+              )}
+
               {/* Modal Editar Task */}
-              <button onClick={handleEditTask}>
+              <button onClick={editTask}>
                 <PencilSquareIcon className="w-5 h-5 text-yellow-600" />
               </button>
             </>
@@ -151,7 +169,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
         onClick={(e) => {
           const { left, width } = e.currentTarget.getBoundingClientRect()
           const xPos = e.clientX - left
-          if(showActionsOn == null) {
+          if (showActionsOn == null) {
             if (xPos > width / 2) {
               setX(-threshold)
               setShowActionsOn('right')
@@ -159,7 +177,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
               setX(threshold)
               setShowActionsOn('left')
             }
-          } else {handleResetPosition()}
+          } else { handleResetPosition() }
         }}
         onDrag={(event, info) => {
           const limitedX = Math.max(-deleteSwipe, Math.min(deleteSwipe, info.offset.x))
@@ -169,7 +187,7 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
           const offset = info.offset.x
 
           if (offset > deleteSwipe) {
-            handleDelete()
+            deleteTask()
           } else {
             setX(0)
             setShowActionsOn(null)
@@ -189,19 +207,11 @@ export default function TaskCard({ task, onEditTask, onMakeSubtask, onStatusSwit
 
         {/* Texto */}
         <span className={`flex items-center text-wrap mr-4 
-            ${task.parentId ? 'text-sm text-gray-600 ml-2' : ''}
             ${task.status === 2 ? 'line-through text-gray-400' : 'text-gray-800'}`}>
           {task.content}
         </span>
-
-        {/* Botão Excluir */}
-{/*         <button
-          onClick={handleDelete}
-          className="text-red-500 hover:text-red-700"
-        >
-          Excluir
-        </button> */}
       </motion.div>
-    </li>
+    </div>
   )
 }
+

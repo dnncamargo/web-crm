@@ -58,8 +58,8 @@ export interface Task {
   content: string;
   status:  0 | 1 | 2 ; // 0 = not_started, 1 = doing, 2 = done
   groupId?: string;
-  parentId?: string; 
-  order?: number;
+  subtasks: Task[] | undefined
+  parentTaskId?: string | null
   createdAt?: Date | Timestamp;
 }
 
