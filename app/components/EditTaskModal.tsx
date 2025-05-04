@@ -6,6 +6,7 @@ import { updateDoc, doc, addDoc, deleteDoc, collection } from 'firebase/firestor
 import { db } from '../utils/firebaseConfig'
 import { useAuth } from '../components/AuthProvider'
 import { Task } from '../utils/interfaces'
+import CalendarEventCreator from './CalendarEventCreator'
 
 type TaskItem = {
   id: string;
@@ -81,8 +82,8 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
       if (task.subtasks && task.subtasks.length > 0) {
         const confirm = window.confirm(
           "Esta tarefa possui subtarefas.\n\nDeseja que todas elas se incorporem ao novo evento?"
-      );
-      if (!confirm) return;
+        );
+        if (!confirm) return;
         optionalFields.push({
           id: crypto.randomUUID(),
           type: 'tasks',
@@ -94,7 +95,7 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
           })),
         });
       }
-      
+
       const newEvent = {
         title: content.trim(),
         startDate,
@@ -102,7 +103,7 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
         ...(allDay ? { allDay: true } : { startTime, endTime }),
         createdAt: new Date().toISOString(),
         optionalFields,
-      };      
+      };
 
       try {
         await addDoc(collection(db, `users/${user.uid}/events-history`), newEvent);
@@ -207,68 +208,22 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
         </label>
 
         {addingDate && (
-          <div className="space-y-2">
-            {/* Switch All-day */}
-            <div className="flex justify-between items-center">
-              <span>Dia inteiro</span>
-              <button
-                type="button"
-                onClick={() => setAllDay(!allDay)}
-                className={`w-12 h-6 rounded-full transition flex items-center p-1 ${allDay ? 'bg-blue-500' : 'bg-gray-300'}`}
-              >
-                <div className={`bg-white w-4 h-4 rounded-full shadow transform transition ${allDay ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
-            <div className="flex items-center mt-2 gap-2">
-              {/* Data de Início */}
-              <span className="w-20">Início</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                }}
-                className="flex-1 p-2 border rounded"
-              />
-              {/* Hora de Início */}
-              {!allDay && (
-                <input
-                  type="time"
-                  step="300" // 5 minutos
-                  value={startTime}
-                  onChange={(e) => {
-                    setStartTime(e.target.value);
-                  }}
-                  className="w-24 p-2 border rounded"
-                />
-              )}
-            </div>
-            {/* Data de Término */}
-            <div className="flex items-center mt-2 mb-2 gap-2">
-              <span className="w-20">Término</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                }}
-                className={`flex-1 p-2 border rounded ${error && 'border-red-500'}`}
-              />
-              {/* Hora de Término */}
-              {!allDay && (
-                <input
-                  type="time"
-                  step="300"
-                  value={endTime}
-                  onChange={(e) => {
-                    setEndTime(e.target.value);
-                  }}
-                  className={`w-24 p-2 border rounded ${error && 'border-red-500'}`}
-                />
-              )}
-            </div>
-          </div>
+          <CalendarEventCreator
+            allDay={allDay}
+            setAllDay={setAllDay}
+            startDate={startDate}
+            setStartDate={setStartDate}
+            endDate={endDate}
+            setEndDate={setEndDate}
+            startTime={startTime}
+            setStartTime={setStartTime}
+            endTime={endTime}
+            setEndTime={setEndTime}
+            error={error}
+            setError={setError}
+          />
         )}
+
 
         <div className="flex justify-end gap-2 mt-4">
           <button onClick={onClose} className="px-4 py-2 text-gray-600 hover:text-black">Cancelar</button>

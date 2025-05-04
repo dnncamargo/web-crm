@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import ProtectedRoute from './ProtectedRoute';
 import clsx from 'clsx';
 import { OptionalFieldTasksList } from './OptionalFieldTasksList';
+import CalendarEventCreator from './CalendarEventCreator';
 
 /**
  * @interface AddEventModalProps
@@ -429,68 +430,22 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
             )}
 
             {/* All-day e Data */}
-            <div className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
-              {/* Switch All-day */}
-              <div className="flex justify-between items-center">
-                <span>Dia inteiro</span>
-                <button
-                  type="button"
-                  onClick={() => setAllDay(!allDay)}
-                  className={`w-12 h-6 rounded-full transition flex items-center p-1 ${allDay ? 'bg-blue-500' : 'bg-gray-300'}`}
-                >
-                  <div className={`bg-white w-4 h-4 rounded-full shadow transform transition ${allDay ? 'translate-x-6' : 'translate-x-0'}`} />
-                </button>
-              </div>
+            <div className="mt-6 p-4 bg-gray-50 rounded-lg overflow-hidden border">
 
-              {/* Data e Hora */}
-              <div className="flex items-center mt-2 gap-2">
-                {/* Data de Início */}
-                <span className="w-20">Início</span>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                  }}
-                  className="flex-1 p-2 border rounded"
-                />
-                {/* Hora de Início */}
-                {!allDay && (
-                  <input
-                    type="time"
-                    step="300" // 5 minutos
-                    value={startTime}
-                    onChange={(e) => {
-                      setStartTime(e.target.value);
-                    }}
-                    className="w-24 p-2 border rounded"
-                  />
-                )}
-              </div>
-              {/* Data de Término */}
-              <div className="flex items-center mt-2 mb-2 gap-2">
-                <span className="w-20">Término</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => {
-                    setEndDate(e.target.value);
-                  }}
-                  className={`flex-1 p-2 border rounded ${error && 'border-red-500'}`}
-                />
-                {/* Hora de Término */}
-                {!allDay && (
-                  <input
-                    type="time"
-                    step="300"
-                    value={endTime}
-                    onChange={(e) => {
-                      setEndTime(e.target.value);
-                    }}
-                    className={`w-24 p-2 border rounded ${error && 'border-red-500'}`}
-                  />
-                )}
-              </div>
+              <CalendarEventCreator
+                allDay={allDay}
+                setAllDay={setAllDay}
+                startDate={startDate}
+                setStartDate={setStartDate}
+                endDate={endDate}
+                setEndDate={setEndDate}
+                startTime={startTime}
+                setStartTime={setStartTime}
+                endTime={endTime}
+                setEndTime={setEndTime}
+                error={error}
+                setError={setError}
+              />
             </div>
 
             {/* Endereço */}
@@ -600,63 +555,63 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
 
             {/* Campos Personalizados Adicionados   */}
             {optionalFields.map((field) => (
-            <div key={field.id}  className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
-              <div className="mb-4">
-                <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
+              <div key={field.id} className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
+                <div className="mb-4">
+                  <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
 
-                {field.type === 'text' && (
-                  <input
-                    type="text"
-                    value={field.value as string}
-                    onChange={(e) =>
-                      setOptionalFields(prev =>
-                        prev.map(f =>
-                          f.id === field.id ? { ...f, value: e.target.value } : f
+                  {field.type === 'text' && (
+                    <input
+                      type="text"
+                      value={field.value as string}
+                      onChange={(e) =>
+                        setOptionalFields(prev =>
+                          prev.map(f =>
+                            f.id === field.id ? { ...f, value: e.target.value } : f
+                          )
                         )
-                      )
-                    }
-                    className="w-full border p-2 rounded"
-                  />
-                )}
+                      }
+                      className="w-full border p-2 rounded"
+                    />
+                  )}
 
-                {field.type === 'textarea' && (
-                  <textarea
-                    rows={4}
-                    value={field.value as string}
-                    onChange={(e) =>
-                      setOptionalFields(prev =>
-                        prev.map(f =>
-                          f.id === field.id ? { ...f, value: e.target.value } : f
+                  {field.type === 'textarea' && (
+                    <textarea
+                      rows={4}
+                      value={field.value as string}
+                      onChange={(e) =>
+                        setOptionalFields(prev =>
+                          prev.map(f =>
+                            f.id === field.id ? { ...f, value: e.target.value } : f
+                          )
                         )
-                      )
-                    }
-                    className="w-full border p-2 rounded"
-                  />
-                )}
+                      }
+                      className="w-full border p-2 rounded"
+                    />
+                  )}
 
-                {field.type === 'tasks' && (
-                  <OptionalFieldTasksList
-                    tasks={(field.value as TaskItem[]) ?? []}
-                    onChange={(newTasks) =>
-                      setOptionalFields(prev =>
-                        prev.map(f =>
-                          f.id === field.id ? { ...f, value: newTasks } : f
+                  {field.type === 'tasks' && (
+                    <OptionalFieldTasksList
+                      tasks={(field.value as TaskItem[]) ?? []}
+                      onChange={(newTasks) =>
+                        setOptionalFields(prev =>
+                          prev.map(f =>
+                            f.id === field.id ? { ...f, value: newTasks } : f
+                          )
                         )
-                      )
-                    }
-                  />
-                )}
+                      }
+                    />
+                  )}
 
-              </div>
+                </div>
                 <button
                   onClick={() =>
                     setOptionalFields(prev => prev.filter(f => f.id !== field.id))
                   }
                   className="text-xs text-red-500 mt-2"
                 >
-                  Remover 
+                  Remover
                 </button>
-            </div>
+              </div>
             ))}
 
             {/* Adicionar Campo Personalizado */}
