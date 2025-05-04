@@ -39,9 +39,7 @@ const EventDetails = () => {
 
   const [event, setEvent] = useState<Event | null>(null); /** @state {Event | null} event - Os detalhes do evento buscado do Firestore. Inicialmente null. */
   const [person, setPerson] = useState<Person | null>(null); /** @state {Person | null} person - Os detalhes da pessoa associada ao evento, buscados do Firestore. Inicialmente null. */
-  const [rating, setRating] = useState(event?.rating ?? 0);
   const [currentRating, setCurrentRating] = useState(0);
-
 
   useEffect(() => {
     if (user && id) {
@@ -91,19 +89,6 @@ const EventDetails = () => {
       console.error('Erro ao buscar evento:', error);
     }
   };
-
-  const handleRating = async (star: number) => {
-    setRating(star === rating ? star - 1 : star);
-
-    // Atualiza também localmente o estado do evento:
-    setEvent(prev => prev ? { ...prev, rating: star === rating ? star - 1 : star } : prev);
-
-    if (user && id) {
-      await updateDoc(doc(db, `users/${user.uid}/events-history/${id}`), {
-        rating: star
-      })
-    }
-  }
 
   if (!event) return <p className="p-6">Carregando dados do evento...</p>;
 

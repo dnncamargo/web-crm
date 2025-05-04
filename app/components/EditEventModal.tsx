@@ -610,7 +610,8 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
 
             {/* Campos Personalizados Adicionados   */}
             {optionalFields.map((field) => (
-              <div key={field.id} className="mb-4">
+            <div key={field.id}  className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
+              <div className="mb-4">
                 <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
 
                 {field.type === 'text' && (
@@ -656,15 +657,16 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
                   />
                 )}
 
+              </div>
                 <button
                   onClick={() =>
                     setOptionalFields(prev => prev.filter(f => f.id !== field.id))
                   }
                   className="text-xs text-red-500 mt-2"
                 >
-                  Remover
+                  Remover 
                 </button>
-              </div>
+            </div>
             ))}
 
             {/* Adicionar Campo Personalizado */}

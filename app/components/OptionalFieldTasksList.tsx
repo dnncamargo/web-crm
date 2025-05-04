@@ -1,4 +1,7 @@
-import { useState } from 'react';
+'use client';
+
+import { useState, KeyboardEvent } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 
 type TaskItem = {
   id: string;
@@ -12,51 +15,75 @@ type Props = {
 };
 
 export function OptionalFieldTasksList({ tasks, onChange }: Props) {
-  const [newTaskText, setNewTaskText] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   const toggleDone = (id: string) => {
-    onChange(tasks.map(t => t.id === id ? { ...t, done: !t.done } : t));
+    onChange(tasks.map(task =>
+      task.id === id ? { ...task, done: !task.done } : task
+    ));
   };
 
-  const removeTask = (id: string) => {
-    onChange(tasks.filter(t => t.id !== id));
+  const updateTaskText = (id: string, text: string) => {
+    onChange(tasks.map(task =>
+      task.id === id ? { ...task, text } : task
+    ));
   };
 
-  const editTask = (id: string, newText: string) => {
-    onChange(tasks.map(t => t.id === id ? { ...t, text: newText } : t));
+  const deleteTask = (id: string) => {
+    onChange(tasks.filter(task => task.id !== id));
   };
 
-  const addTask = () => {
-    if (newTaskText.trim() === '') return;
-    onChange([...tasks, { id: crypto.randomUUID(), text: newTaskText.trim(), done: false }]);
-    setNewTaskText('');
+  const addEmptyTask = () => {
+    const newTaskId = uuidv4();
+    onChange([...tasks, { id: newTaskId, text: '', done: false }]);
+    setEditingTaskId(newTaskId);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>, taskId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setEditingTaskId(null);
+    }
   };
 
   return (
     <div className="space-y-2">
-      {tasks.map(task => (
-        <div key={task.id} className="flex items-center gap-2">
-          <button onClick={(e) => {toggleDone(task.id)}} className="text-lg">
-            {task.done ? '✔️' : '🔲'}
-          </button>
-          <input
-            value={task.text}
-            onChange={e => editTask(task.id, e.target.value)}
-            className="flex-1 bg-transparent border-b border-gray-300 px-1 text-sm"
-          />
-          <button onClick={(e) => { removeTask(task.id)}} className="text-red-500 text-sm">Remover</button>
-        </div>
-      ))}
-
-      <div className="flex items-center gap-2 mt-2">
-        <input
-          value={newTaskText}
-          onChange={e => setNewTaskText(e.target.value)}
-          placeholder="Nova tarefa"
-          className="flex-1 border px-2 py-1 text-sm"
-        />
-        <button onClick={(e) => {e.preventDefault(); addTask();}} className="text-blue-600 text-sm font-medium">Adicionar</button>
-      </div>
+      <ul className="space-y-1">
+        {tasks.map(task => (
+          <li key={task.id} className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={task.done}
+              onChange={() => toggleDone(task.id)}
+              className="h-4 w-4 text-green-600"
+            />
+            <input
+              type="text"
+              value={task.text}
+              onChange={e => updateTaskText(task.id, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(e, task.id)}
+              className="flex-1 text-sm border border-gray-300 rounded px-2 py-1"
+              placeholder="Descrição da tarefa"
+              autoFocus={editingTaskId === task.id}
+            />
+            <button
+              onClick={() => deleteTask(task.id)}
+              className="text-red-500 text-xs"
+            >
+              Excluir
+            </button>
+          </li>
+        ))}
+      </ul>
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          addEmptyTask();
+        }}
+        className="text-blue-600 text-sm underline mt-2"
+      >
+        + Nova tarefa
+      </button>
     </div>
   );
 }
