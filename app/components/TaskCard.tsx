@@ -15,8 +15,6 @@ import {
 import { GripVerticalIcon } from 'lucide-react'
 import { Task } from '../utils/interfaces'
 import { useAuth } from './AuthProvider'
-import { db } from '../utils/firebaseConfig'
-import { doc, deleteDoc } from 'firebase/firestore'
 
 interface TaskCardProps {
   task: Task

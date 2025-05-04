@@ -3,22 +3,13 @@
 import { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { Event } from '../utils/interfaces';
-import { format, parseISO, isSameMonth, isSameYear } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { ClockIcon, MapPinIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { formatDate } from '../utils/helpers';
 
-type TaskItem = {
-  id: string;
-  text: string;
-  done: boolean;
-};
-
 type OptionalField = {
   id: string;                 // UUID para controle único
-  type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
   label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
-  value: string | TaskItem[]; // string para os outros tipos, array para tasks
+  value: string;
 };
 
 /**

@@ -6,17 +6,10 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarDaysIcon as CalendarIcon, UserIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 
-type TaskItem = {
-  id: string;
-  text: string;
-  done: boolean;
-};
-
 type OptionalField = {
   id: string;                 // UUID para controle único
-  type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
   label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
-  value: string | TaskItem[]; // string para os outros tipos, array para tasks
+  value: string;
 };
 
 /**
@@ -99,8 +92,6 @@ export default function UpcomingEventCard({ event, person }: UpcomingEventCardPr
             ))}
           </div>
         )}
-
-
       </div>
     </div>
   );

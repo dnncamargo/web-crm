@@ -122,7 +122,7 @@ const PersonDetails = (): JSX.Element => {
               <div key={e.id} className="border p-3 rounded-lg">
                 <p className="font-medium">{e.title}</p>
                 <p className="text-sm text-gray-500">{e.startDate} {e.startTime && `• ${e.startTime}`}</p>
-                {e.description && <p className="text-sm mt-1">{e.description}</p>}
+                {e.title && <p className="text-sm mt-1">{e.title}</p>}
               </div>
             ))}
           </div>
