@@ -6,6 +6,19 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarDaysIcon as CalendarIcon, UserIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 
+type TaskItem = {
+  id: string;
+  text: string;
+  done: boolean;
+};
+
+type OptionalField = {
+  id: string;                 // UUID para controle único
+  type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
+  label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
+  value: string | TaskItem[]; // string para os outros tipos, array para tasks
+};
+
 /**
  * @interface EventSummaryCardProps
  * @description Props para o componente `EventSummaryCard`, que exibe um resumo de um evento.
@@ -63,12 +76,30 @@ export default function UpcomingEventCard({ event, person }: UpcomingEventCardPr
           </div>
         )}
         {/* Descrição */}
-        {event.description && (
+        {/*         {event.description && (
           <div className="card-content-info text-gray-500">
             <PencilSquareIcon className="w-4 h-4 mr-2 mt-0.5" />
             {event.description}
           </div>
+        )} */}
+
+
+        {event.optionalFields && event.optionalFields.length > 0 && (
+          <div className="space-y-4">
+
+            {event.optionalFields.map((field: OptionalField) => (
+              <div key={field.id} >
+                {field.label === 'Descrição' && typeof field.value === 'string' ? (
+                  <div className="card-content-info text-gray-500">
+                    <PencilSquareIcon className="w-4 h-4 mr-2 mt-0.5" />
+                    {field.value}
+                  </div>
+                ) : ('')}
+              </div>
+            ))}
+          </div>
         )}
+
 
       </div>
     </div>

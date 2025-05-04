@@ -7,6 +7,19 @@ import { db } from '../utils/firebaseConfig'
 import { useAuth } from '../components/AuthProvider'
 import { Task } from '../utils/interfaces'
 
+type TaskItem = {
+  id: string;
+  text: string;
+  done: boolean;
+};
+
+type OptionalField = {
+  id: string;                 // UUID para controle único
+  type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
+  label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
+  value: string | TaskItem[]; // string para os outros tipos, array para tasks
+};
+
 interface EditTaskModalProps {
   task: Task
   isOpen: boolean
@@ -63,13 +76,33 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
         return;
       }
 
+      const optionalFields: OptionalField[] = [];
+
+      if (task.subtasks && task.subtasks.length > 0) {
+        const confirm = window.confirm(
+          "Esta tarefa possui subtarefas.\n\nDeseja que todas elas se incorporem ao novo evento?"
+      );
+      if (!confirm) return;
+        optionalFields.push({
+          id: crypto.randomUUID(),
+          type: 'tasks',
+          label: 'Lista de Tarefas',
+          value: task.subtasks.map(sub => ({
+            id: sub.id,
+            text: sub.content,
+            done: sub.status == 0 ? false : true,
+          })),
+        });
+      }
+      
       const newEvent = {
         title: content.trim(),
         startDate,
         endDate,
         ...(allDay ? { allDay: true } : { startTime, endTime }),
         createdAt: new Date().toISOString(),
-      };
+        optionalFields,
+      };      
 
       try {
         await addDoc(collection(db, `users/${user.uid}/events-history`), newEvent);

@@ -8,6 +8,19 @@ import { ptBR } from 'date-fns/locale';
 import { ClockIcon, MapPinIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { formatDate } from '../utils/helpers';
 
+type TaskItem = {
+  id: string;
+  text: string;
+  done: boolean;
+};
+
+type OptionalField = {
+  id: string;                 // UUID para controle único
+  type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
+  label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
+  value: string | TaskItem[]; // string para os outros tipos, array para tasks
+};
+
 /**
  * @interface EventCardProps
  * @description Props para o componente `EventCard`, que exibe informações resumidas de um evento e oferece ação de edição.
@@ -28,7 +41,7 @@ interface EventCardProps {
 const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
   const router = useRouter(); /** @const {NextRouter} router - O roteador do Next.js para navegação entre páginas. */
 
-    return (
+  return (
     <div
       // information: onClick={() => router.push(`/events-history/${event.id}`)}
       onClick={() => router.push(`/events-history/${event.id}`)}
@@ -63,7 +76,6 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
         )}
         {/* todo: incluir Pessoa associada no card */}
         {/* Descrição */}
-        
 
 
         {/* {event.description && (
@@ -72,6 +84,22 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
             {event.description}
           </div>
         )} */}
+
+        {event.optionalFields && event.optionalFields.length > 0 && (
+          <div className="space-y-4">
+
+            {event.optionalFields.map((field: OptionalField) => (
+              <div key={field.id} >
+                {field.label === 'Descrição' && typeof field.value === 'string' ? (
+                  <div className="card-content-info-large text-gray-500 mb-2">
+                    <PencilSquareIcon className="w-4 h-4 mr-2 mt-0.5" />
+                    {field.value}
+                  </div>
+                ) : ('')}
+              </div>
+            ))}
+          </div>
+        )}
 
       </div>
       {/* Botão de editar */}
@@ -85,7 +113,7 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
           Editar
         </button>
       </div>
-    </div>
+    </div >
 
   );
 };
