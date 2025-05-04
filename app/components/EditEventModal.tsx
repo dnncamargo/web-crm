@@ -348,7 +348,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
               <button
                 type='submit'
                 disabled={!!error}
-                className="color-eh-base text-lg hover:bg-blue-700 disabled:opacity-50">
+                className="color-eh-base text-lg">
                 Salvar
               </button>
             </div>

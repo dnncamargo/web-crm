@@ -336,7 +336,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
               <button
                 type="submit"
                 disabled={!!error}
-                className="color-eh-base text-lg hover:bg-green-700 disabled:opacity-50">
+                className="color-eh-base text-lg">
                 Salvar
               </button>
             </div>
