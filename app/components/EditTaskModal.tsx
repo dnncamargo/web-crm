@@ -29,7 +29,7 @@ interface EditTaskModalProps {
 }
 
 export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: EditTaskModalProps) {
-  const { user } = useAuth()
+  const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const today = new Date().toISOString().split('T')[0]; // "2025-04-25"
   const defaultTime = new Date().toTimeString().slice(0, 5); // "14:00"
   const [content, setContent] = useState(task.content || '')
@@ -41,7 +41,7 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
   const [endTime, setEndTime] = useState(defaultTime); /** @state {string} endTime - Hora de término do evento no formato 'HH:MM'. */
   const [error, setError] = useState('');
 
-  if (!isOpen || !user || !task) return null
+  if (!isOpen || !uid || !task) return null
 
   useEffect(() => {
     if (task) {
@@ -56,7 +56,7 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
       return;
     }
 
-    if (!user) return;
+    if (!uid) return;
 
     if (addingDate) {
       if (!startDate || !endDate) {
@@ -106,8 +106,8 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
       };
 
       try {
-        await addDoc(collection(db, `users/${user.uid}/events-history`), newEvent);
-        await deleteDoc(doc(db, `users/${user.uid}/tasks-list/${task.id}`));
+        await addDoc(collection(db, `users/${uid}/events-history`), newEvent);
+        await deleteDoc(doc(db, `users/${uid}/tasks-list/${task.id}`));
         onUpdated();
         onClose();
       } catch (error) {
@@ -117,7 +117,7 @@ export default function EditTaskModal({ task, isOpen, onClose, onUpdated }: Edit
     }
 
     try {
-      await updateDoc(doc(db, `users/${user.uid}/tasks-list/${task.id}`), {
+      await updateDoc(doc(db, `users/${uid}/tasks-list/${task.id}`), {
         content: content.trim(),
       });
       onUpdated();

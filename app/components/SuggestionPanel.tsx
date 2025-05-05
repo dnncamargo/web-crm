@@ -17,16 +17,16 @@ interface SuggestionPanelProps {
 }
 
 export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionPanelProps) {
-    const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+    const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
     const [suggestions, setSuggestions] = useState<EventSuggestion[]>([])
 
     useEffect(() => {
-        if (user) {
+        if (uid) {
             fetchSuggestions()
         }
-    }, [ user ])
+    }, [ uid ])
 
-    if (!user) {
+    if (!uid) {
         return <p>Carregando usuário...</p>;
       }
 
@@ -34,8 +34,8 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
         // buscar pessoas e eventos
         // aplicar a lógica de filtro
         // atualizar o estado
-        const peopleSnap = await getDocs(collection(db, `users/${user.uid}/people-directory`))
-        const eventsSnap = await getDocs(collection(db, `users/${user.uid}/events-history`))
+        const peopleSnap = await getDocs(collection(db, `users/${uid}/people-directory`))
+        const eventsSnap = await getDocs(collection(db, `users/${uid}/events-history`))
 
         const people = peopleSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Person[]
         const events = eventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Event[]
@@ -106,7 +106,7 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
 
     const handleAccept = async (suggestion: EventSuggestion) => {
         // Podemos futuramente abrir um modal para edição
-        await addDoc(collection(db, `users/${user.uid}/events-history`), {
+        await addDoc(collection(db, `users/${uid}/events-history`), {
             title: `Contato com ${suggestion.person.name}`,
             personId: suggestion.person.id,
             date: suggestion.suggestedDate.split('T')[0],

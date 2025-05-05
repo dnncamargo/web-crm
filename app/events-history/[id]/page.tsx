@@ -32,7 +32,7 @@ type OptionalField = {
  * @returns {JSX.Element} A interface de detalhes do evento.
  */
 const EventDetails = () => {
-  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const params = useParams();
   const id = typeof params.id === 'string' ? params.id : params.id?.[0];  /** @const {string} id - O ID do evento a ser exibido, extraído da URL. */
   const router = useRouter(); /** @const {object} router - O objeto de roteamento do Next.js. */
@@ -42,15 +42,15 @@ const EventDetails = () => {
   const [currentRating, setCurrentRating] = useState(0);
 
   useEffect(() => {
-    if (user && id) {
+    if (uid && id) {
       fetchEvent();
     }
     if (typeof event?.rating === 'number') {
       setCurrentRating(event.rating);
     }
-  }, [user, id, event]);
+  }, [uid, id, event]);
 
-  if (!user) {
+  if (!uid) {
     return <p>Carregando usuário...</p>;
   }
 
@@ -63,7 +63,7 @@ const EventDetails = () => {
   const fetchEvent = async (): Promise<void> => {
     try {
 
-      const docRef = doc(db, `users/${user.uid}/events-history/${id}`);
+      const docRef = doc(db, `users/${uid}/events-history/${id}`);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
 
@@ -75,7 +75,7 @@ const EventDetails = () => {
 
         // Se evento tiver personId, buscar pessoa associada
         if (eventData.personId) {
-          const personRef = doc(db, `users/${user.uid}/people-directory`, eventData.personId);
+          const personRef = doc(db, `users/${uid}/people-directory`, eventData.personId);
           const personSnap = await getDoc(personRef);
           if (personSnap.exists()) {
             setPerson({
@@ -93,7 +93,7 @@ const EventDetails = () => {
   if (!event) return <p className="p-6">Carregando dados do evento...</p>;
 
   const updateOptionalFieldTasks = async (fieldId: string, updatedTasks: TaskItem[]) => {
-    if (!event || !user) return;
+    if (!event || !uid ) return;
 
     const updatedFields = event.optionalFields.map((field: { id: string; type: string; }) => {
       if (field.id === fieldId && field.type === 'tasks') {
@@ -104,7 +104,7 @@ const EventDetails = () => {
 
     setEvent({ ...event, optionalFields: updatedFields });
 
-    await updateDoc(doc(db, `users/${user.uid}/events-history/${event.id}`), {
+    await updateDoc(doc(db, `users/${uid}/events-history/${event.id}`), {
       optionalFields: updatedFields
     });
   };
@@ -231,7 +231,7 @@ const EventDetails = () => {
 
   const handleRatingChange = async (value: number) => {
     setCurrentRating(value);
-    await updateDoc(doc(db, `users/${user.uid}/events-history/${id}`), { rating: value });
+    await updateDoc(doc(db, `users/${uid}/events-history/${id}`), { rating: value });
   };
 
   return (

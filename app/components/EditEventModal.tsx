@@ -47,7 +47,7 @@ type OptionalField = {
  * @returns {JSX.Element | null} O componente renderizado ou null se `isOpen` for falso.
  */
 const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalProps) => {
-  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
   const defaultTime = new Date().toTimeString().slice(0, 5); // "14:00"
@@ -74,7 +74,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
   const [isDraggable, setIsDraggable] = useState(true);  /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
   // Proteção: Se não for open ou sem usuário, nem carrega.
-  if (!isOpen || !user) return null;
+  if (!isOpen || !uid) return null;
 
   useLayoutEffect(() => {
     adjustModalDraggable(); // Ajusta a propriedade de arrastar do modal com base na altura do conteúdo.
@@ -117,7 +117,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
   const fetchPeople = async (): Promise<void> => {
     try {
       // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
-      const querySnapshot = await getDocs(collection(db, `users/${user.uid}/people-directory`));
+      const querySnapshot = await getDocs(collection(db, `users/${uid}/people-directory`));
       // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
       const personData = querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -266,7 +266,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
 
     try {
       const eventRef: any = formatEvent(); // Formata os dados do evento para o Firestore
-      await updateDoc(doc(db, `users/${user.uid}/events-history/${event.id}`), eventRef);
+      await updateDoc(doc(db, `users/${uid}/events-history/${event.id}`), eventRef);
       onUpdated();
       onClose();
     } catch (error) {
@@ -282,7 +282,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
    */
   const handleDelete = async (): Promise<void> => {
     try {
-      const eventRef = doc(db, 'users', user.uid, 'events-history', event.id);
+      const eventRef = doc(db, 'users', uid, 'events-history', event.id);
       await deleteDoc(eventRef);
       onUpdated();
       onClose();

@@ -18,7 +18,7 @@ import { UserPlusIcon } from '@heroicons/react/24/outline';
  * @returns {JSX.Element} A interface do diretório de pessoas.
  */
 const PeopleDirectory = (): JSX.Element => {
-  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const [people, setPeople] = useState<Person[]>([]);  /** @state {Person[]} people - Array de pessoas buscadas do Firestore. */
   const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);  /** @state {boolean} isAddPersonModalOpen - Controla a visibilidade do modal de adicionar uma nova pessoa. */
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);  /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de uma pessoa existente. */
@@ -28,12 +28,12 @@ const PeopleDirectory = (): JSX.Element => {
   useEffect(() => {
     // Chama a função fetchPeople quando o componente é montado.
     // Isso garante que a lista de pessoas seja carregada assim que o componente for exibido.
-    if (user) {
+    if (uid) {
       fetchPeople();
     }
-  }, [ user ]);
+  }, [ uid ]);
 
-  if (!user) {
+  if (!uid) {
     return <p>Carregando usuário...</p>;
   }
 
@@ -46,7 +46,7 @@ const PeopleDirectory = (): JSX.Element => {
   const fetchPeople = async (): Promise<void> => {
     try {
       // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
-      const querySnapshot = await getDocs(collection(db, `users/${user.uid}/people-directory`));
+      const querySnapshot = await getDocs(collection(db, `users/${uid}/people-directory`));
       // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
       const peopleData = querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -100,7 +100,7 @@ const PeopleDirectory = (): JSX.Element => {
  * @returns {Promise<void>}
  */
   const toggleFavorite = async (personId: string, currentValue: boolean) => {
-    const docRef = doc(db, `users/${user.uid}/people-directory`, personId);
+    const docRef = doc(db, `users/${uid}/people-directory`, personId);
     await updateDoc(docRef, { favorite: !currentValue });
     fetchPeople();
   };

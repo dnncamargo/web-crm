@@ -42,7 +42,7 @@ type OptionalField = {
 
 
 const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded, initialPersonId }) => {
-  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
   const today = new Date().toISOString().split('T')[0]; // "2025-04-25"
@@ -71,7 +71,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
   // Proteção: Se não for open ou sem usuário, nem carrega.
-  if (!isOpen || !user) return null;
+  if (!isOpen || !uid) return null;
 
   useLayoutEffect(() => {
     adjustModalDraggable(); // Ajusta a propriedade de arrastar do modal com base na altura do conteúdo.
@@ -116,7 +116,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
   const fetchPeople = async (): Promise<void> => {
     try {
       // Obtém todos os documentos da coleção 'people-directory' no banco de dados 'db'.
-      const querySnapshot = await getDocs(collection(db, `users/${user.uid}/people-directory`));
+      const querySnapshot = await getDocs(collection(db, `users/${uid}/people-directory`));
       // Mapeia os documentos para um array de objetos 'Person', incluindo o ID do documento.
       const personData = querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -268,7 +268,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
     try {
       const eventRef = formatEvent();
       console.log([eventRef], eventRef);
-      await addDoc(collection(db, `users/${user.uid}/events-history`), eventRef);
+      await addDoc(collection(db, `users/${uid}/events-history`), eventRef);
       onAdded();
       onClose();
     } catch (error) {

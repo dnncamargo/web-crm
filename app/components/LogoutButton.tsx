@@ -1,18 +1,18 @@
 'use client'
 
-import { signOut } from 'firebase/auth'
-import { auth } from '../utils/firebaseConfig'
-import { useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../components/AuthProvider';
 import { ArrowRightEndOnRectangleIcon } from '@heroicons/react/24/outline'
 
 export default function LogoutButton() {
-  const router = useRouter()
+  const { setGoogleAccessToken } = useAuth();
+  const router = useRouter();
 
-  const handleLogout = async () => {
-    await signOut(auth)
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
-    //router.push('/auth-login')
-  }
+  const handleLogout = () => {
+    localStorage.removeItem('googleAccessToken'); // Remove o token armazenado
+    setGoogleAccessToken(null); // Limpa o contexto
+    router.push('/auth-login'); // Redireciona
+  };
 
   return (
     <button
