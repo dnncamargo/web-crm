@@ -50,10 +50,6 @@ const EventDetails = () => {
     }
   }, [uid, id, event]);
 
-  if (!uid) {
-    return <p>Carregando usuário...</p>;
-  }
-
   /**
  * @async
  * @function fetchEvent

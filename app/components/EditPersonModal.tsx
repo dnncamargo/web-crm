@@ -63,6 +63,8 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
 
   useEffect(() => {
 
+    console.log('[uid]', uid)
+
     {/* Ações ao abrir ou fechar o modal */ }
     if (isOpen) {
 

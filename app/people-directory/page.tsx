@@ -33,10 +33,6 @@ const PeopleDirectory = (): JSX.Element => {
     }
   }, [ uid ]);
 
-  if (!uid) {
-    return <p>Carregando usuário...</p>;
-  }
-
   /**
  * @async
  * @function fetchPeople

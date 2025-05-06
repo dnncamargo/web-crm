@@ -11,6 +11,7 @@ import ProtectedRoute from '../components/ProtectedRoute'
 import MainMenu from '../components/MainMenu';
 import UpcomingEventCard from '../components/UpcomingEventCard';
 import SuggestionPanel from '../components/SuggestionPanel';
+import LogoutButton from '../components/LogoutButton';
 
 type GroupedEvents = {
   today: Event[],
@@ -41,7 +42,7 @@ export default function Dashboard(): JSX.Element {
   useEffect(() => {
     // Chama as funções fetchPerson e fetchAndGroupEvents quando o componente é montado.
     // Isso garante que a lista de pessoas e eventos seja carregada assim que o componente for exibido.
-    if(uid) {
+    if (uid) {
       fetchAndGroupEvents()
       fetchPerson();
     }
@@ -144,7 +145,7 @@ export default function Dashboard(): JSX.Element {
       <main className="main-container-body main-container-bg">
 
         {/* Renderiza o menu principal da aplicação. */}
-        <MainMenu externalCloseTrigger={menuCloseTrigger}/>
+        <MainMenu externalCloseTrigger={menuCloseTrigger} />
         <h1 className="title-1">Próximos Eventos</h1>
 
         {Object.entries(events).map(([groupName, groupEvents]) => (
@@ -185,10 +186,10 @@ export default function Dashboard(): JSX.Element {
           className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg z-50"
           aria-label="Ver sugestões"
         >
-          <StarIcon className="w-6 h-6"/>
-          
-        </button>
+          <StarIcon className="w-6 h-6" />
 
+        </button>
+        <LogoutButton />
       </main>
 
     </ProtectedRoute>

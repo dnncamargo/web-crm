@@ -31,10 +31,6 @@ const PersonDetails = (): JSX.Element => {
     }
   }, [ uid, id] );
 
-  if (!uid) {
-    return <p>Carregando usuário...</p>;
-  }
-
 /**
  * @async
  * @function fetchPerson
@@ -150,7 +146,7 @@ const PersonDetails = (): JSX.Element => {
               setIsAddEventModalOpen(false);
               // Refaz a lista de eventos depois de adicionar
               const fetchEvents = async () => {
-                const q = query(collection(db, `users/${uid}/events-history`), where('personId', '==', user.uid));
+                const q = query(collection(db, `${uid}/events-history`), where('personId', '==', uid));
                 const querySnapshot = await getDocs(q);
                 const eventData = querySnapshot.docs.map(doc => ({
                   id: doc.id,

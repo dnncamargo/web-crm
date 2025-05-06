@@ -34,10 +34,6 @@ const EventsHistory = (): JSX.Element => {
     }
   }, [ uid ]);
 
-  if (!uid) {
-    return <p>Carregando usuário...</p>;
-  }
-
   /**
    * @async
    * @function fetchEvents
@@ -47,7 +43,7 @@ const EventsHistory = (): JSX.Element => {
   const fetchEvents = async (): Promise<void> => {
     try {
       // Obtém todos os documentos da coleção 'events-history' no banco de dados 'db'.
-      const q = query(collection(db, `users/${uid}/events-history`), orderBy('startDate', 'asc'));
+      const q = query(collection(db, `users/${uid}/events-history`), orderBy('startDate', 'asc'), orderBy('startTime', 'asc'));
       const querySnapshot = await getDocs(q);
       // Mapeia os documentos para um array de objetos 'Event', incluindo o ID do documento.
       const eventData = querySnapshot.docs.map(doc => ({

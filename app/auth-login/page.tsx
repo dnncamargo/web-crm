@@ -3,7 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '../components/AuthProvider'
 import { useRouter } from 'next/navigation'
-import { getAuth, signInWithCredential, GoogleAuthProvider } from 'firebase/auth'
+import { signInWithCredential, GoogleAuthProvider } from 'firebase/auth'
+import { auth } from '../utils/firebaseConfig'
 import './login.css'
 
 declare global {
@@ -12,8 +13,9 @@ declare global {
   }
 }
 
-const auth = getAuth()
+//const auth = getAuth()
 const currentUser = auth.currentUser
+console.log('[currentUser]', currentUser)
 
 export default function LoginPage() {
   const router = useRouter()
@@ -65,13 +67,13 @@ export default function LoginPage() {
             localStorage.setItem('firebaseUid', userCredential.user.uid) // Salvar o uid no localStorage
             setUid(userCredential.user.uid)
 
+            // Redirecionar
+            router.push('/')
           })
           .catch(error => {
             console.error('Erro ao autenticar com Firebase:', error)
           })
       
-        // Redirecionar
-        router.push('/')
       }
     })
   }, [setGoogleAccessToken, router])

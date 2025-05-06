@@ -5,15 +5,20 @@ import { useAuth } from '../components/AuthProvider';
 import { ArrowRightEndOnRectangleIcon } from '@heroicons/react/24/outline'
 
 export default function LogoutButton() {
-  const { setGoogleAccessToken } = useAuth();
+  const { setUid, setUser, setGoogleAccessToken } = useAuth();
   const router = useRouter();
 
   const handleLogout = () => {
-    localStorage.removeItem('googleAccessToken'); // Remove o token armazenado
-    setGoogleAccessToken(null); // Limpa o contexto
+    setGoogleAccessToken(null)
+    setUid(null)
+    setUser(null)
+    localStorage.removeItem('googleAccessToken')
+    localStorage.removeItem('firebaseUid')
+    localStorage.removeItem('userInfo')
     router.push('/auth-login'); // Redireciona
-  };
-
+  }
+  
+  
   return (
     <button
       onClick={handleLogout}
