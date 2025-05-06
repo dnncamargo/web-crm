@@ -103,7 +103,9 @@ export default function Dashboard(): JSX.Element {
 
       if (isToday(date)) {
         acc.today.push(event);
-      } else if (isThisWeek(date, { weekStartsOn: 1 }) && isSameMonth) {
+      } else if(isTomorrow(date)) {
+        acc.tomorrow.push(event);
+      } if (isThisWeek(date, { weekStartsOn: 0 }) && isSameMonth) {
         acc.thisWeek.push(event);
       } else if (isSameMonth) {
         acc.thisMonth.push(event);
