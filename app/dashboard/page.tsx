@@ -5,7 +5,7 @@ import { getDocs, query, where, orderBy, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
 import { Event, Person } from '../utils/interfaces';
-import { format, isToday, isThisWeek, addMonths, parseISO } from 'date-fns';
+import { format, isToday, isTomorrow, eachDayOfInterval, isThisWeek, addMonths, parseISO } from 'date-fns';
 import { StarIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import ProtectedRoute from '../components/ProtectedRoute'
 import MainMenu from '../components/MainMenu';
@@ -15,6 +15,7 @@ import LogoutButton from '../components/LogoutButton';
 
 type GroupedEvents = {
   today: Event[],
+  tomorrow: Event[],
   thisWeek: Event[],
   thisMonth: Event[],
   nextMonth: Event[],
@@ -31,6 +32,7 @@ export default function Dashboard(): JSX.Element {
   const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore. */
   const [events, setEvents] = useState<GroupedEvents>({
     today: [],
+    tomorrow: [],
     thisWeek: [],
     thisMonth: [],
     nextMonth: [],
@@ -114,13 +116,15 @@ export default function Dashboard(): JSX.Element {
       return acc;
     }, {
       today: [],
+      tomorrow: [],
       thisWeek: [],
       thisMonth: [],
       nextMonth: [],
       future: []
     });
+  
     setEvents(grouped);
-  }
+  };
 
   const refreshDashboardEvents = async () => {
     await fetchAndGroupEvents(); // invoca a função para buscar e agrupar eventos novamente
@@ -153,6 +157,7 @@ export default function Dashboard(): JSX.Element {
             <section key={groupName}>
               <h2 className="title-2">
                 {groupName === 'today' && `Hoje (${groupEvents.length})`} {/* Eventos do dia */}
+                {groupName === 'tomorrow' && `Amanhã (${groupEvents.length})`} {/* Eventos Amanhã */}
                 {groupName === 'thisWeek' && `Esta Semana (${groupEvents.length})`} {/* Eventos da Semana */}
                 {groupName === 'thisMonth' && `Este Mês (${groupEvents.length})`} {/* Eventos do Mês */}
                 {groupName === 'nextMonth' && `Próximo Mês (${groupEvents.length})`} {/* Eventos do Próximo Mês */}
