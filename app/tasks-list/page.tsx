@@ -15,21 +15,21 @@ import TaskSection from "../components/TaskSection"
 import EditTaskModal from "../components/EditTaskModal"
 
 export default function TasksList() {
-    const { user } = useAuth()
+    const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
     const [tasks, setTasks] = useState<Task[]>([])
     const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false)
     const [isEditTaskModalOpen, setIsEditTaskModalOpen] = useState(false)
     const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
     useEffect(() => {
-        if (user) fetchTasks()
-    }, [user]);
+        if (uid) fetchTasks()
+    }, [uid]);
 
     const fetchTasks = async () => {
-        if (!user) return
+        if (!uid) return
 
         const q = query(
-            collection(db, `users/${user.uid}/tasks-list`),
+            collection(db, `users/${uid}/tasks-list`),
             orderBy('order')
         )
 

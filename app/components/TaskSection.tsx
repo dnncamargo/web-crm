@@ -19,7 +19,7 @@ interface TaskSectionProps {
 }
 
 export default function TaskSection({ section, tasks, onEditTask, refreshTasks, updateTasksLocally }: TaskSectionProps) {
-    const { user } = useAuth()
+    const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -31,8 +31,8 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
     )
 
     const handlePromoteSubtask = async (subtask: Task, parentTaskId: string) => {
-        if (!user) return;
-        const parentRef = doc(db, `users/${user.uid}/tasks-list`, parentTaskId);
+        if (!uid) return;
+        const parentRef = doc(db, `users/${uid}/tasks-list`, parentTaskId);
         const parentSnap = await getDoc(parentRef);
 
         if (!parentSnap.exists()) return;
@@ -53,14 +53,14 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
         };
 
         await Promise.all([
-            setDoc(doc(db, `users/${user.uid}/tasks-list`, updatedParent.id), updatedParent),
-            setDoc(doc(db, `users/${user.uid}/tasks-list`, promotedTask.id), promotedTask)
+            setDoc(doc(db, `users/${uid}/tasks-list`, updatedParent.id), updatedParent),
+            setDoc(doc(db, `users/${uid}/tasks-list`, promotedTask.id), promotedTask)
         ]);
         console.log("⏫ Subtask promovida", subtask)
     };
 
     const handleMakeSubtask = async (currentTask: Task) => {
-        if (!user) return;
+        if (!uid) return;
         // Transformar a tarefa como subtask da tarefa acima
         const index = tasks.findIndex(t => t.id === currentTask.id);
         if (index <= 0) return alert("Não há tarefa acima para agrupar.");
@@ -78,8 +78,8 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
         };
 
         await Promise.all([
-            setDoc(doc(db, `users/${user.uid}/tasks-list`, updatedAboveTask.id), updatedAboveTask),
-            deleteDoc(doc(db, `users/${user.uid}/tasks-list`, currentTask.id))
+            setDoc(doc(db, `users/${uid}/tasks-list`, updatedAboveTask.id), updatedAboveTask),
+            deleteDoc(doc(db, `users/${uid}/tasks-list`, currentTask.id))
         ]);
 
         refreshTasks();
@@ -87,7 +87,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
     };
 
     const handleStatusSwitch = async (task: Task, newStatus: 0 | 1 | 2) => {
-        if (!user) return;
+        if (!uid) return;
     
         const isParent = task.subtasks !== undefined;
         const isSubtask = task.parentTaskId !== undefined && task.parentTaskId !== null;
@@ -96,7 +96,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
         if (!isParent && !isSubtask) {
             // Tarefa independente → apenas altera o status
             const updatedTask = { ...task, status: newStatus };
-            await setDoc(doc(db, `users/${user.uid}/tasks-list`, task.id), updatedTask);
+            await setDoc(doc(db, `users/${uid}/tasks-list`, task.id), updatedTask);
             refreshTasks();
             return;
         }
@@ -114,7 +114,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
                 subtasks: (task.subtasks || []).map(sub => ({ ...sub, status: newStatus }))
             };
     
-            await setDoc(doc(db, `users/${user.uid}/tasks-list`, task.id), updatedTask);
+            await setDoc(doc(db, `users/${uid}/tasks-list`, task.id), updatedTask);
             refreshTasks();
             return;
         }
@@ -139,7 +139,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
                     subtasks: (parentTask.subtasks || []).map(sub => ({ ...sub, status: newStatus }))
                 };
     
-                await setDoc(doc(db, `users/${user.uid}/tasks-list`, updatedParent.id), updatedParent);
+                await setDoc(doc(db, `users/${uid}/tasks-list`, updatedParent.id), updatedParent);
             } else {
                 // Remover da lista de subtasks e inserir como task independente
                 await handlePromoteSubtask({ ...task, status: newStatus }, parentTask.id);
@@ -150,7 +150,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
     };
 
     const handleDeleteTask = async (task: Task) => {
-        if (!user) return;
+        if (!uid) return;
         console.log(task.id)
     
         const isParent = task.subtasks && task.subtasks.length > 0;
@@ -162,7 +162,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
             );
             if (!confirmed) return;
     
-            await deleteDoc(doc(db, `users/${user.uid}/tasks-list`, task.id));
+            await deleteDoc(doc(db, `users/${uid}/tasks-list`, task.id));
             refreshTasks();
             return;
         }
@@ -178,7 +178,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
     
             // Promove e então exclui
             await handlePromoteSubtask(task, parent.id);
-            await deleteDoc(doc(db, `users/${user.uid}/tasks-list`, task.id));
+            await deleteDoc(doc(db, `users/${uid}/tasks-list`, task.id));
             refreshTasks();
             return;
         }
@@ -187,7 +187,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
         const confirmed = window.confirm("Deseja excluir esta tarefa?");
         if (!confirmed) return;
     
-        await deleteDoc(doc(db, `users/${user.uid}/tasks-list`, task.id));
+        await deleteDoc(doc(db, `users/${uid}/tasks-list`, task.id));
         refreshTasks();
     };   
 
@@ -205,7 +205,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
 
         try {
             const updates = reorderedTasks.map((task, i) =>
-                updateDoc(doc(db, `users/${user!.uid}/tasks-list`, task.id), { order: i })
+                updateDoc(doc(db, `users/${uid}/tasks-list`, task.id), { order: i })
             )
             await Promise.all(updates)
             console.log('🔥 Ordem atualizada no Firestore com sucesso!')
@@ -215,7 +215,7 @@ export default function TaskSection({ section, tasks, onEditTask, refreshTasks, 
     }
 
 
-    if (!user) return null
+    if (!uid) return null
     return (
         <section className="space-y-2">
             <h2 className="text-lg font-semibold text-gray-700">{section}</h2>

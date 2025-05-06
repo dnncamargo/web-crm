@@ -25,7 +25,7 @@ interface Contact {
 }
 
 export default function ImportContactsPage({ isOpen, onClose }: ImportContactsModalProps) {
-  const { user, googleAccessToken } = useAuth();
+  const { uid, googleAccessToken } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase e do Google autenticado. */
   const router = useRouter();
 
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -33,7 +33,7 @@ export default function ImportContactsPage({ isOpen, onClose }: ImportContactsMo
   const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  if (!user) return <p className="p-6">Carregando usuário...</p>;
+  if (!uid) return <p className="p-6">Carregando usuário...</p>;
 
   async function loadContacts() {
     if (!googleAccessToken) {
@@ -82,7 +82,7 @@ export default function ImportContactsPage({ isOpen, onClose }: ImportContactsMo
     try {
       const selectedContacts = contacts.filter(c => selectedIds.includes(c.resourceName));
       const batch = selectedContacts.map(contact =>
-        addDoc(collection(db, `users/${user!.uid}/people-directory`), {
+        addDoc(collection(db, `users/${uid}/people-directory`), {
           name: contact.displayName,
           phone: contact.phone,
           email: contact.email || '',

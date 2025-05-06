@@ -1,13 +1,14 @@
+import { AuthProvider } from './components/AuthProvider';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import type { Metadata } from "next";
-import { AuthProvider } from './components/AuthProvider'
 import "./globals.css";
 
-import localFont from 'next/font/local'
+import localFont from 'next/font/local';
 
 const connexusFont = localFont({
   src: '/assets/Connexus.ttf',
   variable: '--font-connexus'
-})
+});
 
 export const metadata: Metadata = {
   title: "Connexus",
@@ -16,12 +17,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: { children: React.ReactNode }) {
+}: {
+  children: React.ReactNode
+}) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-br">
       <body className={connexusFont.variable}>
-        <AuthProvider>{children}</AuthProvider>
+        <GoogleOAuthProvider clientId="996833302397-gsksfg2ujfqgt27jg5ulti0ffrnmje9a.apps.googleusercontent.com">
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </GoogleOAuthProvider>
       </body>
     </html>
   );
-}
+};

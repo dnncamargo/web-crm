@@ -29,7 +29,7 @@ interface AddPersonModalProps {
  * @returns {JSX.Element | null} O componente modal, ou `null` se `isOpen` for `false`.
  */
 const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdded }) => {
-  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
   const [name, setName] = useState(''); /** @state {string} name - Nome da pessoa. */
   const [phone, setPhone] = useState('') /** @state {array of strings} phone - Números de telefone da pessoa. */
@@ -48,7 +48,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
   // Proteção: Se não for open ou sem usuário, nem carrega.
-  if (!isOpen || !user) return null;
+  if (!isOpen || !uid) return null;
 
   useLayoutEffect(() => {
     adjustModalDraggable(); // Ajusta a propriedade de arrastar do modal com base na altura do conteúdo.
@@ -120,7 +120,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
     }
 
     try {
-      await addDoc(collection(db, `users/${user.uid}/people-directory`), {
+      await addDoc(collection(db, `users/${uid}/people-directory`), {
         name,
         phone,
         email,

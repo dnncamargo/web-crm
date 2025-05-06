@@ -11,6 +11,7 @@ import ProtectedRoute from '../components/ProtectedRoute'
 import MainMenu from '../components/MainMenu';
 import UpcomingEventCard from '../components/UpcomingEventCard';
 import SuggestionPanel from '../components/SuggestionPanel';
+import LogoutButton from '../components/LogoutButton';
 
 type GroupedEvents = {
   today: Event[],
@@ -26,7 +27,7 @@ type GroupedEvents = {
  * @returns {JSX.Element} A interface da página inicial.
  */
 export default function Dashboard(): JSX.Element {
-  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore. */
   const [events, setEvents] = useState<GroupedEvents>({
     today: [],
@@ -41,16 +42,11 @@ export default function Dashboard(): JSX.Element {
   useEffect(() => {
     // Chama as funções fetchPerson e fetchAndGroupEvents quando o componente é montado.
     // Isso garante que a lista de pessoas e eventos seja carregada assim que o componente for exibido.
-    if(user) {
+    if (uid) {
       fetchAndGroupEvents()
       fetchPerson();
     }
-  }, [ user ]); // <- Executa quando user estiver pronto
-
-  if (!user) {
-    return <p></p>;
-  }
-  console.log('user', user.uid)
+  }, [ uid ]); // <- Executa quando user estiver pronto
 
   /**
   * @async
@@ -59,7 +55,7 @@ export default function Dashboard(): JSX.Element {
   * @returns {Promise<void>}
   */
   const fetchPerson = async (): Promise<void> => {
-    const querySnapshot = await getDocs(collection(db, `users/${user.uid}/people-directory`));
+    const querySnapshot = await getDocs(collection(db, `users/${uid}/people-directory`));
     const personData = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
@@ -77,7 +73,7 @@ export default function Dashboard(): JSX.Element {
     const today = new Date()
     console.log('today', today)
     const q = query(
-      collection(db, `users/${user.uid}/events-history`),
+      collection(db, `users/${uid}/events-history`),
       where('startDate', '>=', format(today, 'yyyy-MM-dd')),
       orderBy('startDate'),
       orderBy('startTime')
@@ -149,7 +145,7 @@ export default function Dashboard(): JSX.Element {
       <main className="main-container-body main-container-bg">
 
         {/* Renderiza o menu principal da aplicação. */}
-        <MainMenu externalCloseTrigger={menuCloseTrigger}/>
+        <MainMenu externalCloseTrigger={menuCloseTrigger} />
         <h1 className="title-1">Próximos Eventos</h1>
 
         {Object.entries(events).map(([groupName, groupEvents]) => (
@@ -187,13 +183,13 @@ export default function Dashboard(): JSX.Element {
             setShowSuggestions(true); // Abre o painel de sugestões
             setMenuCloseTrigger(true); // Fecha o menu principal ao abrir o painel de sugestões
           }}
-          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg animate-pulse z-50"
+          className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg z-50"
           aria-label="Ver sugestões"
         >
-          <StarIcon className="w-6 h-6"/>
-          
-        </button>
+          <StarIcon className="w-6 h-6" />
 
+        </button>
+        <LogoutButton />
       </main>
 
     </ProtectedRoute>

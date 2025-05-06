@@ -1,6 +1,6 @@
 'use client'
 
-import { JSX, useState } from 'react'
+import { JSX, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname } from 'next/navigation'
 import { useAuth } from './AuthProvider'
@@ -14,75 +14,85 @@ interface MainMenuProps {
 }
 
 export default function MainMenu({ externalCloseTrigger }: MainMenuProps): JSX.Element {
-  const { user } = useAuth();
+  const { uid, googleAccessToken, user } = useAuth();
+  const isAuthenticated = !!uid && !!googleAccessToken;
+  const [userPicture, setUserPicture] = useState<string | null>(null)
   const [isOpen, setIsOpen] = useState(false);
   const [showImportContacts, setShowImportContacts] = useState(false);
   const [darkMode, setDarkMode] = useState(false); // futuro uso
   const pathname = usePathname();
-
-  if (!user) return <p></p>;
-
   const toggleMenu = (): void => setIsOpen(!isOpen);
   const device = useDeviceType()
+
+  useEffect(() => {
+    const savedUserInfo = localStorage.getItem('userInfo')
+    if (savedUserInfo) {
+      try {
+        const user = JSON.parse(savedUserInfo)
+        if (user.picture) {
+          setUserPicture(user.picture)
+        }
+      } catch (e) {
+        console.warn('[MainMenu] Falha ao carregar imagem de perfil do localStorage:', e)
+      }
+    }
+  }, [])
 
   const linkClass = (path: string) =>
     `px-3 py-2 rounded-md text-sm font-medium transition ${pathname === path
       ? 'text-blue-900'
       : 'text-gray-600 hover:text-gray-900'
     }`;
+  if (!isAuthenticated) {
+    return <div className="animate-pulse text-gray-500 m-6">Carregando menu...</div>;
+  }
 
   return (
-
     <>
-
       <header className="fixed top-0 left-0 w-full backdrop-blur bg-white/80 z-50 border-b">
         <div className="flex justify-between items-center max-w-5xl mx-auto px-4 h-14">
+          <Link href="/" className="title-logo mb-2">connexus</Link>
 
-          {/* Logo à esquerda */}
-          <Link href="/" className="title-logo mb-2">
-            connexus
-          </Link>
+          {isAuthenticated && (
+            <>
+              <div className="hidden md:flex items-center gap-4">
+                <Link href="/people-directory" className={linkClass('/people-directory')}>Pessoas</Link>
+                <Link href="/events-history" className={linkClass('/events-history')}>Eventos</Link>
+                <Link href="/tasks-list" className={linkClass('/tasks-list')}>Tarefas</Link>
 
-          {/* Links principais para desktop */}
-          <div className="hidden md:flex items-center gap-4">
-            <Link href="/people-directory" className={linkClass('/people-directory')}>Pessoas</Link>
-            <Link href="/events-history" className={linkClass('/events-history')}>Eventos</Link>
-            <Link href="/tasks-list" className={linkClass('/tasks-list')}>Tarefas</Link>
+                <motion.button
+                  onClick={toggleMenu}
+                  className="rounded-full overflow-hidden w-10 h-10 border-2 border-gray-300 hover:border-blue-400 transition"
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <img
+                    src={userPicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name?.[0] || 'U')}&background=ccc&color=000`}
+                    alt="Usuário"
+                    className="object-cover w-full h-full"
+                  />
+                </motion.button>
+              </div>
 
-            {/* Botão de Perfil */}
-            <motion.button
-              onClick={toggleMenu}
-              className="rounded-full overflow-hidden w-10 h-10 border-2 border-gray-300 hover:border-blue-400 transition"
-              whileTap={{ scale: 0.9 }}
-            >
-              <img
-                src={user.photoURL || '/default-profile.png'}
-                alt="Usuário"
-                className="object-cover w-full h-full"
-              />
-            </motion.button>
-          </div>
+              <div className="md:hidden flex">
+                <motion.button
+                  onClick={toggleMenu}
+                  className="rounded-full overflow-hidden w-10 h-10 border-2 border-gray-300 hover:border-blue-400 transition"
+                  whileTap={{ scale: 0.9 }}
+                >
+                  <img
+                    src={userPicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name?.[0] || 'U')}&background=ccc&color=000`}
+                    alt="Usuário"
+                    className="object-cover w-full h-full"
+                  />
 
-
-          {/* Menu Mobile - ícone da foto */}
-          <div className="md:hidden flex">
-            <motion.button
-              onClick={toggleMenu}
-              className="rounded-full overflow-hidden w-10 h-10 border-2 border-gray-300 hover:border-blue-400 transition"
-              whileTap={{ scale: 0.9 }}
-            >
-              <img
-                src={user.photoURL || '/default-profile.png'}
-                alt="Usuário"
-                className="object-cover w-full h-full"
-              />
-            </motion.button>
-          </div>
+                </motion.button>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Menu flutuante (mobile + desktop) */}
         <AnimatePresence>
-          {isOpen && (
+          {isOpen && isAuthenticated && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -91,8 +101,6 @@ export default function MainMenu({ externalCloseTrigger }: MainMenuProps): JSX.E
               className="absolute top-14 left-0 w-full bg-white border-t justify-items-end shadow-md md:rounded-b-md md:max-w-5xl md:mx-auto"
             >
               <div className="flex flex-col md:flex-row md:justify-between p-4 gap-6">
-
-                {/* Links principais */}
                 {device === 'mobile' &&
                   <div className="flex md:flex-row md:items-center gap-4">
                     <Link href="/people-directory" className={linkClass('/people-directory')} onClick={toggleMenu}>Pessoas</Link>
@@ -101,32 +109,32 @@ export default function MainMenu({ externalCloseTrigger }: MainMenuProps): JSX.E
                   </div>
                 }
 
-                {/* Links de configuração */}
                 <div className="flex md:flex-row md:items-center gap-4 md:gap-6">
-                  <button className={linkClass('')} onClick={() => { /* abrir modal Import Contacts */ {
+                  <button className={linkClass('')} onClick={() => {
                     toggleMenu();
-                    setShowImportContacts(true)
-                  }
+                    setShowImportContacts(true);
                   }}>
                     Importar Contatos
                   </button>
 
-                  <button className={linkClass('')} onClick={() => { /* alternar dark/light mode */ toggleMenu() }}>
+                  <button className={linkClass('')} onClick={() => {
+                    toggleMenu();
+                    setDarkMode(!darkMode);
+                  }}>
                     Dark/Light Mode
                   </button>
 
-                  <button className={linkClass('')} onClick={() => { /* ir para Trash */ toggleMenu() }}>
+                  <button className={linkClass('')} onClick={toggleMenu}>
                     Lixeira
                   </button>
 
                   <LogoutButton />
                 </div>
-
               </div>
             </motion.div>
           )}
         </AnimatePresence>
-        {/* Modal interno para Importação */}
+
         {showImportContacts && (
           <ImportContactsModal
             isOpen={showImportContacts}

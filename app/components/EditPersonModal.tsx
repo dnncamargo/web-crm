@@ -34,7 +34,7 @@ interface EditPersonModalProps {
  * @returns {JSX.Element | null} O componente modal de edição, ou `null` se `isOpen` for `false`.
  */
 const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: EditPersonModalProps) => {
-  const { user } = useAuth(); /** @const {User | null} user - O usuário autenticado. */
+  const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
   const [name, setName] = useState(person.name); /** @state {string} name - Nome da pessoa. */
   const [phone, setPhone] = useState(person.phone); /** @state {string} phone - Número de telefone da pessoa. */
@@ -55,13 +55,15 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
   // Proteção: Se não for open ou sem usuário, nem carrega.
-  if (!isOpen || !user) return null;
+  if (!isOpen || !uid) return null;
 
   useLayoutEffect(() => {
     adjustModalDraggable(); // Ajusta a propriedade de arrastar do modal com base na altura do conteúdo.
   }, [isOpen, useAddressAPI]);
 
   useEffect(() => {
+
+    console.log('[uid]', uid)
 
     {/* Ações ao abrir ou fechar o modal */ }
     if (isOpen) {
@@ -126,7 +128,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
     }
 
     try {
-      const personRef = doc(db, `users/${user.uid}/people-directory/${person.id}`);
+      const personRef = doc(db, `users/${uid}/people-directory/${person.id}`);
       await updateDoc(personRef, {
         name,
         phone,
@@ -160,7 +162,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
     */
   const handleDelete = async (): Promise<void> => {
     try {
-      const personRef = doc(db, 'users', user.uid, 'people-directory', person.id);
+      const personRef = doc(db, 'users', uid, 'people-directory', person.id);
       await deleteDoc(personRef);
       onDeleted(); // Chama a função onDeleted para indicar sucesso na exclusão
       onClose();

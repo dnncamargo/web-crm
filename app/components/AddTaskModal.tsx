@@ -13,11 +13,11 @@ interface AddTaskModalProps {
 }
 
 export default function AddTaskModal({ isOpen, onClose, onAdded }: AddTaskModalProps) {
-  const { user } = useAuth()
+  const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const [content, setContent] = useState('')
   const [adding, setAdding] = useState(false)
 
-  if (!isOpen || !user) return null
+  if (!isOpen || !uid) return null
 
   const handleAdd = async () => {
     if (!content.trim()) {
@@ -29,14 +29,14 @@ export default function AddTaskModal({ isOpen, onClose, onAdded }: AddTaskModalP
     try {
       // Primeiro, busca quantas tarefas "not_started" já existem
       const q = query(
-        collection(db, `users/${user!.uid}/tasks-list`),
+        collection(db, `users/${uid}/tasks-list`),
         where('status', '==', 0) // status 0 = not_started
       );
       const snapshot = await getDocs(q);
       const currentTasksCount = snapshot.size;
 
       // Adiciona a nova task com order = quantidade atual
-      await addDoc(collection(db, `users/${user!.uid}/tasks-list`), {
+      await addDoc(collection(db, `users/${uid}/tasks-list`), {
         content: content.trim(),
         status: 0,
         order: currentTasksCount, // <----- aqui!!
