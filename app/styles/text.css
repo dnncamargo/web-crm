@@ -30,9 +30,9 @@
 }
 
 .card-content-info {
-    @apply flex items-center text-sm;
+    @apply flex text-sm;
 }
 
 .card-content-info-large {
-    @apply flex items-center text-base mb-2;
+    @apply flex text-base mb-2;
 }

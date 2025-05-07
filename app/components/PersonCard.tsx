@@ -36,7 +36,7 @@ const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps)
 
       {/* Título do card */}
       <div className="card-header-large card-header-bg">
-        <h2 className="card-header-title-large color-pd-dark">{person.name}</h2>
+        <h2 className="card-header-title-large flex-1 break-words color-pd-dark">{person.name}</h2>
         {/* Favorito */}
         <button
           onClick={(e) => {
@@ -57,14 +57,14 @@ const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps)
         {/* Telefone */}
         {person.phone && (
           <div className="card-content-info-large text-gray-500 mb-2">
-            <PhoneIcon className="w-4 h-4 mr-2 mt-0.5" />
+            <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0"><PhoneIcon className="w-4 h-4 mr-2 mt-0.5" /></div>
             {person.phone}
           </div>
         )}
         {/* E-mail */}
         {person.email && (
           <div className="card-content-info-large text-gray-500">
-            <EnvelopeIcon className="w-4 h-4 mr-2 mt-0.5" />
+            <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0"><EnvelopeIcon className="w-4 h-4 mr-2 mt-0.5" /></div>
             {person.email}
           </div>
         )}

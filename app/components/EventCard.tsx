@@ -40,10 +40,10 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
 
       {/* Título do card */}
       <div className="card-header-large card-header-bg">
-        <h2 className="card-header-title-large color-eh-dark">{event.title}</h2>
+        <h2 className="card-header-title-large flex-1 break-words color-eh-dark">{event.title}</h2>
         {/* Data */}
         <span
-          className="card-header-far-right color-eh-light">
+          className="card-header-far-right h- flex items-center color-eh-light">
           {formatDate(event.startDate, event.endDate, event.startTime, event.startTime, event.allDay)}
         </span>
       </div>
@@ -53,16 +53,16 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
         {/* Hora */}
         {event.startTime && (
           <div className="card-content-info-large text-gray-500 mb-2">
-            <ClockIcon className="w-4 h-4 mr-2 mt-0.5" />
+            <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0"><ClockIcon className="w-full h-full" /></div>
             {/* {event.hour && `${event.hour} - `}{event.address} */}
-            {event.startTime}
+            <div>{event.startTime}</div>
           </div>
         )}
         {/* Endereço */}
         {event.address && (
           <div className="card-content-info-large text-gray-500 mb-2">
-            <MapPinIcon className="w-4 h-4 mr-2 mt-0.5" />
-            {event.address}
+            <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0"><MapPinIcon className="w-full h-full" /></div>
+            <div className='text-pretty overflow-x-auto'>{event.address}</div>
           </div>
         )}
         {/* todo: incluir Pessoa associada no card */}
@@ -83,8 +83,8 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
               <div key={field.id} >
                 {field.label === 'Descrição' && typeof field.value === 'string' ? (
                   <div className="card-content-info-large text-gray-500 mb-2">
-                    <PencilSquareIcon className="w-4 h-4 mr-2 mt-0.5" />
-                    {field.value}
+                    <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0 flex items-start"><PencilSquareIcon className="w-full h-full" /></div>
+                    <div className='text-pretty'>{field.value}</div>
                   </div>
                 ) : ('')}
               </div>

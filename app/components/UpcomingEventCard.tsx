@@ -58,14 +58,14 @@ export default function UpcomingEventCard({ event, person }: UpcomingEventCardPr
       <div className="card-content">
         {/* Data e Hora */}
         <div className="card-content-info text-gray-600">
-          <CalendarIcon className="w-4 h-4 mr-2" />
-          {formatDate(event.startDate, event.startTime)}
+          <div className="w-4 h-4 mr-2 flex-shrink-0"><CalendarIcon className="w-full h-full"/></div>
+          <div>{formatDate(event.startDate, event.startTime)}</div>
         </div>
         {/* Pessoa associada */}
         {person && (
           <div className="card-content-info text-gray-600">
-            <UserIcon className="w-4 h-4 mr-2" />
-            {person.name}
+            <div className="w-4 h-4 mr-2 flex-shrink-0"><UserIcon className="w-full h-full"/></div>
+            <div>{person.name}</div>
           </div>
         )}
         {/* Descrição */}
@@ -84,8 +84,8 @@ export default function UpcomingEventCard({ event, person }: UpcomingEventCardPr
               <div key={field.id} >
                 {field.label === 'Descrição' && typeof field.value === 'string' ? (
                   <div className="card-content-info text-gray-500">
-                    <PencilSquareIcon className="w-4 h-4 mr-2 mt-0.5" />
-                    {field.value}
+                    <div className="w-4 h-4 mr-2 flex-shrink-0"><PencilSquareIcon className="w-full h-full"/></div>
+                    <div className="truncate">{field.value}</div>
                   </div>
                 ) : ('')}
               </div>

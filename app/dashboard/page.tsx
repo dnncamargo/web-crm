@@ -196,7 +196,6 @@ export default function Dashboard(): JSX.Element {
           <StarIcon className="w-6 h-6" />
 
         </button>
-        <LogoutButton />
       </main>
 
     </ProtectedRoute>
