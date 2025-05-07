@@ -176,6 +176,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
+        <div className="h-1.5 w-14 bg-gray-300 rounded-full mx-auto my-4"></div>
         {/* Formulário */}
         <form onSubmit={handleSubmit}>
           <div className="p-4 space-y-4 mb-16">

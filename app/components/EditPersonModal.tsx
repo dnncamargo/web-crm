@@ -203,6 +203,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
         exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
+        <div className="h-1.5 w-14 bg-gray-300 rounded-full mx-auto my-4"></div>
         {/* Formulário */}
         <form onSubmit={handleUpdate}>
           <div className="p-4 space-y-4 mb-16">
@@ -250,7 +251,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
                 onChange={(e) => setName(e.target.value)}
                 className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
               <input
-                type="number"
+                type="string"
                 placeholder="Telefone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
