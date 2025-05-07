@@ -11,7 +11,6 @@ import ProtectedRoute from '../components/ProtectedRoute'
 import MainMenu from '../components/MainMenu';
 import UpcomingEventCard from '../components/UpcomingEventCard';
 import SuggestionPanel from '../components/SuggestionPanel';
-import LogoutButton from '../components/LogoutButton';
 
 type GroupedEvents = {
   today: Event[],
@@ -103,9 +102,9 @@ export default function Dashboard(): JSX.Element {
 
       if (isToday(date)) {
         acc.today.push(event);
-      } else if(isTomorrow(date)) {
+      } else if (isTomorrow(date)) {
         acc.tomorrow.push(event);
-      } if (isThisWeek(date, { weekStartsOn: 0 }) && isSameMonth) {
+      } else if (isThisWeek(date, { weekStartsOn: 0 }) && isSameMonth) {
         acc.thisWeek.push(event);
       } else if (isSameMonth) {
         acc.thisMonth.push(event);
@@ -124,7 +123,7 @@ export default function Dashboard(): JSX.Element {
       nextMonth: [],
       future: []
     });
-  
+
     setEvents(grouped);
   };
 
