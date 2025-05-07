@@ -60,7 +60,7 @@ const PersonDetails = (): JSX.Element => {
     setEvents(eventData);
   };
 
-  if (!person) return <p className="p-6">Carregando dados...</p>;
+  if (!person) return <div className="animate-pulse text-gray-500 m-6">Carregando as informações da Pessoa...</div>;
 
   return (
 

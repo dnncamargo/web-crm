@@ -86,7 +86,8 @@ const EventDetails = () => {
     }
   };
 
-  if (!event) return <p className="p-6">Carregando dados do evento...</p>;
+  if (!event) return <div className="animate-pulse text-gray-500 m-6">Carregando as informações do evento...</div>;
+  
 
   const updateOptionalFieldTasks = async (fieldId: string, updatedTasks: TaskItem[]) => {
     if (!event || !uid ) return;
