@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // ⬇️ Busca de perfil (opcional e paralela)
       try {
         const res = await fetch(
-          'https://people.googleapis.com/v1/people/me?personFields=names,emailAddresses,photos',
+          'https://people.googleapis.com/v1/people/me?personFields=names,emailAddresses,photos,birthdays,addresses,phoneNumbers',
           {
             headers: { Authorization: `Bearer ${token}` }
           }

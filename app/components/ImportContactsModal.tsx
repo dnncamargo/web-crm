@@ -2,29 +2,19 @@
 
 import { useState } from 'react'
 import { useAuth } from '../components/AuthProvider'
-import { fetchAllContacts } from '../utils/googleContacts'
+import { Contact, fetchAllContacts, parseGoogleContact } from '../utils/googleContacts'
 import { useRouter } from 'next/navigation'
 import { db } from '../utils/firebaseConfig'
 import { addDoc, collection } from 'firebase/firestore'
 import { motion } from 'framer-motion'
+import { Timestamp } from 'firebase/firestore'
 
 interface ImportContactsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface Contact {
-  resourceName: string;
-  displayName: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  birthday?: string;
-  urls?: string[];
-
-}
-
-export default function ImportContactsPage({ isOpen, onClose }: ImportContactsModalProps) {
+export default function ImportContactsPage({ onClose }: ImportContactsModalProps) {
   const { uid, googleAccessToken } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase e do Google autenticado. */
   const router = useRouter();
 
@@ -44,11 +34,9 @@ export default function ImportContactsPage({ isOpen, onClose }: ImportContactsMo
     setLoading(true);
     try {
       const loadedContacts = await fetchAllContacts(googleAccessToken);
-      const mappedContacts = loadedContacts.map((c: any) => ({
-        resourceName: c.resourceName,
-        displayName: c.names?.[0]?.displayName || 'Sem Nome',
-        phone: c.phoneNumbers?.[0]?.value || '',
-      }));
+      console.log('[Loaded Contact]', JSON.stringify(loadedContacts))
+      const mappedContacts = loadedContacts.map(parseGoogleContact);
+
       setContacts(mappedContacts);
     } catch (error) {
       console.error('Erro ao carregar contatos:', error);
@@ -79,54 +67,26 @@ export default function ImportContactsPage({ isOpen, onClose }: ImportContactsMo
     }
 
     setImporting(true);
+
     try {
       const selectedContacts = contacts.filter(c => selectedIds.includes(c.resourceName));
-      const batch = selectedContacts.map(contact =>
-        addDoc(collection(db, `users/${uid}/people-directory`), {
-          name: contact.displayName,
-          phone: contact.phone || '',
-          optionalFields: [
-            contact.email && {
-              id: crypto.randomUUID(),
-              type: 'email',
-              label: 'E-mail adicional',
-              value: contact.email
-            },
-            contact.address && {
-              id: crypto.randomUUID(),
-              type: 'address',
-              label: 'Endereço',
-              value: {
-                useAddressAPI: false,
-                location: contact.address,
-                zipcode: '',
-                address: '',
-                number: '',
-                complement: '',
-                district: '',
-                city: '',
-                state: ''
-              }
-            },
-            contact.urls?.length && {
-              id: crypto.randomUUID(),
-              type: 'url',
-              label: 'URL',
-              value: contact.urls[0]
-            },
-            contact.birthday && {
-              id: crypto.randomUUID(),
-              type: 'note',
-              label: 'Aniversário',
-              value: contact.birthday
-            }
-          ].filter(Boolean),
-          createdAt: new Date()
-        })
-      );
+
+      const batch = selectedContacts.map(contact => {
+        return addDoc(collection(db, `users/${uid}/people-directory`), {
+          name: contact.displayName || 'Sem nome',
+          phone: contact.phoneNumbers || '',
+          favorite: false,
+          relationship: '',
+          contactFrequency: null,
+          optionalFields: contact.addresses || [],
+          createdAt: Timestamp.fromDate(new Date())
+        });
+      });
+
       await Promise.all(batch);
 
       alert('Contatos importados!');
+      onClose();
       router.push('/people-directory');
     } catch (error) {
       console.error('Erro ao importar:', error);
@@ -135,6 +95,7 @@ export default function ImportContactsPage({ isOpen, onClose }: ImportContactsMo
       setImporting(false);
     }
   }
+
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6 h-screen overflow-y-auto">
@@ -196,8 +157,8 @@ export default function ImportContactsPage({ isOpen, onClose }: ImportContactsMo
           >
             <div>
               <p className="font-medium">{contact.displayName}</p>
-              {contact.phone && (
-                <p className="text-sm text-gray-500">{contact.phone}</p>
+              {contact.phoneNumbers && (
+                <p className="text-sm text-gray-500">{contact.phoneNumbers}</p>
               )}
             </div>
             <input
