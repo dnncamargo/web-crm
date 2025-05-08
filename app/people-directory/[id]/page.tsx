@@ -29,14 +29,14 @@ const PersonDetails = (): JSX.Element => {
       fetchPerson();
       fetchEvents();
     }
-  }, [ uid, id] );
+  }, [uid, id]);
 
-/**
- * @async
- * @function fetchPerson
- * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
- * @returns {Promise<void>}
- */
+  /**
+   * @async
+   * @function fetchPerson
+   * @description Busca os dados de todas as pessoas da coleção 'people-directory' no Firestore.
+   * @returns {Promise<void>}
+   */
   const fetchPerson = async (): Promise<void> => {
     try {
       const docRef = doc(db, `users/${uid}/people-directory/${id}`);
@@ -78,19 +78,55 @@ const PersonDetails = (): JSX.Element => {
           <p><strong>Telefone:</strong> {person.phone}</p>
           <p><strong>Email:</strong> {person.email}</p>
 
-          {/* Endereço */}
-          {person.zipcode && <p><strong>CEP:</strong> {person.zipcode}</p>}
-          {person.address && <p><strong>Endereço:</strong> {person.address}</p>}
-          {person.number && <p><strong>Número:</strong> {person.number}</p>}
-          {person.complement && <p><strong>Complemento:</strong> {person.complement}</p>}
-          {person.district && <p><strong>Bairro:</strong> {person.district}</p>}
-          {person.city && <p><strong>Cidade:</strong> {person.city}</p>}
-          {person.state && <p><strong>Estado:</strong> {person.state}</p>}
-
           {/* Outras informações */}
           {person.birthday && <p><strong>Aniversário:</strong> {person.birthday}</p>}
           {person.note && <p><strong>Notas:</strong> {person.note}</p>}
         </div>
+
+        {/* Campos Opcionais */}
+        {Array.isArray(person.optionalFields) && person.optionalFields.length > 0 && (
+          <div className="bg-white p-4 rounded-lg shadow space-y-4">
+            <h2 className="font-semibold text-lg mb-2">Informações adicionais</h2>
+            {person.optionalFields.map((field: any) => (
+              <div key={field.id}>
+                <p className="font-semibold">{field.label}</p>
+
+                {field.type === 'note' && (
+                  <p className="text-gray-700 whitespace-pre-wrap">{field.value}</p>
+                )}
+
+                {field.type === 'url' && (
+                  <a href={field.value} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">
+                    {field.value}
+                  </a>
+                )}
+
+                {field.type === 'phone' && (
+                  <p className="text-gray-700">{field.value}</p>
+                )}
+
+                {field.type === 'email' && (
+                  <a href={`mailto:${field.value}`} className="text-blue-600 underline">
+                    {field.value}
+                  </a>
+                )}
+
+                {field.type === 'address' && typeof field.value === 'object' && (
+                  <div className="text-gray-700 text-sm space-y-1">
+                    {field.value.location && <p><strong>Localidade:</strong> {field.value.location}</p>}
+                    {field.value.zipcode && <p><strong>CEP:</strong> {field.value.zipcode}</p>}
+                    {field.value.address && <p><strong>Endereço:</strong> {field.value.address}</p>}
+                    {field.value.number && <p><strong>Número:</strong> {field.value.number}</p>}
+                    {field.value.district && <p><strong>Bairro:</strong> {field.value.district}</p>}
+                    {field.value.city && <p><strong>Cidade:</strong> {field.value.city}</p>}
+                    {field.value.state && <p><strong>Estado:</strong> {field.value.state}</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
 
         {/* Frequência de Contato */}
         <div className="bg-white p-4 rounded-lg shadow space-y-2">
@@ -146,7 +182,7 @@ const PersonDetails = (): JSX.Element => {
               setIsAddEventModalOpen(false);
               // Refaz a lista de eventos depois de adicionar
               const fetchEvents = async () => {
-                const q = query(collection(db, `${uid}/events-history`), where('personId', '==', uid));
+                const q = query(collection(db, `users/${uid}/events-history`), where('personId', '==', uid));
                 const querySnapshot = await getDocs(q);
                 const eventData = querySnapshot.docs.map(doc => ({
                   id: doc.id,

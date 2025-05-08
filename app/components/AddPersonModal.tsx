@@ -4,10 +4,11 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
-import { searchAddress } from '../utils/services';
 import { motion } from 'framer-motion';
+import { OptionalField } from '../utils/interfaces';
 import ProtectedRoute from './ProtectedRoute';
 import clsx from 'clsx';
+import OptionalFieldAddressInput from './OptionalFieldAddressInput';
 
 /**
  * @interface AddPersonModalProps
@@ -35,16 +36,9 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
   const [phone, setPhone] = useState('') /** @state {array of strings} phone - Números de telefone da pessoa. */
   const [email, setEmail] = useState('');  /** @state {string} email - Endereço de e-mail da pessoa. */
   const [showMore, setShowMore] = useState(false);  /** @state {boolean} showMore - Controla a visibilidade de campos adicionais. */
-  const [zipcode, setZipcode] = useState('');  /** @state {string} zipcode - Código postal. */
-  const [useAddressAPI, setUseAddressAPI] = useState(false);  /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
-  const [address, setAddress] = useState('');  /** @state {string} address - Endereço. */
-  const [number, setNumber] = useState('');  /** @state {string} number - Número do endereço. */
-  const [complement, setComplement] = useState('');  /** @state {string} complement - Complemento do endereço. */
-  const [district, setDistrict] = useState('');  /** @state {string} district - Bairro. */
-  const [city, setCity] = useState('');  /** @state {string} city - Cidade. */
-  const [state, setState] = useState('');  /** @state {string} state - Estado (UF). */
+  const [optionalFields, setOptionalFields] = useState<OptionalField[]>([]);
+  const [showOptionalFieldModal, setShowOptionalFieldModal] = useState(false);
   const [birthday, setBirthday] = useState('');  /** @state {string} birthday - Data de nascimento. */
-  const [note, setNote] = useState('');  /** @state {string} note - Alguma nota sobre a pessoa. */
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
   // Proteção: Se não for open ou sem usuário, nem carrega.
@@ -52,7 +46,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
 
   useLayoutEffect(() => {
     adjustModalDraggable(); // Ajusta a propriedade de arrastar do modal com base na altura do conteúdo.
-  }, [isOpen, useAddressAPI]);
+  }, [isOpen]);
 
   useEffect(() => {
 
@@ -94,15 +88,15 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
    * @param {string} zipCode - O código postal a ser pesquisado.
    * @returns {Promise<void>}
    */
-  const handleSearchAddress = async (zipCode: string): Promise<void> => {
-    const data = await searchAddress(zipCode);
-    if (data) {
-      setAddress(data?.address || ''); // Garante que o estado seja atualizado mesmo se a propriedade for undefined
-      setDistrict(data?.district || '');
-      setCity(data?.city || '');
-      setState(data?.state || '');
-    }
-  };
+  /*   const handleSearchAddress = async (zipCode: string): Promise<void> => {
+      const data = await searchAddress(zipCode);
+      if (data) {
+        setAddress(data?.address || ''); // Garante que o estado seja atualizado mesmo se a propriedade for undefined
+        setDistrict(data?.district || '');
+        setCity(data?.city || '');
+        setState(data?.state || '');
+      }
+    }; */
 
   /**
   * @async
@@ -125,15 +119,8 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
         phone,
         email,
         ...(showMore && {
-          zipcode,
-          address,
-          number,
-          complement,
-          district,
-          city,
-          state,
           birthday,
-          note,
+          optionalFields,
         }),
         createdAt: new Date().toISOString(),
       });
@@ -195,6 +182,116 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
               </button>
             </div>
 
+            {/* Modal de Campos Personalizados */}
+            {showOptionalFieldModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white p-4 rounded-lg w-full max-w-sm shadow-lg">
+                  <h2 className="text-lg font-semibold mb-4">Adicionar campo opcional</h2>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'address',
+                        label: 'Endereço',
+                        value: {
+                          useAddressAPI: false,
+                          location: '',
+                          zipcode: '',
+                          address: '',
+                          number: '',
+                          district: '',
+                          city: '',
+                          state: ''
+                        }
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    Endereço
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'note',
+                        label: 'Anotações',
+                        value: ''
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    Anotações
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'url',
+                        label: 'URL',
+                        value: ''
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    URL
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'phone',
+                        label: 'Telefone adicional',
+                        value: ''
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    Telefone adicional
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'email',
+                        label: 'E-mail adicional',
+                        value: ''
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    E-mail adicional
+                  </button>
+
+                  <button
+                    onClick={() => setShowOptionalFieldModal(false)}
+                    className="mt-3 w-full px-4 py-2 text-sm text-gray-500 hover:text-black"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Informações de Contato */}
             <div className="bg-gray-50 rounded-lg overflow-hidden border">
               <input
@@ -232,59 +329,6 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
             {/* Switch habilitado */}
             {showMore && (
               <>
-                {/* Checkbox Para Usar API de Endereço */}
-                <div className="border-gray-200 pt-4 mb-6">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <input
-                      type="checkbox"
-                      checked={useAddressAPI}
-                      className="accent-green-600 focus:ring-2 focus:ring-green-500"
-                      onChange={() => setUseAddressAPI(!useAddressAPI)} />
-                    <span>Usar CEP</span>
-                  </div>
-                  {/* Usar API de Endereço */}
-                  {useAddressAPI && (
-                    <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                      <input
-                        type="text"
-                        placeholder="CEP"
-                        value={zipcode}
-                        onChange={(e) => setZipcode(e.target.value)}
-                        onBlur={() => handleSearchAddress(zipcode)}
-                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Endereço"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Número"
-                        value={number}
-                        onChange={(e) => setNumber(e.target.value)}
-                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Bairro"
-                        value={district}
-                        onChange={(e) => setDistrict(e.target.value)}
-                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Cidade"
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                        className="w-full p-4 bg-transparent focus:outline-none"
-                      />
-                    </div>
-                  )}
-                </div>
-
                 {/* Data de Nascimento */}
                 <div className="relative mb-2">
                   <input
@@ -308,16 +352,136 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
                   </svg>
                 </div>
 
-                {/* Notas */}
-                <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                  <textarea
-                    placeholder="Notas"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    className="w-full p-4 bg-transparent focus:outline-none resize-none"
-                    rows={4}
-                  />
-                </div>
+                {/* Campos Personalizados Adicionados   */}
+                {optionalFields.map((field) => (
+                  <div key={field.id} className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
+                    <div className="mb-4">
+                      {/* Input para editar a label do campo */}
+                      <input
+                        type="text"
+                        value={field.label}
+                        onChange={(e) =>
+                          setOptionalFields(prev =>
+                            prev.map(f =>
+                              f.id === field.id
+                                ? { ...f, label: e.target.value }
+                                : f
+                            )
+                          )
+                        }
+                        className="font-semibold text-sm bg-gray-50  text-gray-700 mb-2 p-1 "
+                        placeholder="Nome do campo"
+                      />
+
+                      {field.type === 'address' && (
+                        <OptionalFieldAddressInput
+                          id={field.id}
+                          label={field.label}
+                          value={field.value}
+                          onRemove={(id) =>
+                            setOptionalFields(prev => prev.filter(f => f.id !== id))
+                          }
+                          onChange={(id, updatedValue) =>
+                            setOptionalFields(prev =>
+                              prev.map(f =>
+                                f.id === id && f.type === 'address'
+                                  ? { ...f, value: updatedValue }
+                                  : f
+                              )
+                            )
+                          }
+                        />
+                      )}
+
+                      {field.type === 'note' && (
+                        <textarea
+                          rows={4}
+                          value={field.value}
+                          onChange={(e) =>
+                            setOptionalFields(prev =>
+                              prev.map(f =>
+                                f.id === field.id && f.type === 'note'
+                                  ? { ...f, value: e.target.value }
+                                  : f
+                              )
+                            )
+                          }
+                          className="w-full border p-2 rounded"
+                        />
+                      )}
+
+                      {field.type === 'url' && (
+                        <input
+                          type="text"
+                          value={field.value}
+                          onChange={(e) =>
+                            setOptionalFields(prev =>
+                              prev.map(f =>
+                                f.id === field.id && f.type === 'url'
+                                  ? { ...f, value: e.target.value }
+                                  : f
+                              )
+                            )
+                          }
+                          className="w-full border p-2 rounded"
+                        />
+                      )}
+                    </div>
+
+                    {field.type === 'phone' && (
+                      <input
+                        type="tel"
+                        value={field.value}
+                        onChange={(e) =>
+                          setOptionalFields(prev =>
+                            prev.map(f =>
+                              f.id === field.id && f.type === 'phone'
+                                ? { ...f, value: e.target.value }
+                                : f
+                            )
+                          )
+                        }
+                        className="w-full border p-2 rounded"
+                      />
+                    )}
+
+                    {field.type === 'email' && (
+                      <input
+                        type="text"
+                        value={field.value}
+                        onChange={(e) =>
+                          setOptionalFields(prev =>
+                            prev.map(f =>
+                              f.id === field.id && f.type === 'email'
+                                ? { ...f, value: e.target.value }
+                                : f
+                            )
+                          )
+                        }
+                        className="w-full border p-2 rounded"
+                      />
+                    )}
+
+                    <button
+                      onClick={() =>
+                        setOptionalFields(prev => prev.filter(f => f.id !== field.id))
+                      }
+                      className="text-xs text-red-500 mt-2"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="text-green-600"
+                  onClick={() => setShowOptionalFieldModal(true)}
+                >
+                  + Adicionar campo
+                </button>
+
+
               </>
             )}
           </div>

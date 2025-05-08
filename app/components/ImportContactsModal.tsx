@@ -21,7 +21,7 @@ interface Contact {
   address?: string;
   birthday?: string;
   urls?: string[];
-  
+
 }
 
 export default function ImportContactsPage({ isOpen, onClose }: ImportContactsModalProps) {
@@ -84,12 +84,44 @@ export default function ImportContactsPage({ isOpen, onClose }: ImportContactsMo
       const batch = selectedContacts.map(contact =>
         addDoc(collection(db, `users/${uid}/people-directory`), {
           name: contact.displayName,
-          phone: contact.phone,
-          email: contact.email || '',
-          address: contact.address || '',
-          birthday: contact.birthday || '',
-          urls: contact.urls || [],
-          createdAt: new Date(),
+          phone: contact.phone || '',
+          optionalFields: [
+            contact.email && {
+              id: crypto.randomUUID(),
+              type: 'email',
+              label: 'E-mail adicional',
+              value: contact.email
+            },
+            contact.address && {
+              id: crypto.randomUUID(),
+              type: 'address',
+              label: 'Endereço',
+              value: {
+                useAddressAPI: false,
+                location: contact.address,
+                zipcode: '',
+                address: '',
+                number: '',
+                complement: '',
+                district: '',
+                city: '',
+                state: ''
+              }
+            },
+            contact.urls?.length && {
+              id: crypto.randomUUID(),
+              type: 'url',
+              label: 'URL',
+              value: contact.urls[0]
+            },
+            contact.birthday && {
+              id: crypto.randomUUID(),
+              type: 'note',
+              label: 'Aniversário',
+              value: contact.birthday
+            }
+          ].filter(Boolean),
+          createdAt: new Date()
         })
       );
       await Promise.all(batch);
@@ -110,9 +142,10 @@ export default function ImportContactsPage({ isOpen, onClose }: ImportContactsMo
       {/* Topo */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Importar Contatos</h1>
-        <button onClick={() => router.back()} className="text-gray-500 hover:text-black">
+        <button onClick={onClose} className="text-gray-500 hover:text-black">
           Voltar
         </button>
+
       </div>
 
       {/* Botões principais */}

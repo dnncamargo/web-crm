@@ -4,11 +4,12 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
-import { searchAddress } from '../utils/services';
 import { Person } from '../utils/interfaces';
 import { motion } from 'framer-motion';
+import { OptionalField } from '../utils/interfaces';
 import ProtectedRoute from './ProtectedRoute';
 import clsx from 'clsx';
+import OptionalFieldAddressInput from './OptionalFieldAddressInput';
 
 /**
  * @interface EditPersonModalProps
@@ -39,18 +40,10 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
   const [name, setName] = useState(person.name); /** @state {string} name - Nome da pessoa. */
   const [phone, setPhone] = useState(person.phone); /** @state {string} phone - Número de telefone da pessoa. */
   const [email, setEmail] = useState(person.email); /** @state {string} email - Endereço de e-mail da pessoa. */
-  const [showMore, setShowMore] = useState(!!person.address); /** @state {boolean} showMore - Controla a visibilidade de campos adicionais. */
-  const [zipcode, setZipcode] = useState(person.zipcode || ''); /** @state {string} zipcode - Código postal. */
-  const [useAddressAPI, setUseAddressAPI] = useState(zipcode !== '');  /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
-  const [address, setAddress] = useState(person.address || ''); /** @state {string} address - Endereço. */
-  const [number, setNumber] = useState(person.number || ''); /** @state {string} number - Número do endereço. */
-  const [complement, setComplement] = useState(person.complement || ''); /** @state {string} complement - Complemento do endereço. */
-  const [district, setDistrict] = useState(person.district || ''); /** @state {string} district - Bairro. */
-  const [city, setCity] = useState(person.city || ''); /** @state {string} city - Cidade. */
-  const [state, setState] = useState(person.state || ''); /** @state {string} state - Estado (UF). */
+  const [showMore, setShowMore] = useState(false); /** @state {boolean} showMore - Controla a visibilidade de campos adicionais. */
   const [birthday, setBirthday] = useState(person.birthday || ''); /** @state {string} birthday - Data de nascimento. */
-  const [note, setNote] = useState(''); /** @state {string} note - Alguma nota sobre a pessoa. */
-  const [favorite, setFavorite] = useState(person.favorite || false); /** @state {boolean} favorite - Indica se a pessoa é favorita. */
+  const [optionalFields, setOptionalFields] = useState<OptionalField[]>(Array.isArray(person.optionalFields) ? person.optionalFields : []);
+  const [showOptionalFieldModal, setShowOptionalFieldModal] = useState(false); const [favorite, setFavorite] = useState(person.favorite || false); /** @state {boolean} favorite - Indica se a pessoa é favorita. */
   const [contactFrequency, setContactFrequency] = useState<Person['contactFrequency']>(person.contactFrequency || null); /** @state {string | null} contactFrequency - Frequência de contato. */
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
@@ -59,7 +52,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
 
   useLayoutEffect(() => {
     adjustModalDraggable(); // Ajusta a propriedade de arrastar do modal com base na altura do conteúdo.
-  }, [isOpen, useAddressAPI]);
+  }, [isOpen]);
 
   useEffect(() => {
 
@@ -97,23 +90,6 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
   }
 
   /**
-   * @async
-   * @function handleSearchAddress
-   * @description Busca o endereço a partir do CEP informado.
-   * @param {string} zipCode - O código postal a ser pesquisado.
-   * @returns {Promise<void>}
-   */
-  const handleSearchAddress = async (zipCode: string): Promise<void> => {
-    const data = await searchAddress(zipCode);
-    if (data) {
-      setAddress(data?.address || ''); // Garante que o estado seja atualizado mesmo se a propriedade for undefined
-      setDistrict(data?.district || '');
-      setCity(data?.city || '');
-      setState(data?.state || '');
-    }
-  };
-
-  /**
   * @async
   * @function handleUpdate
   * @description Salva as alterações do formulário no Firestore.
@@ -136,15 +112,8 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
         favorite,
         contactFrequency,
         ...(showMore && {
-          zipcode,
-          address,
-          number,
-          complement,
-          district,
-          city,
-          state,
           birthday,
-          note
+          optionalFields,
         }),
       });
       onUpdated();
@@ -242,6 +211,116 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
               </button>
             </div>
 
+            {/* Modal de Campos Personalizados */}
+            {showOptionalFieldModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white p-4 rounded-lg w-full max-w-sm shadow-lg">
+                  <h2 className="text-lg font-semibold mb-4">Adicionar campo opcional</h2>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'address',
+                        label: 'Endereço',
+                        value: {
+                          useAddressAPI: false,
+                          location: '',
+                          zipcode: '',
+                          address: '',
+                          number: '',
+                          district: '',
+                          city: '',
+                          state: ''
+                        }
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    Endereço
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'note',
+                        label: 'Anotações',
+                        value: ''
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    Anotações
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'url',
+                        label: 'URL',
+                        value: ''
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    URL
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'phone',
+                        label: 'Telefone adicional',
+                        value: ''
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    Telefone adicional
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newField: OptionalField = {
+                        id: crypto.randomUUID(),
+                        type: 'email',
+                        label: 'E-mail adicional',
+                        value: ''
+                      }
+                      setOptionalFields(prev => [...prev, newField])
+                      setShowOptionalFieldModal(false)
+                    }}
+                    className="w-full bg-blue-600 text-white px-4 py-2 mb-2 rounded hover:bg-blue-700"
+                  >
+                    E-mail adicional
+                  </button>
+
+                  <button
+                    onClick={() => setShowOptionalFieldModal(false)}
+                    className="mt-3 w-full px-4 py-2 text-sm text-gray-500 hover:text-black"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Informações de Contato */}
             <div className="bg-gray-50 rounded-lg overflow-hidden border">
               <input
@@ -279,58 +358,6 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
             {/* Switch habilitado */}
             {showMore && (
               <>
-                {/* Checkbox Para Usar API de Endereço */}
-                <div className="border-gray-200 pt-4 mb-6">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <input
-                      type="checkbox"
-                      checked={useAddressAPI}
-                      onChange={() => setUseAddressAPI(!useAddressAPI)} />
-                    <span>Usar CEP</span>
-                  </div>
-                  {/* Usar API de Endereço */}
-                  {useAddressAPI && (
-                    <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                      <input
-                        type="text"
-                        placeholder="CEP"
-                        value={zipcode}
-                        onChange={(e) => setZipcode(e.target.value)}
-                        onBlur={() => handleSearchAddress(zipcode)}
-                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Endereço"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Número"
-                        value={number}
-                        onChange={(e) => setNumber(e.target.value)}
-                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Bairro"
-                        value={district}
-                        onChange={(e) => setDistrict(e.target.value)}
-                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Cidade"
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                        className="w-full p-4 bg-transparent focus:outline-none"
-                      />
-                    </div>
-                  )}
-                </div>
-
                 {/* Data de Nascimento */}
                 <div className="relative mb-2">
                   <input
@@ -354,33 +381,172 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
                   </svg>
                 </div>
 
-                {/* Notas */}
-                <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                  <textarea
-                    placeholder="Notas"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    className="w-full p-4 bg-transparent focus:outline-none resize-none"
-                    rows={4}
-                  />
+                {/* Frequência de Contato */}
+                <div className="flex justify-between items-center mb-4">
+                  <span>Frequência de contato</span>
+                  <select
+                    value={contactFrequency ?? ''}
+                    onChange={(e) => setContactFrequency(e.target.value as Person['contactFrequency'])}
+                    className="p-2 border border-gray-300 rounded"
+                  >
+                    <option value="">Sem frequência</option>
+                    <option value="weekly">Semanal</option>
+                    <option value="biweekly">Quinzenal</option>
+                    <option value="monthly">Mensal</option>
+                    <option value="quarterly">Trimestral</option>
+                  </select>
                 </div>
+
+                {/* Campos Personalizados Adicionados   */}
+                {optionalFields.map((field) => (
+                  <div key={field.id} className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
+                    <div className="mb-4">
+                      {/* Input para editar a label do campo */}
+                      <input
+                        type="text"
+                        value={field.label}
+                        onChange={(e) =>
+                          setOptionalFields(prev =>
+                            prev.map(f =>
+                              f.id === field.id
+                                ? { ...f, label: e.target.value }
+                                : f
+                            )
+                          )
+                        }
+                        className="font-semibold text-sm bg-gray-50  text-gray-700 mb-2 p-1 "
+                        placeholder="Nome do campo"
+                      />
+
+                      {/* Campo de endereço */}
+                      {field.type === 'address' && (
+                        <OptionalFieldAddressInput
+                          id={field.id}
+                          label={field.label}
+                          value={field.value}
+                          onRemove={(id) =>
+                            setOptionalFields(prev => prev.filter(f => f.id !== id))
+                          }
+                          onChange={(id, updatedValue) =>
+                            setOptionalFields(prev =>
+                              prev.map(f =>
+                                f.id === id && f.type === 'address'
+                                  ? { ...f, value: updatedValue }
+                                  : f
+                              )
+                            )
+                          }
+
+                        />
+                      )}
+
+                      {/* Campo de Anotações */}
+                      {field.type === 'note' && (
+                        <textarea
+                          rows={4}
+                          value={field.value}
+                          onChange={(e) =>
+                            setOptionalFields(prev =>
+                              prev.map(f =>
+                                f.id === field.id && f.type === 'note'
+                                  ? {
+                                    ...f,
+                                    value: e.target.value
+                                  }
+                                  : f
+                              )
+                            )
+                          }
+                          className="w-full border p-2 rounded"
+                        />
+                      )}
+
+                      {/* Campo de URLs */}
+                      {field.type === 'url' && (
+                        <input
+                          type="text"
+                          value={field.value}
+                          onChange={(e) =>
+                            setOptionalFields(prev =>
+                              prev.map(f =>
+                                f.id === field.id && f.type === 'url'
+                                  ? {
+                                    ...f,
+                                    value: e.target.value
+                                  }
+                                  : f
+                              )
+                            )
+                          }
+                          className="w-full border p-2 rounded"
+                        />
+                      )}
+                    </div>
+
+                    {/* Campo de Telefone Adicional */}
+                    {field.type === 'phone' && (
+                      <input
+                        type="tel"
+                        value={field.value}
+                        onChange={(e) =>
+                          setOptionalFields(prev =>
+                            prev.map(f =>
+                              f.id === field.id && f.type === 'phone'
+                                ? {
+                                  ...f,
+                                  value: e.target.value
+                                }
+                                : f
+                            )
+                          )
+                        }
+                        className="w-full border p-2 rounded"
+                      />
+                    )}
+
+                    {/* Campo de E-mail Adicional */}
+                    {field.type === 'email' && (
+                      <input
+                        type="text"
+                        value={field.value}
+                        onChange={(e) =>
+                          setOptionalFields(prev =>
+                            prev.map(f =>
+                              f.id === field.id && f.type === 'email'
+                                ? {
+                                  ...f,
+                                  value: e.target.value
+                                }
+                                : f
+                            )
+                          )
+                        }
+                        className="w-full border p-2 rounded"
+                      />
+                    )}
+
+                    <button
+                      onClick={() =>
+                        setOptionalFields(prev => prev.filter(f => f.id !== field.id))
+                      }
+                      className="text-xs text-red-500 mt-2"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  className="text-green-600"
+                  onClick={() => setShowOptionalFieldModal(true)}
+                >
+                  + Adicionar campo
+                </button>
+
               </>
             )}
-            {/* Frequência de Contato */}
-            <div className="flex justify-between items-center mb-4">
-              <span>Frequência de contato</span>
-              <select
-                value={contactFrequency ?? ''}
-                onChange={(e) => setContactFrequency(e.target.value as Person['contactFrequency'])}
-                className="p-2 border border-gray-300 rounded"
-              >
-                <option value="">Sem frequência</option>
-                <option value="weekly">Semanal</option>
-                <option value="biweekly">Quinzenal</option>
-                <option value="monthly">Mensal</option>
-                <option value="quarterly">Trimestral</option>
-              </select>
-            </div>
+
 
             {/* Excluir Pessoa */}
             <div className="flex justify-end mt-6">

@@ -3,41 +3,14 @@ import { Timestamp } from 'firebase/firestore';
 export interface Person {
   id: string;
   name: string;
-
-  phones?: Array<{
-    label?: string; // Ex: "Celular", "Casa", "Trabalho"
-    number: string;
-  }>;
-
-  emails?: Array<{
-    label?: string;
-    address: string;
-  }>;
-
-  addresses?: Array<{
-    id: number;
-    location?: string;
-    label?: string;
-    address?: string;
-    number?: string;
-    complement?: string;
-    district?: string;
-    city?: string;
-    state?: string;
-    zipcode?: string;
-    usingAddressAPI?: boolean;
-  }>;
-
-  urls?: Array<{
-    label?: string; // Ex: "Rede Social", "Site Pessoal"
-    url: string;
-  }>;
-
+  phone?:  string;
+  email?:  string;
   birthday?: string;
   note?: string;
   favorite?: boolean;
   relationships?: string[]; // Ex: ["Amigo", "Paciente"]
   contactFrequency?: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | null;
+  optionalFields?: OptionalField;
   createdAt?: Date | Timestamp;
 }
 
@@ -89,3 +62,30 @@ export interface EventSuggestion {
   suggestedDate: string // ISO
   message?: string;
 }
+
+export type OptionalFieldType = 'address' | 'note' | 'url' | 'phone' | 'email';
+
+export interface AddressField {
+  id: string;
+  type: 'address';
+  label: string;
+  value: {
+    useAddressAPI: boolean;
+    location: string;
+    zipcode: string;
+    address: string;
+    number: string;
+    district: string;
+    city: string;
+    state: string;
+  };
+}
+
+export interface TextField {
+  id: string;
+  type: 'note' | 'url' | 'phone' | 'email';
+  label: string;
+  value: string;
+}
+
+export type OptionalField = AddressField | TextField;
