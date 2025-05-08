@@ -16,12 +16,12 @@ Connexus é uma plataforma web construída com Next.js para facilitar a organiza
 * **Compatibilidade com Google API** Os contatos são importados 👤 e eventos são exportados para o Google Agenda 📲 
 * **Avaliação de Eventos:** Colete feedback ⭐ e avalie o sucesso de seus eventos.
 * **Tarefas com Subníveis:** Divida tarefas complexas em subtarefas gerenciáveis 🪜.
+* **Opções Personalizadas** Eventos e Pessoas com novos campos para adicionar ✍️
 
 ## Próximas Funcionalidades (v0.1.4 - Em Desenvolvimento 🛠️)
 
 A próxima versão do Connexus trará ainda mais poder para sua organização:
 
-* **Opções Personalizadas** Eventos e Pessoas com novos campos para adicionar ✍️
 * **Filtros e Pesquisa:** Encontre rapidamente eventos, pessoas e tarefas específicas 🔍.
 * **Rotinas:** Organize seu passo a passo 🏹 até atingir suas metas. 🎯
 
