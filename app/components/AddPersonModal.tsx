@@ -4,7 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
-import { searchAddress } from '../utils/helpers';
+import { searchAddress } from '../utils/services';
 import { motion } from 'framer-motion';
 import ProtectedRoute from './ProtectedRoute';
 import clsx from 'clsx';

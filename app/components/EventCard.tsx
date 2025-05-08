@@ -4,7 +4,7 @@ import { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { Event } from '../utils/interfaces';
 import { ClockIcon, MapPinIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
-import { formatDate } from '../utils/helpers';
+import { formatDate } from '../utils/services';
 
 type OptionalField = {
   id: string;                 // UUID para controle único

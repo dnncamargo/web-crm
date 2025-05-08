@@ -3,21 +3,41 @@ import { Timestamp } from 'firebase/firestore';
 export interface Person {
   id: string;
   name: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  number?: string;
-  complement?: string;
-  district?: string;
-  city?: string;
-  state?: string;
-  zipcode?: string;
-  usingAddressAPI?: boolean;
-  note?: string;
+
+  phones?: Array<{
+    label?: string; // Ex: "Celular", "Casa", "Trabalho"
+    number: string;
+  }>;
+
+  emails?: Array<{
+    label?: string;
+    address: string;
+  }>;
+
+  addresses?: Array<{
+    id: number;
+    location?: string;
+    label?: string;
+    address?: string;
+    number?: string;
+    complement?: string;
+    district?: string;
+    city?: string;
+    state?: string;
+    zipcode?: string;
+    usingAddressAPI?: boolean;
+  }>;
+
+  urls?: Array<{
+    label?: string; // Ex: "Rede Social", "Site Pessoal"
+    url: string;
+  }>;
+
   birthday?: string;
-  urls?: string[];
+  note?: string;
   favorite?: boolean;
-  contactFrequency?: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | null
+  relationships?: string[]; // Ex: ["Amigo", "Paciente"]
+  contactFrequency?: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | null;
   createdAt?: Date | Timestamp;
 }
 
