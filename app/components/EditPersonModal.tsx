@@ -330,7 +330,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
                 onChange={(e) => setName(e.target.value)}
                 className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none" />
               <input
-                type="string"
+                type="tel"
                 placeholder="Telefone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
