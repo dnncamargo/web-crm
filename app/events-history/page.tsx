@@ -114,8 +114,8 @@ const EventsHistory = (): JSX.Element => {
         <FilterModal
           isOpen={showFilterModal}
           onClose={() => setShowFilterModal(false)}
-          startDate={startDateFilter}
-          endDate={endDateFilter}
+          startDate={startDateFilter ?? ''}
+          endDate={endDateFilter ?? ''}
           onChangeStartDate={setStartDateFilter}
           onChangeEndDate={setEndDateFilter}
         />
