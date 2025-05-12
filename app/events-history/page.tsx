@@ -25,14 +25,22 @@ const EventsHistory = (): JSX.Element => {
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);  /** @state {boolean} isAddEventModalOpen - Controla a visibilidade do modal de adicionar um novo evento. */
   const [isEditModalOpen, setIsEditModalOpen] = useState(false); /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de um evento existente. */
   const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
+  const [startDateFilter, setStartDateFilter] = useState<string>(() => localStorage.getItem('startDateFilter') || '')
+  const [endDateFilter, setEndDateFilter] = useState<string>(() => localStorage.getItem('endDateFilter') || '')
 
   useEffect(() => {
+
+    localStorage.setItem('startDateFilter', startDateFilter)
+    localStorage.setItem('endDateFilter', endDateFilter)
+
     // Chama a função fetchEvents quando o componente é montado.
     // Isso garante que a lista de eventos seja carregada assim que o componente for exibido.
     if (uid) {
       fetchEvents();
     }
-  }, [ uid ]);
+
+
+  }, [uid, startDateFilter, endDateFilter]);
 
   /**
    * @async
@@ -71,6 +79,15 @@ const EventsHistory = (): JSX.Element => {
     setIsEditModalOpen(true);
   };
 
+  const filteredEvents = events.filter(event => {
+    if (!startDateFilter && !endDateFilter) return true
+    const eventDate = new Date(event.startDate)
+    const from = startDateFilter ? new Date(startDateFilter) : null
+    const to = endDateFilter ? new Date(endDateFilter) : null
+
+    return (!from || eventDate >= from) && (!to || eventDate <= to)
+  })
+
   return (
 
     <ProtectedRoute>
@@ -81,13 +98,48 @@ const EventsHistory = (): JSX.Element => {
         <MainMenu externalCloseTrigger={menuCloseTrigger} />
         <h1 className="title-1">Histórico de Eventos</h1>
 
+        {/* Interface de filtros */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex flex-col">
+            <label className="text-sm text-gray-600 mb-1">Data inicial</label>
+            <input
+              type="date"
+              value={startDateFilter}
+              onChange={e => setStartDateFilter(e.target.value)}
+              className="border p-2 rounded"
+            />
+          </div>
+          <div className="flex flex-col">
+            <label className="text-sm text-gray-600 mb-1">Data final</label>
+            <input
+              type="date"
+              value={endDateFilter}
+              onChange={e => setEndDateFilter(e.target.value)}
+              className="border p-2 rounded"
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={() => {
+                setStartDateFilter('')
+                setEndDateFilter('')
+                localStorage.removeItem('startDateFilter')
+                localStorage.removeItem('endDateFilter')
+              }}
+              className="text-sm text-blue-600 underline"
+            >
+              Limpar filtros
+            </button>
+          </div>
+        </div>
+
         {Object.values(events).flat().length === 0 && (
           <p className="text-gray-600">Nenhum evento registrado.</p>
         )}
 
         {/* Renderiza os cards de cada evento. */}
         <div className="card-spacing-bellow">
-          {events.map(e => (
+          {filteredEvents.map(e => (
             <EventCard
               key={e.id}
               event={e}
