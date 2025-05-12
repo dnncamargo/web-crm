@@ -4,7 +4,7 @@ import { JSX } from 'react';
 import { Event, Person } from '@/app/utils/interfaces';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarDaysIcon as CalendarIcon, UserIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon as CalendarIcon, UserIcon, PencilSquareIcon, MapPinIcon } from '@heroicons/react/24/outline';
 
 type OptionalField = {
   id: string;                 // UUID para controle único
@@ -68,15 +68,16 @@ export default function UpcomingEventCard({ event, person }: UpcomingEventCardPr
             <div>{person.name}</div>
           </div>
         )}
-        {/* Descrição */}
-        {/*         {event.description && (
+        
+        {/* Localidade */}
+                 {event.location && (
           <div className="card-content-info text-gray-500">
-            <PencilSquareIcon className="w-4 h-4 mr-2 mt-0.5" />
-            {event.description}
+            <MapPinIcon className="w-4 h-4 mr-2 mt-0.5" />
+            {event.location}
           </div>
-        )} */}
+        )} 
 
-
+        {/* Descrição */}
         {event.optionalFields && event.optionalFields.length > 0 && (
           <div className="space-y-4">
 

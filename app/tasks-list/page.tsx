@@ -68,7 +68,7 @@ export default function TasksList() {
             <main className="main-container-body main-container-bg">
                 <MainMenu />
 
-                <h1 className="text-2xl font-bold mb-4">Tarefas</h1>
+                <h1 className="text-2xl font-bold mb-4">Lista de Tarefas</h1>
                 <div className="space-y-6">
                     {tasks.length <= 0 ? <p className="text-gray-500">Nenhuma tarefa.</p> : null}
 
