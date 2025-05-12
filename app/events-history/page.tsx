@@ -12,6 +12,8 @@ import AddEventModal from '../components/AddEventModal';
 import EditEventModal from '../components/EditEventModal';
 import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { PlusIcon } from '@heroicons/react/16/solid';
+import { ListFilterIcon } from 'lucide-react';
+import FilterModal from '../components/FilterModal';
 
 /**
  * @component
@@ -25,21 +27,24 @@ const EventsHistory = (): JSX.Element => {
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);  /** @state {boolean} isAddEventModalOpen - Controla a visibilidade do modal de adicionar um novo evento. */
   const [isEditModalOpen, setIsEditModalOpen] = useState(false); /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de um evento existente. */
   const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
-  const [startDateFilter, setStartDateFilter] = useState<string>(() => localStorage.getItem('startDateFilter') || '')
-  const [endDateFilter, setEndDateFilter] = useState<string>(() => localStorage.getItem('endDateFilter') || '')
+  const [startDateFilter, setStartDateFilter] = useState<string | null>(null);
+  const [endDateFilter, setEndDateFilter] = useState<string | null>(null);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   useEffect(() => {
 
-    localStorage.setItem('startDateFilter', startDateFilter)
-    localStorage.setItem('endDateFilter', endDateFilter)
+    const storedStartDateFilter = localStorage.getItem('startDateFilter')
+    const storedEndDateFilter = localStorage.getItem('endDateFilter')
+    if (storedStartDateFilter && storedEndDateFilter) {
+      setStartDateFilter(storedStartDateFilter)
+      setEndDateFilter(storedEndDateFilter)
+    }
 
     // Chama a função fetchEvents quando o componente é montado.
     // Isso garante que a lista de eventos seja carregada assim que o componente for exibido.
     if (uid) {
       fetchEvents();
     }
-
-
   }, [uid, startDateFilter, endDateFilter]);
 
   /**
@@ -96,42 +101,24 @@ const EventsHistory = (): JSX.Element => {
 
         {/* Renderiza o menu principal da aplicação. */}
         <MainMenu externalCloseTrigger={menuCloseTrigger} />
-        <h1 className="title-1">Histórico de Eventos</h1>
 
-        {/* Interface de filtros */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <div className="flex flex-col">
-            <label className="text-sm text-gray-600 mb-1">Data inicial</label>
-            <input
-              type="date"
-              value={startDateFilter}
-              onChange={e => setStartDateFilter(e.target.value)}
-              className="border p-2 rounded"
-            />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-sm text-gray-600 mb-1">Data final</label>
-            <input
-              type="date"
-              value={endDateFilter}
-              onChange={e => setEndDateFilter(e.target.value)}
-              className="border p-2 rounded"
-            />
-          </div>
-          <div className="flex items-end">
-            <button
-              onClick={() => {
-                setStartDateFilter('')
-                setEndDateFilter('')
-                localStorage.removeItem('startDateFilter')
-                localStorage.removeItem('endDateFilter')
-              }}
-              className="text-sm text-blue-600 underline"
-            >
-              Limpar filtros
-            </button>
-          </div>
+        <div className="flex justify-between">
+          <h1 className="title-1">Histórico de Eventos</h1>
+
+          <ListFilterIcon
+            className='w-6 h-6 mr-2 cursor-pointer' // Adicione cursor-pointer para indicar que é clicável
+            onClick={() => setShowFilterModal(true)} // Abre o modal ao clicar
+          />
         </div>
+
+        <FilterModal
+          isOpen={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          startDate={startDateFilter}
+          endDate={endDateFilter}
+          onChangeStartDate={setStartDateFilter}
+          onChangeEndDate={setEndDateFilter}
+        />
 
         {Object.values(events).flat().length === 0 && (
           <p className="text-gray-600">Nenhum evento registrado.</p>
