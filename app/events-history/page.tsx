@@ -33,11 +33,15 @@ const EventsHistory = (): JSX.Element => {
 
   useEffect(() => {
 
-    const storedStartDateFilter = localStorage.getItem('startDateFilter')
-    const storedEndDateFilter = localStorage.getItem('endDateFilter')
-    if (storedStartDateFilter && storedEndDateFilter) {
-      setStartDateFilter(storedStartDateFilter)
-      setEndDateFilter(storedEndDateFilter)
+    if (typeof window !== 'undefined') {
+
+      const storedStartDateFilter = localStorage.getItem('startDateFilter')
+      const storedEndDateFilter = localStorage.getItem('endDateFilter')
+
+      if (storedStartDateFilter && storedEndDateFilter) {
+        setStartDateFilter(storedStartDateFilter)
+        setEndDateFilter(storedEndDateFilter)
+      }
     }
 
     // Chama a função fetchEvents quando o componente é montado.
@@ -45,7 +49,23 @@ const EventsHistory = (): JSX.Element => {
     if (uid) {
       fetchEvents();
     }
-  }, [uid, startDateFilter, endDateFilter]);
+  }, [uid]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (startDateFilter) {
+        localStorage.setItem('startDateFilter', startDateFilter)
+      } else {
+        localStorage.removeItem('startDateFilter')
+      }
+
+      if (endDateFilter) {
+        localStorage.setItem('endDateFilter', endDateFilter)
+      } else {
+        localStorage.removeItem('endDateFilter')
+      }
+    }
+  }, [startDateFilter, endDateFilter]);
 
   /**
    * @async
