@@ -107,19 +107,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Dentro do useEffect, após setGoogleAccessToken e setUid:
     if (typeof window !== 'undefined' && window.google?.accounts?.oauth2 && googleAccessToken) {
       tokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: 'SEU_CLIENT_ID.apps.googleusercontent.com',
-        scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.profile',
-        callback: (response: { error: any; access_token: any }) => {
-          if (response.error) {
-            console.error('[AuthProvider] Erro ao renovar token:', response)
-            return
-          }
+        client_id: '996833302397-gsksfg2ujfqgt27jg5ulti0ffrnmje9a.apps.googleusercontent.com',
+        scope: [
+          'openid',
+          'profile',
+          'email',
+          'https://www.googleapis.com/auth/calendar',
+          'https://www.googleapis.com/auth/contacts.readonly'],
+          callback: (response: { error: any; access_token: any }) => {
+            if (response.error) {
+              console.error('[AuthProvider] Erro ao renovar token:', response)
+              return
+            }
 
-          const newToken = response.access_token
-          setGoogleAccessToken(newToken)
-          localStorage.setItem('googleAccessToken', newToken)
-          console.log('[AuthProvider] Token renovado com sucesso.')
-        }
+            const newToken = response.access_token
+            setGoogleAccessToken(newToken)
+            localStorage.setItem('googleAccessToken', newToken)
+            console.log('[AuthProvider] Token renovado com sucesso.')
+          }
       })
 
       // 🔁 Define intervalo de renovação
@@ -132,10 +137,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return () => clearInterval(intervalId)
     }
 
-
   }, [])
-
-
 
   return (
     <AuthContext.Provider
