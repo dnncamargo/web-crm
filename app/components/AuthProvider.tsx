@@ -20,12 +20,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  setUser: () => {},
+  setUser: () => { },
   uid: null,
   loading: true,
   googleAccessToken: null,
-  setGoogleAccessToken: () => {},
-  setUid: () => {}
+  setGoogleAccessToken: () => { },
+  setUid: () => { }
 })
 
 export const useAuth = () => useContext(AuthContext)
@@ -35,6 +35,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true)
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null)
   const [uid, setUid] = useState<string | null>(null)
+
+  let tokenClient: google.accounts.oauth2.TokenClient | null = null
 
   useEffect(() => {
     const token = localStorage.getItem('googleAccessToken')
@@ -101,8 +103,40 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     restoreSession()
+
+    // Dentro do useEffect, após setGoogleAccessToken e setUid:
+    if (typeof window !== 'undefined' && window.google?.accounts?.oauth2 && googleAccessToken) {
+      tokenClient = window.google.accounts.oauth2.initTokenClient({
+        client_id: 'SEU_CLIENT_ID.apps.googleusercontent.com',
+        scope: 'https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/userinfo.profile',
+        callback: (response: { error: any; access_token: any }) => {
+          if (response.error) {
+            console.error('[AuthProvider] Erro ao renovar token:', response)
+            return
+          }
+
+          const newToken = response.access_token
+          setGoogleAccessToken(newToken)
+          localStorage.setItem('googleAccessToken', newToken)
+          console.log('[AuthProvider] Token renovado com sucesso.')
+        }
+      })
+
+      // 🔁 Define intervalo de renovação
+      const intervalId = setInterval(() => {
+        console.log('[AuthProvider] Renovando token Google...')
+        tokenClient?.requestAccessToken({ prompt: '' })
+      }, 50 * 60 * 1000)
+
+      // 🧹 Limpa o intervalo ao desmontar
+      return () => clearInterval(intervalId)
+    }
+
+
   }, [])
 
+
+
   return (
     <AuthContext.Provider
       value={{
@@ -120,140 +154,3 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   )
 }
 
-
-
-/* 'use client'
-
-import { createContext, useContext, useEffect, useState } from 'react'
-
-interface User {
-  name: string
-  email: string
-  picture: string
-}
-
-interface AuthContextType {
-  user: User | null
-  setUser: (user: User | null) => void
-  uid: string | null
-  setUid: (uid: string | null) => void
-  loading: boolean
-  googleAccessToken: string | null
-  setGoogleAccessToken: (token: string | null) => void
-}
-
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  setUser: () => { },
-  uid: null,
-  loading: true,
-  googleAccessToken: null,
-  setGoogleAccessToken: () => { },
-  setUid: () => { }
-})
-
-export const useAuth = () => useContext(AuthContext)
-
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null)
-  const [uid, setUid] = useState<string | null>(null)
-
-  // Carrega token do localStorage na inicialização
-  useEffect(() => {
-    const token = localStorage.getItem('googleAccessToken');
-    ///*  const storedUser = localStorage.getItem('userInfo');
-  
-/*     if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.warn('[AuthProvider] userInfo inválido no localStorage');
-      }
-    } 
-  
-    const waitForFirebaseUid = async (): Promise<string | null> => {
-      let retries = 10;
-      let uid = null;
-      while (retries-- > 0) {
-        uid = localStorage.getItem('firebaseUid');
-        if (uid) break;
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-      return uid;
-    };
-  
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-  
-    const fetchUserInfo = async () => {
-      try {
-        const savedUid = await waitForFirebaseUid();
-  
-        if (!savedUid) {
-          throw new Error('firebaseUid não encontrado a tempo');
-        }
-  
-        setGoogleAccessToken(token);
-        setUid(savedUid);
-  
-        const res = await fetch('https://people.googleapis.com/v1/people/me?personFields=names,emailAddresses,photos', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-  
-        if (res.status === 401 || res.status === 403) {
-          throw new Error('Token expirado ou inválido');
-        }
-  
-        const data = await res.json();
-        const name = data.names?.[0]?.displayName || '';
-        const picture = data.photos?.[0]?.url || data.picture || '';
-        const email = data.emailAddresses?.[0]?.value || '';
-  
-        const userData: User = { name, email, picture };
-  
-        setUser(userData);
-        localStorage.setItem('userInfo', JSON.stringify(userData));
-  
-        console.log('[AuthProvider] Usuário restaurado com sucesso', userData);
-      } catch (error) {
-        console.error('[AuthProvider] Falha ao restaurar sessão:', error);
-  
-        setUser(null);
-        setGoogleAccessToken(null);
-        setUid(null);
-  
-        localStorage.removeItem('googleAccessToken');
-        localStorage.removeItem('firebaseUid');
-        localStorage.removeItem('userInfo');
-      } finally {
-        setLoading(false);
-      }
-    };
-  
-    fetchUserInfo();
-  }, []);  
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        setUser,
-        uid,
-        loading,
-        googleAccessToken,
-        setGoogleAccessToken,
-        setUid
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-
-  )
-}
- */

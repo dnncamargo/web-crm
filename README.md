@@ -4,7 +4,7 @@
 
 Connexus é uma plataforma web construída com Next.js para facilitar a organização e o acompanhamento de eventos 📅, além de gerenciar seu diretório de contatos 🧑‍🤝‍🧑 e tarefas ✅. Acesse a versão online em [https://web-crm-nine.vercel.app/](https://web-crm-nine.vercel.app/).
 
-## Funcionalidades Atuais (v0.1.3)
+## Funcionalidades Atuais (v0.1.4)
 
 * **Dashboard de Eventos Futuros:** Visualize de forma clara os próximos eventos 🗓️.
 * **Diretório de Pessoas:** Gerencie seus contatos 🧑‍🤝‍🧑 com informações relevantes.
@@ -18,7 +18,7 @@ Connexus é uma plataforma web construída com Next.js para facilitar a organiza
 * **Tarefas com Subníveis:** Divida tarefas complexas em subtarefas gerenciáveis 🪜.
 * **Opções Personalizadas** Eventos e Pessoas com novos campos para adicionar ✍️
 
-## Próximas Funcionalidades (v0.1.4 - Em Desenvolvimento 🛠️)
+## Próximas Funcionalidades (v0.1.5 - Em Desenvolvimento 🛠️)
 
 A próxima versão do Connexus trará ainda mais poder para sua organização:
 
