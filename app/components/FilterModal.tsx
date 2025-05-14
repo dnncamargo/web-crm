@@ -1,53 +1,143 @@
 'use client'
-interface FilterModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+import { useEffect } from 'react'
+
+interface Filters {
+  enabled: boolean;
   startDate: string;
   endDate: string;
-  onChangeStartDate: (date: string) => void;
-  onChangeEndDate: (date: string) => void;
+  hasRating: number;
+  hasTasks: boolean;
+  hasNotes: boolean;
+  hasAddressByCEP: boolean;
+}
+
+interface FilterModalProps {
+  isOpen: boolean
+  onClose: () => void
+  filters: any
+  setFilters: (filters: any) => void
 }
 
 export default function FilterModal({
   isOpen,
   onClose,
-  startDate,
-  endDate,
-  onChangeStartDate,
-  onChangeEndDate,
+  filters,
+  setFilters,
 }: FilterModalProps) {
-  if (!isOpen) return null;
+  if (!isOpen) return null
 
-  const isEndBeforeStart = startDate && endDate && new Date(endDate) < new Date(startDate);
+  const toggleEnabled = () => {
+    setFilters({ ...filters, enabled: !filters.enabled })
+  }
+
+  const isEndBeforeStart =
+    filters.startDate &&
+    filters.endDate &&
+    new Date(filters.endDate) < new Date(filters.startDate)
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-black rounded-lg shadow-lg p-6 w-full max-w-sm">
-        <h2 className="text-lg text-white font-semibold mb-4">Filtrar por data</h2>
+      <div className="bg-black rounded-lg shadow-lg p-6 w-full max-w-sm space-y-4">
+        <h2 className="text-lg text-white font-semibold">Filtros</h2>
 
-        <div className="mb-4">
-          <label className="block text-sm text-gray-600 mb-1">Data inicial</label>
+        {/* Switch iOS nativo */}
+        <div className="flex items-center justify-between">
+          <span className="text-white text-sm">Ativar filtros</span>
+          <button
+            type="button"
+            onClick={toggleEnabled}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${
+              filters.enabled ? 'bg-blue-600' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 ${
+                filters.enabled ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Datas */}
+        <div>
+          <label className="text-sm text-gray-300">Data inicial</label>
           <input
             type="date"
-            value={startDate}
-            onChange={(e) => onChangeStartDate(e.target.value)}
-            className="w-full border p-2 rounded"
+            value={filters.startDate}
+            onChange={(e) =>
+              setFilters({ ...filters, startDate: e.target.value || null })
+            }
+            className="w-full border p-2 rounded mt-1"
           />
         </div>
 
-        <div className="mb-4">
-          <label className="block text-sm text-gray-600 mb-1">Data final</label>
+        <div>
+          <label className="text-sm text-gray-300">Data final</label>
           <input
             type="date"
-            value={endDate}
-            onChange={(e) => onChangeEndDate(e.target.value)}
-            className="w-full border p-2 rounded"
+            value={filters.endDate}
+            onChange={(e) =>
+              setFilters({ ...filters, endDate: e.target.value || null })
+            }
+            className="w-full border p-2 rounded mt-1"
           />
+          {isEndBeforeStart && (
+            <p className="text-red-500 text-sm mt-1">
+              A data final não pode ser anterior à inicial.
+            </p>
+          )}
         </div>
 
-        {isEndBeforeStart && (
-          <p className="text-red-500 text-sm mb-2">A data final não pode ser anterior à inicial.</p>
-        )}
+        {/* Checkboxes adicionais */}
+        <div className="space-y-2 text-white">
+          <label className="block">
+            <input
+              type="checkbox"
+              checked={filters.hasRating > 0}
+              onChange={(e) =>
+                setFilters({ ...filters, hasRating: e.target.checked ? 1 : 0 })
+              }
+              className="mr-2"
+            />
+            Com avaliação
+          </label>
+
+          <label className="block">
+            <input
+              type="checkbox"
+              checked={filters.hasTasks === true}
+              onChange={(e) =>
+                setFilters({ ...filters, hasTasks: e.target.checked })
+              }
+              className="mr-2"
+            />
+            Com tarefas
+          </label>
+
+          <label className="block">
+            <input
+              type="checkbox"
+              checked={filters.hasNotes === true}
+              onChange={(e) =>
+                setFilters({ ...filters, hasNotes: e.target.checked })
+              }
+              className="mr-2"
+            />
+            Com anotações
+          </label>
+
+          <label className="block">
+            <input
+              type="checkbox"
+              checked={filters.hasAddressByCEP === true}
+              onChange={(e) =>
+                setFilters({ ...filters, hasAddressByCEP: e.target.checked })
+              }
+              className="mr-2"
+            />
+            Com endereço via CEP
+          </label>
+        </div>
 
         <div className="flex justify-end">
           <button
@@ -59,5 +149,5 @@ export default function FilterModal({
         </div>
       </div>
     </div>
-  );
+  )
 }
