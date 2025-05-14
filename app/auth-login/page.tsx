@@ -99,7 +99,7 @@ export default function LoginPage() {
           <div className="absolute inset-x-0 bottom-0 h-0 text-white bg-red-600 transition-all duration-300 group-hover:h-full"></div>
         </button>
 
-        <p className="text-gray-300 sm:text-sm text-center mt-4">version 0.1.3</p>
+        <p className="text-gray-300 sm:text-sm text-center mt-4">version 0.1.4</p>
       </div>
     </div>
   )

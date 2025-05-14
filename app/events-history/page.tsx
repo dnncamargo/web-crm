@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, JSX } from 'react';
-import { getDocs, query, orderBy, collection } from 'firebase/firestore';
+import { getDocs, query, orderBy, collection, doc, getDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
 import { Event } from '../utils/interfaces';
@@ -14,6 +14,7 @@ import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { PlusIcon } from '@heroicons/react/16/solid';
 import { ListFilterIcon } from 'lucide-react';
 import FilterModal from '../components/FilterModal';
+import { OptionalField } from '../utils/interfaces'
 
 /**
  * @component
@@ -30,20 +31,20 @@ const EventsHistory = (): JSX.Element => {
   const [startDateFilter, setStartDateFilter] = useState<string | null>(null);
   const [endDateFilter, setEndDateFilter] = useState<string | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filtersLoaded, setFiltersLoaded] = useState(false); // para evitar renderização prematura
+  const [filters, setFilters] = useState({
+    enabled: true,
+    startDate: '',
+    endDate: '',
+    hasRating: 0,
+    hasTasks: null,
+    hasNotes: null,
+    hasAddressByCEP: null
+  })
+
 
   useEffect(() => {
-
-    if (typeof window !== 'undefined') {
-
-      const storedStartDateFilter = localStorage.getItem('startDateFilter')
-      const storedEndDateFilter = localStorage.getItem('endDateFilter')
-
-      if (storedStartDateFilter && storedEndDateFilter) {
-        setStartDateFilter(storedStartDateFilter)
-        setEndDateFilter(storedEndDateFilter)
-      }
-    }
-
+    // Buscar os eventos do Firestore
     // Chama a função fetchEvents quando o componente é montado.
     // Isso garante que a lista de eventos seja carregada assim que o componente for exibido.
     if (uid) {
@@ -51,21 +52,36 @@ const EventsHistory = (): JSX.Element => {
     }
   }, [uid]);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (startDateFilter) {
-        localStorage.setItem('startDateFilter', startDateFilter)
-      } else {
-        localStorage.removeItem('startDateFilter')
-      }
 
-      if (endDateFilter) {
-        localStorage.setItem('endDateFilter', endDateFilter)
-      } else {
-        localStorage.removeItem('endDateFilter')
+  useEffect(() => {
+    const init = async () => {
+      if (!uid) return;
+
+      try {
+        const docRef = doc(db, `users/${uid}/settings`, 'userFilters');
+        const snapshot = await getDoc(docRef);
+
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setFilters({
+            enabled: data.enabled ?? true,
+            startDate: data.startDate ?? '',
+            endDate: data.endDate ?? '',
+            hasRating: data.hasRating ?? 0,
+            hasTasks: data.hasTasks ?? null,
+            hasNotes: data.hasNotes ?? null,
+            hasAddressByCEP: data.hasAddressByCEP ?? null,
+          });
+        }
+      } catch (error) {
+        console.error('Erro ao carregar filtros:', error);
+      } finally {
+        setFiltersLoaded(true);
       }
-    }
-  }, [startDateFilter, endDateFilter]);
+    };
+
+    init();
+  }, [uid]);
 
   /**
    * @async
@@ -104,14 +120,64 @@ const EventsHistory = (): JSX.Element => {
     setIsEditModalOpen(true);
   };
 
-  const filteredEvents = events.filter(event => {
-    if (!startDateFilter && !endDateFilter) return true
-    const eventDate = new Date(event.startDate)
-    const from = startDateFilter ? new Date(startDateFilter) : null
-    const to = endDateFilter ? new Date(endDateFilter) : null
+  // Aplica os filtros apenas se `enabled === true`
+  const filteredEvents = filters.enabled
+    ? events.filter(event => {
+      const from = filters.startDate ? new Date(filters.startDate) : null;
+      const to = filters.endDate ? new Date(filters.endDate) : null;
+      const eventDate = new Date(event.startDate);
 
-    return (!from || eventDate >= from) && (!to || eventDate <= to)
-  })
+      // Filtro por data
+      const matchesDate =
+        (!from || eventDate >= from) &&
+        (!to || eventDate <= to);
+
+      // Filtro por avaliação (rating >= filters.hasRating)
+      const matchesRating =
+        filters.hasRating === 0 || event.rating === filters.hasRating;
+
+      // Filtro por tarefas opcionais
+      const matchesTasks =
+        filters.hasTasks === null ||
+        (event.optionalFields?.some((field: OptionalField) =>
+          field.type === 'note' && Array.isArray((field as any).value)
+        ) === filters.hasTasks);
+
+      // Filtro por anotações
+      const matchesNotes =
+        filters.hasNotes === null ||
+        (event.optionalFields?.some((field: OptionalField) =>
+          field.type === 'note' && typeof field.value === 'string' && field.value.trim() !== ''
+        ) === filters.hasNotes);
+
+      // Filtro por endereço com CEP
+      const matchesAddress =
+        filters.hasAddressByCEP === null ||
+        (event.optionalFields?.some((field: OptionalField) =>
+          field.type === 'address' && field.value.zipcode
+        ) === filters.hasAddressByCEP);
+
+
+      return (
+        matchesDate &&
+        matchesRating &&
+        matchesTasks &&
+        matchesNotes &&
+        matchesAddress
+      );
+    })
+    : events;
+
+  const filtersAreActive =
+    filters.enabled &&
+    (
+      filters.startDate ||
+      filters.endDate ||
+      filters.hasRating !== 0 ||
+      filters.hasTasks !== null ||
+      filters.hasNotes !== null ||
+      filters.hasAddressByCEP !== null
+    );
 
   return (
 
@@ -126,7 +192,10 @@ const EventsHistory = (): JSX.Element => {
           <h1 className="title-1">Histórico de Eventos</h1>
 
           <ListFilterIcon
-            className='w-6 h-6 mr-2 cursor-pointer' // Adicione cursor-pointer para indicar que é clicável
+            className={`flex items-center w-6 h-6 mr-2 cursor-pointer transition 
+              ${filtersAreActive ?
+                'text-blue-600' :
+                'text-gray-500'}`} // Adicione cursor-pointer para indicar que é clicável
             onClick={() => setShowFilterModal(true)} // Abre o modal ao clicar
           />
         </div>
@@ -134,10 +203,8 @@ const EventsHistory = (): JSX.Element => {
         <FilterModal
           isOpen={showFilterModal}
           onClose={() => setShowFilterModal(false)}
-          startDate={startDateFilter ?? ''}
-          endDate={endDateFilter ?? ''}
-          onChangeStartDate={setStartDateFilter}
-          onChangeEndDate={setEndDateFilter}
+          filters={filters}
+          setFilters={setFilters}
         />
 
         {Object.values(events).flat().length === 0 && (
