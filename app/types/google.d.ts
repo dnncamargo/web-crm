@@ -1,10 +1,6 @@
-export {}
+export { }
 
 declare global {
-  interface Window {
-    google: typeof google
-  }
-
   namespace google {
     namespace accounts {
       namespace oauth2 {
@@ -25,6 +21,18 @@ declare global {
         }
 
         function initTokenClient(config: TokenClientConfig): TokenClient
+      }
+    }
+  }
+
+  interface Window {
+    google: {
+      accounts: {
+        oauth2: {
+          initTokenClient: (
+            config: google.accounts.oauth2.TokenClientConfig
+          ) => google.accounts.oauth2.TokenClient
+        }
       }
     }
   }
