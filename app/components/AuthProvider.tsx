@@ -113,8 +113,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           'profile',
           'email',
           'https://www.googleapis.com/auth/calendar',
-          'https://www.googleapis.com/auth/contacts.readonly'],
-          callback: (response: { error: any; access_token: any }) => {
+          'https://www.googleapis.com/auth/contacts.readonly'].join(''),
+          callback: (response: google.accounts.oauth2.TokenResponse) => {
             if (response.error) {
               console.error('[AuthProvider] Erro ao renovar token:', response)
               return

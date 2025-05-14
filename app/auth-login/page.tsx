@@ -7,12 +7,6 @@ import { signInWithCredential, GoogleAuthProvider } from 'firebase/auth'
 import { auth } from '../utils/firebaseConfig'
 import './login.css'
 
-declare global {
-  interface Window {
-    google: any;
-  }
-}
-
 //const auth = getAuth()
 const currentUser = auth.currentUser
 console.log('[currentUser]', currentUser)
