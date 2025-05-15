@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, JSX } from 'react';
-import { getDocs, query, orderBy, collection, doc, getDoc } from 'firebase/firestore';
+import { getDocs, query, orderBy, collection, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
 import { Event } from '../utils/interfaces';
@@ -14,7 +14,18 @@ import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { PlusIcon } from '@heroicons/react/16/solid';
 import { ListFilterIcon } from 'lucide-react';
 import FilterModal from '../components/FilterModal';
+import type { Filters } from '../components/FilterModal'
 import { OptionalField } from '../utils/interfaces'
+
+const defaultFilters: Filters = {
+  enabled: true,
+  startDate: '',
+  endDate: '',
+  hasRating: 0,
+  hasTasks: false,
+  hasNotes: false,
+  hasAddressByCEP: false,
+}
 
 /**
  * @component
@@ -28,19 +39,10 @@ const EventsHistory = (): JSX.Element => {
   const [isAddEventModalOpen, setIsAddEventModalOpen] = useState(false);  /** @state {boolean} isAddEventModalOpen - Controla a visibilidade do modal de adicionar um novo evento. */
   const [isEditModalOpen, setIsEditModalOpen] = useState(false); /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de um evento existente. */
   const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
-  const [startDateFilter, setStartDateFilter] = useState<string | null>(null);
-  const [endDateFilter, setEndDateFilter] = useState<string | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filtersLoaded, setFiltersLoaded] = useState(false); // para evitar renderização prematura
-  const [filters, setFilters] = useState({
-    enabled: true,
-    startDate: '',
-    endDate: '',
-    hasRating: 0,
-    hasTasks: null,
-    hasNotes: null,
-    hasAddressByCEP: null
-  })
+  const [filters, setFilters] = useState<Filters>(defaultFilters)
+
 
 
   useEffect(() => {
@@ -63,15 +65,7 @@ const EventsHistory = (): JSX.Element => {
 
         if (snapshot.exists()) {
           const data = snapshot.data();
-          setFilters({
-            enabled: data.enabled ?? true,
-            startDate: data.startDate ?? '',
-            endDate: data.endDate ?? '',
-            hasRating: data.hasRating ?? 0,
-            hasTasks: data.hasTasks ?? null,
-            hasNotes: data.hasNotes ?? null,
-            hasAddressByCEP: data.hasAddressByCEP ?? null,
-          });
+          setFilters(data as Filters);
         }
       } catch (error) {
         console.error('Erro ao carregar filtros:', error);
@@ -121,8 +115,9 @@ const EventsHistory = (): JSX.Element => {
   };
 
   // Aplica os filtros apenas se `enabled === true`
-  const filteredEvents = filters.enabled
-    ? events.filter(event => {
+  const filteredEvents = (!filters.enabled || !filtersLoaded)
+    ? events
+    : events.filter(event => {
       const from = filters.startDate ? new Date(filters.startDate) : null;
       const to = filters.endDate ? new Date(filters.endDate) : null;
       const eventDate = new Date(event.startDate);
@@ -134,28 +129,34 @@ const EventsHistory = (): JSX.Element => {
 
       // Filtro por avaliação (rating >= filters.hasRating)
       const matchesRating =
-        filters.hasRating === 0 || event.rating === filters.hasRating;
+        filters.hasRating === 0 || (event.rating ?? 0) >= filters.hasRating;
+
 
       // Filtro por tarefas opcionais
-      const matchesTasks =
-        filters.hasTasks === null ||
-        (event.optionalFields?.some((field: OptionalField) =>
-          field.type === 'note' && Array.isArray((field as any).value)
-        ) === filters.hasTasks);
+      const hasTasks =
+        Array.isArray(event.optionalFields) &&
+        event.optionalFields.some(
+          (field) => field.type === 'tasks' && Array.isArray(field.value) && field.value.length > 0
+        );
+
+      const matchesTasks = !filters.hasTasks || hasTasks;
 
       // Filtro por anotações
-      const matchesNotes =
-        filters.hasNotes === null ||
-        (event.optionalFields?.some((field: OptionalField) =>
-          field.type === 'note' && typeof field.value === 'string' && field.value.trim() !== ''
-        ) === filters.hasNotes);
+      const hasNotes =
+        Array.isArray(event.optionalFields) &&
+        event.optionalFields.some(
+          (field) => field.type === 'text' && typeof field.value === 'string' && field.value.trim() !== ''
+        );
+
+      const matchesNotes = !filters.hasNotes || hasNotes;
+
 
       // Filtro por endereço com CEP
-      const matchesAddress =
-        filters.hasAddressByCEP === null ||
-        (event.optionalFields?.some((field: OptionalField) =>
-          field.type === 'address' && field.value.zipcode
-        ) === filters.hasAddressByCEP);
+      const hasAddressByCEP =
+        typeof event.zipcode === 'string' &&
+        event.zipcode.trim() !== '' 
+
+      const matchesAddress = !filters.hasAddressByCEP || hasAddressByCEP;
 
 
       return (
@@ -165,15 +166,22 @@ const EventsHistory = (): JSX.Element => {
         matchesNotes &&
         matchesAddress
       );
-    })
-    : events;
+    });
+
+  const updateFilters = (updated: Filters) => {
+    setFilters(updated)
+    if (uid) {
+      const docRef = doc(db, `users/${uid}/settings`, 'userFilters')
+      setDoc(docRef, updated)
+    }
+  }
 
   const filtersAreActive =
     filters.enabled &&
     (
       filters.startDate ||
       filters.endDate ||
-      filters.hasRating !== 0 ||
+      filters.hasRating !== null ||
       filters.hasTasks !== null ||
       filters.hasNotes !== null ||
       filters.hasAddressByCEP !== null
@@ -204,7 +212,7 @@ const EventsHistory = (): JSX.Element => {
           isOpen={showFilterModal}
           onClose={() => setShowFilterModal(false)}
           filters={filters}
-          setFilters={setFilters}
+          setFilters={updateFilters}
         />
 
         {Object.values(events).flat().length === 0 && (
@@ -221,7 +229,6 @@ const EventsHistory = (): JSX.Element => {
             />
           ))}
         </div>
-
 
         {/* Modal de adição de novo evento. Abre quando isAddEventModalOpen é verdadeiro */}
         {isAddEventModalOpen && (

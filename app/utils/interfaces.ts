@@ -3,8 +3,8 @@ import { Timestamp } from 'firebase/firestore';
 export interface Person {
   id: string;
   name: string;
-  phone?:  string;
-  email?:  string;
+  phone?: string;
+  email?: string;
   birthday?: string;
   note?: string;
   favorite?: boolean;
@@ -39,6 +39,7 @@ export interface Event {
   district?: string;
   city?: string;
   state?: string;
+  useAddressAPI: boolean;
   location?: string;
   personId?: string;
   rating?: number;
@@ -49,7 +50,7 @@ export interface Event {
 export interface Task {
   id: string;
   content: string;
-  status:  0 | 1 | 2 ; // 0 = not_started, 1 = doing, 2 = done
+  status: 0 | 1 | 2; // 0 = not_started, 1 = doing, 2 = done
   groupId?: string;
   subtasks: Task[] | undefined
   parentTaskId?: string | null

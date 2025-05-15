@@ -211,6 +211,7 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
       district,
       city,
       state,
+      useAddressAPI,
       location: [address, number, city, state].filter(Boolean).join(', ') || "",
       //description: description?.trim() || '',
       optionalFields: [...optionalFields],

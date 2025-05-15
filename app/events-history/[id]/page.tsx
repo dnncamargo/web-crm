@@ -87,10 +87,10 @@ const EventDetails = () => {
   };
 
   if (!event) return <div className="animate-pulse text-gray-500 m-6">Carregando as informações do evento...</div>;
-  
+
 
   const updateOptionalFieldTasks = async (fieldId: string, updatedTasks: TaskItem[]) => {
-    if (!event || !uid ) return;
+    if (!event || !uid) return;
 
     const updatedFields = event.optionalFields.map((field: { id: string; type: string; }) => {
       if (field.id === fieldId && field.type === 'tasks') {
@@ -227,8 +227,12 @@ const EventDetails = () => {
   }
 
   const handleRatingChange = async (value: number) => {
-    setCurrentRating(value);
-    await updateDoc(doc(db, `users/${uid}/events-history/${id}`), { rating: value });
+    const newRating = currentRating === value ? 0 : value;
+    setCurrentRating(newRating);
+
+    await updateDoc(doc(db, `users/${uid}/events-history/${id}`), {
+      rating: newRating,
+    });
   };
 
   return (
@@ -284,7 +288,7 @@ const EventDetails = () => {
         {/* Avaliação do Evento */}
         <div className="bg-white flex items-center p-4 rounded-lg shadow space-y-2">
           <p><strong>Avaliação:</strong></p>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center ml-2 space-x-2">
             {[1, 2, 3, 4, 5].map((star) =>
               star <= currentRating ? (
                 <StarSolid

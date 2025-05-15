@@ -1,7 +1,9 @@
 'use client'
-import { useEffect } from 'react'
 
-interface Filters {
+import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
+import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
+
+export interface Filters {
   enabled: boolean;
   startDate: string;
   endDate: string;
@@ -46,14 +48,12 @@ export default function FilterModal({
           <button
             type="button"
             onClick={toggleEnabled}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${
-              filters.enabled ? 'bg-blue-600' : 'bg-gray-300'
-            }`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${filters.enabled ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
           >
             <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 ${
-                filters.enabled ? 'translate-x-5' : 'translate-x-1'
-              }`}
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 ${filters.enabled ? 'translate-x-5' : 'translate-x-1'
+                }`}
             />
           </button>
         </div>
@@ -90,7 +90,7 @@ export default function FilterModal({
 
         {/* Checkboxes adicionais */}
         <div className="space-y-2 text-white">
-          <label className="block">
+          {/*           <label className="block">
             <input
               type="checkbox"
               checked={filters.hasRating > 0}
@@ -100,7 +100,41 @@ export default function FilterModal({
               className="mr-2"
             />
             Com avaliação
-          </label>
+          </label> */}
+
+          {/* Filtro por avaliação */}
+          <div className="text-white">
+            <div className="flex space-x-2 gap-2">
+              <p className="text-sm">Avaliação do Evento</p>
+              <div className="flex space-x-1">
+                {[1, 2, 3, 4, 5].map((star) =>
+                  star <= filters.hasRating ? (
+                    <StarSolid
+                      key={star}
+                      className="h-5 w-5 text-yellow-500 cursor-pointer"
+                      onClick={() =>
+                        setFilters({
+                          ...filters,
+                          hasRating: filters.hasRating === star ? 0 : star,
+                        })
+                      }
+                    />
+                  ) : (
+                    <StarOutline
+                      key={star}
+                      className="h-5 w-5 text-gray-400 cursor-pointer"
+                      onClick={() =>
+                        setFilters({
+                          ...filters,
+                          hasRating: star,
+                        })
+                      }
+                    />
+                  )
+                )}
+              </div>
+            </div>
+          </div>
 
           <label className="block">
             <input
