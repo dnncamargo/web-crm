@@ -3,7 +3,7 @@
 import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 
-export interface Filters {
+export interface EventFilter {
   enabled: boolean;
   startDate: string;
   endDate: string;
@@ -13,19 +13,19 @@ export interface Filters {
   hasAddressByCEP: boolean;
 }
 
-interface FilterModalProps {
+interface EventFilterModalProps {
   isOpen: boolean
   onClose: () => void
   filters: any
   setFilters: (filters: any) => void
 }
 
-export default function FilterModal({
+export default function EventFilterModal({
   isOpen,
   onClose,
   filters,
   setFilters,
-}: FilterModalProps) {
+}: EventFilterModalProps) {
   if (!isOpen) return null
 
   const toggleEnabled = () => {

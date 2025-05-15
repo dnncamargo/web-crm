@@ -10,7 +10,7 @@ export interface Person {
   favorite?: boolean;
   relationships?: string[]; // Ex: ["Amigo", "Paciente"]
   contactFrequency?: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | null;
-  optionalFields?: OptionalField;
+  optionalFields?: OptionalField[];
   createdAt?: Date | Timestamp;
 }
 

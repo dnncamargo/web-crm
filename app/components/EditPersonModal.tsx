@@ -105,7 +105,7 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
 
     try {
       const personRef = doc(db, `users/${uid}/people-directory/${person.id}`);
-      await updateDoc(personRef, {
+      const personRef = {
         name,
         phone,
         email,
@@ -114,8 +114,8 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
         ...(showMore && {
           birthday,
           optionalFields,
-        }),
-      });
+        })};
+      await updateDoc(doc(db, `users/${uid}/people-directory/${person.id}`), personRef );
       onUpdated();
       onClose();
     } catch (error) {

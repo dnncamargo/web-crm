@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, doc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
 import { motion } from 'framer-motion';
@@ -114,7 +114,7 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
     }
 
     try {
-      await addDoc(collection(db, `users/${uid}/people-directory`), {
+      const personRef = {
         name,
         phone,
         email,
@@ -123,7 +123,8 @@ const AddPersonModal: React.FC<AddPersonModalProps> = ({ isOpen, onClose, onAdde
           optionalFields,
         }),
         createdAt: new Date().toISOString(),
-      });
+      };
+      await addDoc(collection(db, `users/${uid}/people-directory`), personRef);
       onAdded();
       onClose();
     } catch (error) {

@@ -13,11 +13,11 @@ import EditEventModal from '../components/EditEventModal';
 import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { PlusIcon } from '@heroicons/react/16/solid';
 import { ListFilterIcon } from 'lucide-react';
-import FilterModal from '../components/FilterModal';
-import type { Filters } from '../components/FilterModal'
+import EventFilterModal from '../components/EventFilterModal';
+import type { EventFilter } from '../components/EventFilterModal'
 import { OptionalField } from '../utils/interfaces'
 
-const defaultFilters: Filters = {
+const defaultFilters: EventFilter = {
   enabled: true,
   startDate: '',
   endDate: '',
@@ -41,7 +41,7 @@ const EventsHistory = (): JSX.Element => {
   const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filtersLoaded, setFiltersLoaded] = useState(false); // para evitar renderização prematura
-  const [filters, setFilters] = useState<Filters>(defaultFilters)
+  const [filters, setFilters] = useState<EventFilter>(defaultFilters)
 
 
 
@@ -54,18 +54,17 @@ const EventsHistory = (): JSX.Element => {
     }
   }, [uid]);
 
-
   useEffect(() => {
     const init = async () => {
       if (!uid) return;
 
       try {
-        const docRef = doc(db, `users/${uid}/settings`, 'userFilters');
+        const docRef = doc(db, `users/${uid}/settings`, 'userEventsFilters');
         const snapshot = await getDoc(docRef);
 
         if (snapshot.exists()) {
           const data = snapshot.data();
-          setFilters(data as Filters);
+          setFilters(data as EventFilter);
         }
       } catch (error) {
         console.error('Erro ao carregar filtros:', error);
@@ -150,14 +149,12 @@ const EventsHistory = (): JSX.Element => {
 
       const matchesNotes = !filters.hasNotes || hasNotes;
 
-
       // Filtro por endereço com CEP
       const hasAddressByCEP =
         typeof event.zipcode === 'string' &&
         event.zipcode.trim() !== '' 
 
       const matchesAddress = !filters.hasAddressByCEP || hasAddressByCEP;
-
 
       return (
         matchesDate &&
@@ -168,16 +165,17 @@ const EventsHistory = (): JSX.Element => {
       );
     });
 
-  const updateFilters = (updated: Filters) => {
+  const updateFilters = (updated: EventFilter) => {
     setFilters(updated)
     if (uid) {
-      const docRef = doc(db, `users/${uid}/settings`, 'userFilters')
-      setDoc(docRef, updated)
+      const EventsSettingRef = doc(db, `users/${uid}/settings`, 'userEventsFilters')
+      setDoc(EventsSettingRef, updated)
     }
   }
 
   const filtersAreActive =
-    filters.enabled &&
+    filters.enabled 
+/*     &&
     (
       filters.startDate ||
       filters.endDate ||
@@ -185,7 +183,7 @@ const EventsHistory = (): JSX.Element => {
       filters.hasTasks !== null ||
       filters.hasNotes !== null ||
       filters.hasAddressByCEP !== null
-    );
+    ); */
 
   return (
 
@@ -203,12 +201,12 @@ const EventsHistory = (): JSX.Element => {
             className={`flex items-center w-6 h-6 mr-2 cursor-pointer transition 
               ${filtersAreActive ?
                 'text-blue-600' :
-                'text-gray-500'}`} // Adicione cursor-pointer para indicar que é clicável
+                'text-gray-300'}`} // Adicione cursor-pointer para indicar que é clicável
             onClick={() => setShowFilterModal(true)} // Abre o modal ao clicar
           />
         </div>
 
-        <FilterModal
+        <EventFilterModal
           isOpen={showFilterModal}
           onClose={() => setShowFilterModal(false)}
           filters={filters}

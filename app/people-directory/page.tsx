@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, JSX } from 'react';
-import { doc, getDocs, updateDoc, collection } from 'firebase/firestore';
+import { doc, getDocs, updateDoc, collection, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
 import { Person } from '../utils/interfaces';
@@ -11,6 +11,22 @@ import PersonCard from '../components/PersonCard';
 import AddPersonModal from '../components/AddPersonModal';
 import EditPersonModal from '../components/EditPersonModal';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
+import { ListFilterIcon } from 'lucide-react';
+import PersonFilterModal from '../components/PersonFilterModal';
+import type { PersonFilter } from '../components/PersonFilterModal';
+
+const defaultFilters: PersonFilter = {
+  enabled: true,
+  hasPhone: false,
+  hasEmail: false,
+  hasBirthday: false,
+  hasAddressByCep: false,
+  hasNote: false,
+  isFavorite: false,
+  hasContactFrequency: false,
+  whatRelationshipType: [],
+};
+
 
 /**
  * @component
@@ -23,15 +39,41 @@ const PeopleDirectory = (): JSX.Element => {
   const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);  /** @state {boolean} isAddPersonModalOpen - Controla a visibilidade do modal de adicionar uma nova pessoa. */
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);  /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de uma pessoa existente. */
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);  /** @state {Person | null} selectedPerson - A pessoa selecionada para edição. */
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filtersLoaded, setFiltersLoaded] = useState(false); // para evitar renderização prematura
+  const [filters, setFilters] = useState<PersonFilter>(defaultFilters)
+
   const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
-  
+
   useEffect(() => {
     // Chama a função fetchPeople quando o componente é montado.
     // Isso garante que a lista de pessoas seja carregada assim que o componente for exibido.
     if (uid) {
       fetchPeople();
     }
-  }, [ uid ]);
+  }, [uid]);
+
+  useEffect(() => {
+    const init = async () => {
+      if (!uid) return;
+
+      try {
+        const PeopleSettingRef = doc(db, `users/${uid}/settings`, 'userPeopleFilters');
+        const snapshot = await getDoc(PeopleSettingRef);
+
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setFilters(data as PersonFilter);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar filtros:', error);
+      } finally {
+        setFiltersLoaded(true);
+      }
+    };
+
+    init();
+  }, [uid]);
 
   /**
  * @async
@@ -101,6 +143,90 @@ const PeopleDirectory = (): JSX.Element => {
     fetchPeople();
   };
 
+  const availableRelationshipTypes = [
+    'família',
+    'amizade',
+    'trabalho',
+    'profissional de saúde',
+    'educação',
+    'outros',
+  ];
+
+  const filteredPeople = (!filters.enabled || !filtersLoaded)
+    ? people
+    : people.filter((person) => {
+      const optionalFields = person.optionalFields ?? [];
+
+      // Filtro: telefone principal presente
+      const matchesPhone = !filters.hasPhone || !!person.phone;
+
+      // Filtro: e-mail principal presente
+      const matchesEmail = !filters.hasEmail || !!person.email;
+
+      // Filtro: data de nascimento presente
+      const matchesBirthday = !filters.hasBirthday || !!person.birthday;
+
+      // Filtro: favorito marcado
+      const matchesFavorite = !filters.isFavorite || !!person.favorite;
+
+      // Filtro: frequência de contato definida
+      const matchesFrequency = !filters.hasContactFrequency || !!person.contactFrequency;
+
+      // Filtro: possui endereço com CEP via API nos optionalFields
+      const hasAddressByCep =
+        Array.isArray(optionalFields) &&
+        optionalFields.some(
+          (field) =>
+            field.type === 'address' &&
+            field.value.useAddressAPI &&
+            typeof field.value.zipcode === 'string' &&
+            field.value.zipcode.trim() !== ''
+        );
+      const matchesAddress = !filters.hasAddressByCep || hasAddressByCep;
+
+      // Filtro: possui nota (anotação)
+      const hasNote =
+        Array.isArray(optionalFields) &&
+        optionalFields.some(
+          (field) =>
+            field.type === 'note' &&
+            typeof field.value === 'string' &&
+            field.value.trim() !== ''
+        );
+      const matchesNote = !filters.hasNote || hasNote;
+
+      // Filtro: possui pelo menos um dos tipos de relacionamento definidos
+      const matchesRelationship =
+        filters.whatRelationshipType.length === 0 ||
+        (Array.isArray(person.relationships) &&
+          filters.whatRelationshipType.some((type) =>
+            person.relationships?.includes(type)
+          ));
+
+      return (
+        matchesPhone &&
+        matchesEmail &&
+        matchesBirthday &&
+        matchesFavorite &&
+        matchesFrequency &&
+        matchesAddress &&
+        matchesNote &&
+        matchesRelationship
+      );
+    });
+
+  const updateFilters = async (updated: PersonFilter) => {
+    setFilters(updated);
+    if (uid) {
+      const PeopleSettingRef = doc(db, `users/${uid}/settings`, 'userPeopleFilters')
+      setDoc(PeopleSettingRef, updated)
+    }
+  };
+
+  const filtersAreActive = 
+    filters.enabled
+  //&& (key !== 'whatRelationshipType' || val.value.length > 0)
+
   return (
 
     <ProtectedRoute>
@@ -108,17 +234,36 @@ const PeopleDirectory = (): JSX.Element => {
       <main className="main-container-body main-container-bg">
 
         {/* Renderiza o menu principal da aplicação. */}
-        <MainMenu externalCloseTrigger={menuCloseTrigger}/>
-        <h1 className="title-1">Diretório de Pessoas</h1>
+        <MainMenu externalCloseTrigger={menuCloseTrigger} />
 
-        
+        <div className="flex justify-between">
+          <h1 className="title-1">Diretório de Pessoas</h1>
+
+          <ListFilterIcon
+            className={`flex items-center w-6 h-6 mr-2 cursor-pointer transition 
+              ${filtersAreActive ?
+                'text-green-600' :
+                'text-gray-300'}`} // Adicione cursor-pointer para indicar que é clicável
+            onClick={() => setShowFilterModal(true)} // Abre o modal ao clicar
+          />
+        </div>
+
+        <PersonFilterModal
+          isOpen={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          filters={filters}
+          setFilters={updateFilters}
+          availableRelationshipTypes={availableRelationshipTypes}
+        />
+
+
         {Object.values(people).flat().length === 0 && (
           <p className="text-gray-600">Nenhuma pessoa registrada.</p>
         )}
 
         {/* Renderiza os cards de cada pessoa. */}
         <div className="card-spacing-bellow">
-          {people.map(p => (
+          {filteredPeople.map(p => (
             <PersonCard key={p.id} person={p}
               onEditPerson={openEditPersonModal}
               onToggleFavorite={toggleFavorite}
@@ -148,10 +293,10 @@ const PeopleDirectory = (): JSX.Element => {
 
         {/* Botão flutuante para adicionar uma nova pessoa. Ao clicar, abre o modal de adição. */}
         <button
-          onClick={() => 
-            {
-              setIsAddPersonModalOpen(true); // Abre o modal de adição
-              setMenuCloseTrigger(true)} // Fecha o menu principal ao abrir o modal de adição
+          onClick={() => {
+            setIsAddPersonModalOpen(true); // Abre o modal de adição
+            setMenuCloseTrigger(true)
+          } // Fecha o menu principal ao abrir o modal de adição
           }
           className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-green-500 text-white flex items-center justify-center shadow-lg text-3xl hover:bg-green-600 transition"
         >
