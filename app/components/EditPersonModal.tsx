@@ -104,7 +104,6 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
     }
 
     try {
-      const personRef = doc(db, `users/${uid}/people-directory/${person.id}`);
       const personRef = {
         name,
         phone,
