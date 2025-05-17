@@ -11,7 +11,7 @@ import PersonCard from '../components/PersonCard';
 import AddPersonModal from '../components/AddPersonModal';
 import EditPersonModal from '../components/EditPersonModal';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
-import { ListFilterIcon } from 'lucide-react';
+import { ListFilterIcon, SearchIcon } from 'lucide-react';
 import PersonFilterModal from '../components/PersonFilterModal';
 import type { PersonFilter } from '../components/PersonFilterModal';
 import Masonry from 'react-masonry-css'
@@ -37,6 +37,7 @@ const defaultFilters: PersonFilter = {
 const PeopleDirectory = (): JSX.Element => {
   const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const [people, setPeople] = useState<Person[]>([]);  /** @state {Person[]} people - Array de pessoas buscadas do Firestore. */
+  const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
   const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);  /** @state {boolean} isAddPersonModalOpen - Controla a visibilidade do modal de adicionar uma nova pessoa. */
   const [isEditPersonModalOpen, setIsEditPersonModalOpen] = useState(false);  /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de uma pessoa existente. */
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);  /** @state {Person | null} selectedPerson - A pessoa selecionada para edição. */
@@ -47,8 +48,9 @@ const PeopleDirectory = (): JSX.Element => {
     selectedRelationships: [],
   });
   const [availableRelationships, setAvailableRelationships] = useState<string[]>([]);
-
-  const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
 
   useEffect(() => {
     // Chama a função fetchPeople quando o componente é montado.
@@ -272,9 +274,9 @@ const PeopleDirectory = (): JSX.Element => {
     }
   };
 
-  const filtersAreActive =
-    filters.enabled
-  //&& (key !== 'whatRelationshipType' || val.value.length > 0)
+  const filtersAreActive = filters.enabled
+
+  const searchIsActive = isSearching && searchQuery.trim() !== '';
 
   return (
 
@@ -288,23 +290,22 @@ const PeopleDirectory = (): JSX.Element => {
         <div className="flex justify-between">
           <h1 className="title-1">Diretório de Pessoas</h1>
 
-          <ListFilterIcon
-            className={`flex items-center w-6 h-6 mr-2 cursor-pointer transition 
-              ${filtersAreActive ?
-                'text-green-600' :
-                'text-gray-300'}`} // Adicione cursor-pointer para indicar que é clicável
-            onClick={() => setShowFilterModal(true)} // Abre o modal ao clicar
-          />
+          <div className="flex items-center gap-2">
+            <SearchIcon
+              className={`w-6 h-6 cursor-pointer transition 
+                ${searchIsActive ? 'text-green-600' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              onClick={() => setShowSearchModal(true)}
+            />
+
+            <ListFilterIcon
+              className={`w-6 h-6 cursor-pointer transition 
+                ${filtersAreActive ? 'text-green-600' : 'text-gray-300'
+                }`}
+              onClick={() => setShowFilterModal(true)}
+            />
+          </div>
         </div>
-
-        <PersonFilterModal
-          isOpen={showFilterModal}
-          onClose={() => setShowFilterModal(false)}
-          filters={filters}
-          setFilters={updateFilters}
-          availableRelationships={availableRelationships}
-        />
-
 
         {Object.values(people).flat().length === 0 && (
           <p className="text-gray-600">Nenhuma pessoa registrada.</p>
@@ -317,16 +318,78 @@ const PeopleDirectory = (): JSX.Element => {
             className="flex gap-4"
             columnClassName="flex flex-col gap-4"
           >
-            {filteredPeople.map(p => (
-              <PersonCard
-                key={p.id}
-                person={p}
-                onEditPerson={openEditPersonModal}
-                onToggleFavorite={toggleFavorite}
-              />
-            ))}
+            {filteredPeople
+              .filter((person) => {
+                if (!isSearching || searchQuery.trim() === '') return true;
+                const query = searchQuery.toLowerCase();
+                return (
+                  (person.name && person.name.toLowerCase().includes(query))
+                );
+              })
+              .map((p, index, arr) => (
+                <div key={p.id}>
+                  <PersonCard
+                    key={p.id}
+                    person={p}
+                    onEditPerson={openEditPersonModal}
+                    onToggleFavorite={toggleFavorite}
+                  />
+                  {index === arr.length - 1 && (
+                    <p className="text-center text-sm text-gray-500 mt-2">Fim dos resultados</p>
+                  )}
+                </div>
+              ))}
           </Masonry>
         </div>
+
+        {/* Filtro */}
+        <PersonFilterModal
+          isOpen={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          filters={filters}
+          setFilters={updateFilters}
+          availableRelationships={availableRelationships}
+        />
+
+
+        {/* Pesquisa */}
+        {showSearchModal && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+            <div className="bg-black w-[90%] max-w-md p-4 rounded-2xl shadow-lg relative">
+              <h2 className="text-lg text-white font-semibold mb-3">Buscar pessoa</h2>
+              <input
+                type="text"
+                placeholder="Digite um termo..."
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                value={searchQuery}
+                autoFocus
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsSearching(true);
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setIsSearching(false);
+                  }}
+                  className="absolute top-4 right-4 text-gray-500 hover:text-red-500"
+                >
+                  ✕
+                </button>
+              )}
+              <div className="mt-4 text-right">
+                <button
+                  className="text-sm text-blue-600 hover:underline"
+                  onClick={() => setShowSearchModal(false)}
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Modal de adição de nova pessoa. Abre quando isAddPersonModalOpen é verdadeiro. */}
         {isAddPersonModalOpen && (

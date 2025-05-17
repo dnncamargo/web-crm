@@ -12,7 +12,7 @@ import AddEventModal from '../components/AddEventModal';
 import EditEventModal from '../components/EditEventModal';
 import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { PlusIcon } from '@heroicons/react/16/solid';
-import { ListFilterIcon } from 'lucide-react';
+import { ListFilterIcon, SearchIcon } from 'lucide-react';
 import EventFilterModal from '../components/EventFilterModal';
 import type { EventFilter } from '../components/EventFilterModal'
 import Masonry from 'react-masonry-css'
@@ -47,6 +47,9 @@ const EventsHistory = (): JSX.Element => {
     selectedCategories: [],
   });
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
 
   useEffect(() => {
     // Buscar os eventos do Firestore
@@ -226,7 +229,6 @@ const EventsHistory = (): JSX.Element => {
     }
   };
 
-
   const updateFilters = (updated: EventFilter) => {
     setFilters(updated)
     if (uid) {
@@ -235,8 +237,9 @@ const EventsHistory = (): JSX.Element => {
     }
   }
 
-  const filtersAreActive =
-    filters.enabled
+  const filtersAreActive = filters.enabled
+
+  const searchIsActive = isSearching && searchQuery.trim() !== '';
 
   return (
 
@@ -250,22 +253,22 @@ const EventsHistory = (): JSX.Element => {
         <div className="flex justify-between">
           <h1 className="title-1">Histórico de Eventos</h1>
 
-          <ListFilterIcon
-            className={`flex items-center w-6 h-6 mr-2 cursor-pointer transition 
-              ${filtersAreActive ?
-                'text-blue-600' :
-                'text-gray-300'}`} // Adicione cursor-pointer para indicar que é clicável
-            onClick={() => setShowFilterModal(true)} // Abre o modal ao clicar
-          />
-        </div>
+          <div className="flex items-center gap-2">
+            <SearchIcon
+              className={`w-6 h-6 cursor-pointer transition 
+                ${searchIsActive ? 'text-blue-600' : 'text-gray-400 hover:text-gray-600'
+                }`}
+              onClick={() => setShowSearchModal(true)}
+            />
 
-        <EventFilterModal
-          isOpen={showFilterModal}
-          onClose={() => setShowFilterModal(false)}
-          filters={filters}
-          setFilters={updateFilters}
-          availableCategories={availableCategories}
-        />
+            <ListFilterIcon
+              className={`w-6 h-6 cursor-pointer transition 
+                ${filtersAreActive ? 'text-blue-600' : 'text-gray-300'
+                }`}
+              onClick={() => setShowFilterModal(true)}
+            />
+          </div>
+        </div>
 
         {Object.values(events).flat().length === 0 && (
           <p className="text-gray-600">Nenhum evento registrado.</p>
@@ -274,21 +277,77 @@ const EventsHistory = (): JSX.Element => {
         {/* Renderiza os cards de cada evento. */}
         <div className="card-spacing-bellow">
 
-            <Masonry
-              breakpointCols={{ default: 3, 1024: 2, 640: 1 }}
-              className="flex gap-4"
-              columnClassName="flex flex-col gap-4"
-            >
-              {filteredEvents.map(e => (
-                <EventCard
-                  key={e.id}
-                  event={e}
-                  onEditEvent={openEditEventModal}
-                />
+          <Masonry
+            breakpointCols={{ default: 3, 1024: 2, 640: 1 }}
+            className="flex gap-4"
+            columnClassName="flex flex-col gap-4"
+          >
+            {filteredEvents
+              .filter((event) => {
+                if (!isSearching || searchQuery.trim() === '') return true;
+                const query = searchQuery.toLowerCase();
+                return (
+                  (event.title && event.title.toLowerCase().includes(query))
+                );
+              })
+              .map((e, index, arr) => (
+                <div key={e.id}>
+                  <EventCard event={e} onEditEvent={openEditEventModal} />
+                  {index === arr.length - 1 && (
+                    <p className="text-center text-sm text-gray-500 mt-2">Fim dos resultados</p>
+                  )}
+                </div>
               ))}
-            </Masonry>
-
+          </Masonry>
         </div>
+
+        {/* Filtro */}
+        <EventFilterModal
+          isOpen={showFilterModal}
+          onClose={() => setShowFilterModal(false)}
+          filters={filters}
+          setFilters={updateFilters}
+          availableCategories={availableCategories}
+        />
+
+        {/* Pesquisa */}
+        {showSearchModal && (
+          <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
+            <div className="bg-black w-[90%] max-w-md p-4 rounded-2xl shadow-lg relative">
+              <h2 className="text-lg text-white font-semibold mb-3">Buscar evento</h2>
+              <input
+                type="text"
+                placeholder="Digite um termo..."
+                className="w-full px-3 py-2 border rounded-md text-sm"
+                value={searchQuery}
+                autoFocus
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsSearching(true);
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setIsSearching(false);
+                  }}
+                  className="absolute top-4 right-4 text-gray-500 hover:text-red-500"
+                >
+                  ✕
+                </button>
+              )}
+              <div className="mt-4 text-right">
+                <button
+                  className="text-sm text-blue-600 hover:underline"
+                  onClick={() => setShowSearchModal(false)}
+                >
+                  Fechar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Modal de adição de novo evento. Abre quando isAddEventModalOpen é verdadeiro */}
         {isAddEventModalOpen && (
