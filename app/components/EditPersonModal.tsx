@@ -26,6 +26,9 @@ interface EditPersonModalProps {
   onClose: () => void;
   onUpdated: () => void;
   onDeleted: () => void;
+  availableRelationships: string[];
+  setAvailableRelationships: React.Dispatch<React.SetStateAction<string[]>>;
+  onAddRelationship: (newCategory: string) => void;
 }
 
 /**
@@ -34,7 +37,7 @@ interface EditPersonModalProps {
  * @param {EditPersonModalProps} props - As propriedades do componente.
  * @returns {JSX.Element | null} O componente modal de edição, ou `null` se `isOpen` for `false`.
  */
-const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: EditPersonModalProps) => {
+const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted, availableRelationships, setAvailableRelationships, onAddRelationship }: EditPersonModalProps) => {
   const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
   const [name, setName] = useState(person.name); /** @state {string} name - Nome da pessoa. */
@@ -45,6 +48,8 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
   const [optionalFields, setOptionalFields] = useState<OptionalField[]>(Array.isArray(person.optionalFields) ? person.optionalFields : []);
   const [showOptionalFieldModal, setShowOptionalFieldModal] = useState(false); const [favorite, setFavorite] = useState(person.favorite || false); /** @state {boolean} favorite - Indica se a pessoa é favorita. */
   const [contactFrequency, setContactFrequency] = useState<Person['contactFrequency']>(person.contactFrequency || null); /** @state {string | null} contactFrequency - Frequência de contato. */
+  const [selectedRelationships, setSelectedRelationships] = useState<string[]>([]);
+  const [showRelationshipsModal, setShowRelationshipsModal] = useState(false);
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
   // Proteção: Se não for open ou sem usuário, nem carrega.
@@ -113,8 +118,10 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
         ...(showMore && {
           birthday,
           optionalFields,
-        })};
-      await updateDoc(doc(db, `users/${uid}/people-directory/${person.id}`), personRef );
+        }),
+        relationship: selectedRelationships,
+      };
+      await updateDoc(doc(db, `users/${uid}/people-directory/${person.id}`), personRef);
       onUpdated();
       onClose();
     } catch (error) {
@@ -209,6 +216,62 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
                 />
               </button>
             </div>
+
+            {/* Modal de Relacionamentos */}
+            {showRelationshipsModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-black p-4 rounded-lg w-full max-w-sm shadow-lg">
+                  <h2 className="text-lg text-white font-semibold mb-4">Selecionar relacionamento</h2>
+
+                  {availableRelationships.map((rel) => (
+                    <button
+                      key={rel}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRelationships((prev) =>
+                          prev.includes(rel)
+                            ? prev.filter((r) => r !== rel) // Deseleciona
+                            : [...prev, rel]                // Seleciona
+                        );
+                      }}
+                      className={`relative inline-flex rounded-full px-3 py-1 mb-2 ml-1
+            ${selectedRelationships.includes(rel)
+                          ? 'bg-green-700 text-white'
+                          : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}
+          `}
+                    >
+                      {rel}
+                    </button>
+                  ))}
+                  <div className='flex items-center'>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const newRel = prompt('Novo relacionamento:')?.trim();
+                        if (newRel && !availableRelationships.includes(newRel)) {
+                          await onAddRelationship(newRel); // <- salva no Firestore e atualiza estado global
+                          setSelectedRelationships((prev) => [...prev, newRel]); // <- associa a pessoa atual
+                        }
+                      }}
+                      className="text-white px-4 py-2 mb-2"
+                    >
+                      + Novo relacionamento
+                    </button>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() =>
+                        setShowRelationshipsModal(false)
+                      }
+                      className="text-green-600 hover:underline text-sm"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
 
             {/* Modal de Campos Personalizados */}
             {showOptionalFieldModal && (
@@ -535,13 +598,25 @@ const EditPersonModal = ({ person, isOpen, onClose, onUpdated, onDeleted }: Edit
                   </div>
                 ))}
 
-                <button
-                  type="button"
-                  className="text-green-600"
-                  onClick={() => setShowOptionalFieldModal(true)}
-                >
-                  + Adicionar campo
-                </button>
+                <div className='flex flex-col items-start'>
+                  {/* Adicionar Relacionamento */}
+                  <button
+                    type="button"
+                    onClick={() => setShowRelationshipsModal(true)}
+                    className="text-green-600 font-medium text-sm underline mb-2"
+                  >
+                    + Adicionar relacionamento
+                  </button>
+
+                  {/* Adicionar Campo Personalizado */}
+                  <button
+                    type="button"
+                    onClick={() => setShowOptionalFieldModal(true)}
+                    className="text-green-600 font-medium text-sm underline mb-2"
+                  >
+                    + Adicionar campo
+                  </button>
+                </div>
 
               </>
             )}

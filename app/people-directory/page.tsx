@@ -24,7 +24,7 @@ const defaultFilters: PersonFilter = {
   hasNote: false,
   isFavorite: false,
   hasContactFrequency: false,
-  whatRelationshipType: [],
+  selectedRelationships: [],
 };
 
 
@@ -41,7 +41,11 @@ const PeopleDirectory = (): JSX.Element => {
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);  /** @state {Person | null} selectedPerson - A pessoa selecionada para edição. */
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filtersLoaded, setFiltersLoaded] = useState(false); // para evitar renderização prematura
-  const [filters, setFilters] = useState<PersonFilter>(defaultFilters)
+  const [filters, setFilters] = useState<PersonFilter>({
+    ...defaultFilters,
+    selectedRelationships: [],
+  });
+  const [availableRelationships, setAvailableRelationships] = useState<string[]>([]);
 
   const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
 
@@ -63,7 +67,11 @@ const PeopleDirectory = (): JSX.Element => {
 
         if (snapshot.exists()) {
           const data = snapshot.data();
-          setFilters(data as PersonFilter);
+          setFilters({
+            ...defaultFilters,
+            ...data,
+            selectedRelationships: Array.isArray(data?.selectedRelationships) ? data.selectedRelationships : [],
+          });
         }
       } catch (error) {
         console.error('Erro ao carregar filtros:', error);
@@ -71,6 +79,28 @@ const PeopleDirectory = (): JSX.Element => {
         setFiltersLoaded(true);
       }
     };
+
+
+    const fetchRelationships = async () => {
+      const docRef = doc(db, `users/${uid}/settings`, 'userRelationships');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const availableRelationships = data?.relationship || [];
+        setAvailableRelationships(availableRelationships);
+
+        // Atualiza os filtros apenas se ainda estiverem vazios
+        setFilters(prev => ({
+          ...prev,
+          selectedRelationships: Array.isArray(prev.selectedRelationships) && prev.selectedRelationships.length === 0
+            ? availableRelationships
+            : (Array.isArray(prev.selectedRelationships) ? prev.selectedRelationships : [])
+        }));
+
+      }
+    };
+
+    fetchRelationships();
 
     init();
   }, [uid]);
@@ -143,15 +173,6 @@ const PeopleDirectory = (): JSX.Element => {
     fetchPeople();
   };
 
-  const availableRelationshipTypes = [
-    'família',
-    'amizade',
-    'trabalho',
-    'profissional de saúde',
-    'educação',
-    'outros',
-  ];
-
   const filteredPeople = (!filters.enabled || !filtersLoaded)
     ? people
     : people.filter((person) => {
@@ -196,12 +217,13 @@ const PeopleDirectory = (): JSX.Element => {
       const matchesNote = !filters.hasNote || hasNote;
 
       // Filtro: possui pelo menos um dos tipos de relacionamento definidos
+
       const matchesRelationship =
-        filters.whatRelationshipType.length === 0 ||
-        (Array.isArray(person.relationships) &&
-          filters.whatRelationshipType.some((type) =>
-            person.relationships?.includes(type)
-          ));
+        (filters.selectedRelationships?.length ?? 0) === 0 ||
+        (Array.isArray(person.relationship)
+          ? person.relationship
+          : []
+        ).some((rel) => filters.selectedRelationships.includes(rel));
 
       return (
         matchesPhone &&
@@ -215,6 +237,32 @@ const PeopleDirectory = (): JSX.Element => {
       );
     });
 
+  const handleAddRelationship = async (newRelationship: string) => {
+    if (!uid) return;
+
+    const trimmed = newRelationship.trim();
+    if (!trimmed || availableRelationships.includes(trimmed)) return;
+
+    const updatedRelationships = [...availableRelationships, trimmed];
+
+    try {
+      // Salva no Firestore
+      const docRef = doc(db, `users/${uid}/settings`, 'userRelationships');
+      await setDoc(docRef, { relationship: updatedRelationships }, { merge: true });
+
+      // Atualiza o estado local
+      setAvailableRelationships(updatedRelationships);
+
+      // (Opcional) Atualiza o filtro para já incluir o novo relacionamento
+      setFilters(prev => ({
+        ...prev,
+        selectedRelationships: [...prev.selectedRelationships, trimmed],
+      }));
+    } catch (error) {
+      console.error('Erro ao adicionar novo relacionamento:', error);
+    }
+  };
+
   const updateFilters = async (updated: PersonFilter) => {
     setFilters(updated);
     if (uid) {
@@ -223,7 +271,7 @@ const PeopleDirectory = (): JSX.Element => {
     }
   };
 
-  const filtersAreActive = 
+  const filtersAreActive =
     filters.enabled
   //&& (key !== 'whatRelationshipType' || val.value.length > 0)
 
@@ -253,7 +301,7 @@ const PeopleDirectory = (): JSX.Element => {
           onClose={() => setShowFilterModal(false)}
           filters={filters}
           setFilters={updateFilters}
-          availableRelationshipTypes={availableRelationshipTypes}
+          availableRelationships={availableRelationships}
         />
 
 
@@ -277,6 +325,9 @@ const PeopleDirectory = (): JSX.Element => {
             onClose={() => setIsAddPersonModalOpen(false)}
             onAdded={fetchPeople}
             isOpen={isAddPersonModalOpen}
+            availableRelationships={availableRelationships}
+            setAvailableRelationships={setAvailableRelationships}
+            onAddRelationship={handleAddRelationship}
           />
         )}
 
@@ -288,6 +339,9 @@ const PeopleDirectory = (): JSX.Element => {
             onClose={() => setIsEditModalOpen(false)}
             onUpdated={fetchPeople}
             onDeleted={handlePersonDeleted}
+            availableRelationships={availableRelationships}
+            setAvailableRelationships={setAvailableRelationships}
+            onAddRelationship={handleAddRelationship}
           />
         )}
 

@@ -8,7 +8,7 @@ export interface Person {
   birthday?: string;
   note?: string;
   favorite?: boolean;
-  relationships?: string[]; // Ex: ["Amigo", "Paciente"]
+  relationship?: string[];
   contactFrequency?: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | null;
   optionalFields?: OptionalField[];
   createdAt?: Date | Timestamp;

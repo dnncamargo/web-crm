@@ -1,7 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-
 export interface PersonFilter {
   enabled: boolean;
   hasPhone: boolean;
@@ -11,7 +9,7 @@ export interface PersonFilter {
   hasNote: boolean;
   isFavorite: boolean;
   hasContactFrequency: boolean;
-  whatRelationshipType: string[];
+  selectedRelationships: string[];
 }
 
 interface PersonFilterModalProps {
@@ -19,7 +17,7 @@ interface PersonFilterModalProps {
   onClose: () => void;
   filters: PersonFilter;
   setFilters: (filters: PersonFilter) => void;
-  availableRelationshipTypes: string[]; // exemplo: ["Amigo", "Paciente"]
+  availableRelationships: string[]; 
 }
 
 export default function PersonFilterModal({
@@ -27,22 +25,12 @@ export default function PersonFilterModal({
   onClose,
   filters,
   setFilters,
-  availableRelationshipTypes,
+  availableRelationships,
 }: PersonFilterModalProps) {
   if (!isOpen) return null;
 
   const toggleEnabled = () => {
     setFilters({ ...filters, enabled: !filters.enabled });
-  };
-
-  const toggleRelationshipType = (type: string) => {
-    const alreadySelected = filters.whatRelationshipType.includes(type);
-    setFilters({
-      ...filters,
-      whatRelationshipType: alreadySelected
-        ? filters.whatRelationshipType.filter((t) => t !== type)
-        : [...filters.whatRelationshipType, type],
-    });
   };
 
   return (
@@ -55,14 +43,12 @@ export default function PersonFilterModal({
           <button
             type="button"
             onClick={toggleEnabled}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${
-              filters.enabled ? 'bg-blue-600' : 'bg-gray-300'
-            }`}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${filters.enabled ? 'bg-blue-600' : 'bg-gray-300'
+              }`}
           >
             <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 ${
-                filters.enabled ? 'translate-x-5' : 'translate-x-1'
-              }`}
+              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 ${filters.enabled ? 'translate-x-5' : 'translate-x-1'
+                }`}
             />
           </button>
         </div>
@@ -154,30 +140,35 @@ export default function PersonFilterModal({
 
           {/* Tipos de relacionamento */}
           <div className="text-sm">
-            <p className="text-white mb-1">Tipo de relacionamento</p>
+            <p className="text-white mb-2">Tipo de relacionamento</p>
             <div className="flex flex-wrap gap-2">
-              {availableRelationshipTypes.map((type) => {
-                const selected = filters.whatRelationshipType.includes(type);
+              {availableRelationships.map((rel) => {
+                const selected = filters.selectedRelationships.includes(rel);
                 return (
                   <button
-                    key={type}
-                    onClick={() => toggleRelationshipType(type)}
-                    className={`px-2 py-1 rounded-full border text-xs transition-colors duration-200 ${
-                      selected ? 'bg-blue-600 text-white' : 'bg-white text-black'
-                    }`}
+                    key={rel}
+                    onClick={() => {
+                      const updated = selected
+                        ? filters.selectedRelationships.filter(r => r !== rel)
+                        : [...filters.selectedRelationships, rel];
+                      setFilters({ ...filters, selectedRelationships: updated });
+                    }}
+                    className={`px-2 py-1 rounded-full text-xs transition-colors duration-200 ${selected ? 'bg-green-600 text-white' : 'bg-white text-black'
+                      }`}
                   >
-                    {type}
+                    {rel}
                   </button>
                 );
               })}
             </div>
           </div>
+
         </div>
 
         <div className="flex justify-end">
           <button
             onClick={onClose}
-            className="text-blue-600 hover:underline text-sm"
+            className="text-green-600 hover:underline text-sm"
           >
             Fechar
           </button>

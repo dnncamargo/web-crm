@@ -57,6 +57,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
   const [endDate, setEndDate] = useState(today); /** @state {string} endDate - Data de término do evento no formato 'YYYY-MM-DD'. */
   const [startTime, setStartTime] = useState(defaultTime); /** @state {string} startTime - Hora de início do evento no formato 'HH:MM'. */
   const [endTime, setEndTime] = useState(defaultTime); /** @state {string} endTime - Hora de término do evento no formato 'HH:MM'. */
+  const [showMore, setShowMore] = useState(false);  /** @state {boolean} showMore - Controla a visibilidade de campos adicionais. */
   const [useAddressAPI, setUseAddressAPI] = useState(false); /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
   const [zipcode, setZipcode] = useState('');  /** @state {string} zipcode - Código postal do local do evento. */
   const [address, setAddress] = useState(''); /** @state {string} address - Endereço do local do evento. */
@@ -64,7 +65,6 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
   const [district, setDistrict] = useState(''); /** @state {string} district - Bairro do local do evento. */
   const [city, setCity] = useState(''); /** @state {string} city - Cidade do local do evento. */
   const [state, setState] = useState(''); /** @state {string} state - Estado (UF) do local do evento. */
-  //const [description, setDescription] = useState(''); /** @state {string} description - Notas ou descrição adicional do evento. */
   const [associatePerson, setAssociatePerson] = useState(false); /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
   const [selectedPersonId, setSelectedPersonId] = useState(initialPersonId || ''); /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
   const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
@@ -219,7 +219,6 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
       state,
       useAddressAPI,
       location: [address, number, city, state].filter(Boolean).join(', ') || "",
-      //description: description?.trim() || '',
       category: selectedCategories,
       optionalFields: [...optionalFields],
       createdAt: new Date(),
@@ -310,9 +309,6 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
   return (
 
     <ProtectedRoute>
-
-
-
       <motion.div
         // Framer-Motion
         id="add-event-modal"
@@ -510,196 +506,203 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
               />
             </div>
 
-            {/* Endereço */}
-            <div className="border-gray-200 pt-4 mb-6">
-              <div className="flex items-center space-x-2 mb-2">
-                <input
-                  type="checkbox"
-                  checked={useAddressAPI}
-                  onChange={() => setUseAddressAPI(!useAddressAPI)} />
-                <span>Usar CEP</span>
-              </div>
-              {/* Usar API de Endereço */}
-              {useAddressAPI && (
-                <div className="bg-gray-50 rounded-lg overflow-hidden border">
-                  <input
-                    type="text"
-                    placeholder="CEP"
-                    value={zipcode}
-                    onChange={(e) => setZipcode(e.target.value)}
-                    onBlur={() => handleSearchAddress(zipcode)}
-                    className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Endereço"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Número"
-                    value={number}
-                    onChange={(e) => setNumber(e.target.value)}
-                    className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Bairro"
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                    className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Cidade"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full p-4 bg-transparent focus:outline-none"
-                  />
-                </div>
-              )}
+            {/* Switch Mostrar Mais */}
+            <div className="flex justify-between items-center py-4 border-gray-200">
+              <span>Mostrar mais campos</span>
+              <button
+                type="button"
+                onClick={() => setShowMore(!showMore)}
+                className={clsx('w-12 h-6 rounded-full transition flex items-center p-1',
+                  showMore ? 'bg-blue-500' : 'bg-gray-300')}
+              >
+                <div className={clsx('bg-white w-4 h-4 rounded-full shadow transform transition', showMore ? 'translate-x-6' : 'translate-x-0')} />
+              </button>
             </div>
+            {/* Switch habilitado */}
+            {showMore && (
+              <>
 
-            {/* Descrição */}
-            {/*             <div className="bg-gray-50 rounded-lg overflow-hidden border">
-              <textarea
-                placeholder="Notas"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full p-4 bg-transparent focus:outline-none resize-none"
-                rows={4}
-              />
-            </div> */}
-
-            {/* Associar Pessoa */}
-            <div className="border-gray-200 pt-4 mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <span>Associar a uma pessoa</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAssociatePerson(!associatePerson);
-                    if (!associatePerson) setSelectedPersonId('');
-                  }}
-                  className={clsx(
-                    'w-12 h-6 rounded-full transition flex items-center p-1',
-                    associatePerson ? 'color-eh-base-bg' : 'bg-gray-300'
-                  )}
-                >
-                  <div
-                    className={clsx(
-                      'bg-white w-4 h-4 rounded-full shadow transform transition',
-                      associatePerson ? 'translate-x-6' : 'translate-x-0'
-                    )}
-                  />
-                </button>
-              </div>
-              {/* Selecionar e Salvar Pessoa */}
-              {associatePerson && (
-                <div className="mt-2">
-                  <select
-                    value={selectedPersonId}
-                    onChange={(e) => setSelectedPersonId(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
-                  >
-                    <option value="">Selecione a pessoa</option>
-                    {person.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* Campos Personalizados Adicionados   */}
-            {optionalFields.map((field) => (
-              <div key={field.id} className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
-                <div className="mb-4">
-                  <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
-
-                  {field.type === 'text' && (
+                {/* Endereço */}
+                <div className="border-gray-200 pt-4 mb-6">
+                  <div className="flex items-center space-x-2 mb-2">
                     <input
-                      type="text"
-                      value={field.value as string}
-                      onChange={(e) =>
-                        setOptionalFields(prev =>
-                          prev.map(f =>
-                            f.id === field.id ? { ...f, value: e.target.value } : f
-                          )
-                        )
-                      }
-                      className="w-full border p-2 rounded"
-                    />
+                      type="checkbox"
+                      checked={useAddressAPI}
+                      onChange={() => setUseAddressAPI(!useAddressAPI)} />
+                    <span>Usar CEP</span>
+                  </div>
+                  {/* Usar API de Endereço */}
+                  {useAddressAPI && (
+                    <div className="bg-gray-50 rounded-lg overflow-hidden border">
+                      <input
+                        type="text"
+                        placeholder="CEP"
+                        value={zipcode}
+                        onChange={(e) => setZipcode(e.target.value)}
+                        onBlur={() => handleSearchAddress(zipcode)}
+                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Endereço"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Número"
+                        value={number}
+                        onChange={(e) => setNumber(e.target.value)}
+                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Bairro"
+                        value={district}
+                        onChange={(e) => setDistrict(e.target.value)}
+                        className="w-full p-4 bg-transparent border-b border-gray-200 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Cidade"
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        className="w-full p-4 bg-transparent focus:outline-none"
+                      />
+                    </div>
                   )}
-
-                  {field.type === 'textarea' && (
-                    <textarea
-                      rows={4}
-                      value={field.value as string}
-                      onChange={(e) =>
-                        setOptionalFields(prev =>
-                          prev.map(f =>
-                            f.id === field.id ? { ...f, value: e.target.value } : f
-                          )
-                        )
-                      }
-                      className="w-full border p-2 rounded"
-                    />
-                  )}
-
-                  {field.type === 'tasks' && (
-                    <OptionalFieldTasksList
-                      tasks={(field.value as TaskItem[]) ?? []}
-                      onChange={(newTasks) =>
-                        setOptionalFields(prev =>
-                          prev.map(f =>
-                            f.id === field.id ? { ...f, value: newTasks } : f
-                          )
-                        )
-                      }
-                    />
-                  )}
-
                 </div>
-                <button
-                  onClick={() =>
-                    setOptionalFields(prev => prev.filter(f => f.id !== field.id))
-                  }
-                  className="text-xs text-red-500 mt-2"
-                >
-                  Remover
-                </button>
-              </div>
-            ))}
 
-            <div className='flex flex-col items-start'>
-              {/* Adicionar Categoria */}
-              <button
-                type="button"
-                onClick={() => setShowCategoriesModal(true)}
-                className="text-blue-600 font-medium text-sm underline mb-2"
-              >
-                + Adicionar categoria
-              </button>
+                {/* Associar Pessoa */}
+                <div className="border-gray-200 pt-4 mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <span>Associar a uma pessoa</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssociatePerson(!associatePerson);
+                        if (!associatePerson) setSelectedPersonId('');
+                      }}
+                      className={clsx(
+                        'w-12 h-6 rounded-full transition flex items-center p-1',
+                        associatePerson ? 'color-eh-base-bg' : 'bg-gray-300'
+                      )}
+                    >
+                      <div
+                        className={clsx(
+                          'bg-white w-4 h-4 rounded-full shadow transform transition',
+                          associatePerson ? 'translate-x-6' : 'translate-x-0'
+                        )}
+                      />
+                    </button>
+                  </div>
+                  {/* Selecionar e Salvar Pessoa */}
+                  {associatePerson && (
+                    <div className="mt-2">
+                      <select
+                        value={selectedPersonId}
+                        onChange={(e) => setSelectedPersonId(e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none"
+                      >
+                        <option value="">Selecione a pessoa</option>
+                        {person.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
 
-              {/* Adicionar Campo Personalizado */}
-              <button
-                type="button"
-                onClick={() => setShowOptionalFieldModal(true)}
-                className="text-blue-600 font-medium text-sm underline mb-2"
-              >
-                + Adicionar campo
-              </button>
-            </div>
+                {/* Campos Personalizados Adicionados   */}
+                {optionalFields.map((field) => (
+                  <div key={field.id} className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
+                    <div className="mb-4">
+                      <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
 
-            {error && (
-              <p className="text-sm text-red-600 mt-1">{error}</p>
+                      {field.type === 'text' && (
+                        <input
+                          type="text"
+                          value={field.value as string}
+                          onChange={(e) =>
+                            setOptionalFields(prev =>
+                              prev.map(f =>
+                                f.id === field.id ? { ...f, value: e.target.value } : f
+                              )
+                            )
+                          }
+                          className="w-full border p-2 rounded"
+                        />
+                      )}
+
+                      {field.type === 'textarea' && (
+                        <textarea
+                          rows={4}
+                          value={field.value as string}
+                          onChange={(e) =>
+                            setOptionalFields(prev =>
+                              prev.map(f =>
+                                f.id === field.id ? { ...f, value: e.target.value } : f
+                              )
+                            )
+                          }
+                          className="w-full border p-2 rounded"
+                        />
+                      )}
+
+                      {field.type === 'tasks' && (
+                        <OptionalFieldTasksList
+                          tasks={(field.value as TaskItem[]) ?? []}
+                          onChange={(newTasks) =>
+                            setOptionalFields(prev =>
+                              prev.map(f =>
+                                f.id === field.id ? { ...f, value: newTasks } : f
+                              )
+                            )
+                          }
+                        />
+                      )}
+
+                    </div>
+                    <button
+                      onClick={() =>
+                        setOptionalFields(prev => prev.filter(f => f.id !== field.id))
+                      }
+                      className="text-xs text-red-500 mt-2"
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ))}
+
+                <div className='flex flex-col items-start'>
+                  {/* Adicionar Categoria */}
+                  <button
+                    type="button"
+                    onClick={() => setShowCategoriesModal(true)}
+                    className="text-blue-600 font-medium text-sm underline mb-2"
+                  >
+                    + Adicionar categoria
+                  </button>
+
+                  {/* Adicionar Campo Personalizado */}
+                  <button
+                    type="button"
+                    onClick={() => setShowOptionalFieldModal(true)}
+                    className="text-blue-600 font-medium text-sm underline mb-2"
+                  >
+                    + Adicionar campo
+                  </button>
+                </div>
+
+                {error && (
+                  <p className="text-sm text-red-600 mt-1">{error}</p>
+                )}
+
+              </>
             )}
-
           </div>
         </form>
 

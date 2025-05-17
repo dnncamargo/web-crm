@@ -61,8 +61,8 @@ const EventsHistory = (): JSX.Element => {
       if (!uid) return;
 
       try {
-        const docRef = doc(db, `users/${uid}/settings`, 'userEventsFilters');
-        const snapshot = await getDoc(docRef);
+        const EventSettingRef = doc(db, `users/${uid}/settings`, 'userEventsFilters');
+        const snapshot = await getDoc(EventSettingRef);
 
         if (snapshot.exists()) {
           const data = snapshot.data();
