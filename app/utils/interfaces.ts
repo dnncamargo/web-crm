@@ -44,6 +44,7 @@ export interface Event {
   personId?: string;
   rating?: number;
   category?: string[];
+  status: 0 | 1;
   optionalFields?: any;
   createdAt?: Date;
 }

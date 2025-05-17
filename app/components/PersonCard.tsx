@@ -64,7 +64,7 @@ const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps)
         {/* E-mail */}
         {person.email && (
           <div className="card-content-info-large text-gray-500">
-            <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0"><EnvelopeIcon className="w-4 h-4 mr-2 mt-0.5" /></div>
+            <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0 truncate"><EnvelopeIcon className="w-4 h-4 mr-2 mt-0.5" /></div>
             {person.email}
           </div>
         )}

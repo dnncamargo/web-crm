@@ -15,6 +15,7 @@ import { PlusIcon } from '@heroicons/react/16/solid';
 import { ListFilterIcon } from 'lucide-react';
 import EventFilterModal from '../components/EventFilterModal';
 import type { EventFilter } from '../components/EventFilterModal'
+import Masonry from 'react-masonry-css'
 
 const defaultFilters: EventFilter = {
   enabled: true,
@@ -209,8 +210,8 @@ const EventsHistory = (): JSX.Element => {
 
     try {
       // Salva no Firestore
-      const docRef = doc(db, `users/${uid}/settings`, 'userCategories');
-      await setDoc(docRef, { category: updatedCategories }, { merge: true });
+      const EventsSettingRef = doc(db, `users/${uid}/settings`, 'userCategories');
+      await setDoc(EventsSettingRef, { category: updatedCategories }, { merge: true });
 
       // Atualiza o estado local
       setAvailableCategories(updatedCategories);
@@ -236,15 +237,6 @@ const EventsHistory = (): JSX.Element => {
 
   const filtersAreActive =
     filters.enabled
-  /*     &&
-      (
-        filters.startDate ||
-        filters.endDate ||
-        filters.hasRating !== null ||
-        filters.hasTasks !== null ||
-        filters.hasNotes !== null ||
-        filters.hasAddressByCEP !== null
-      ); */
 
   return (
 
@@ -281,13 +273,21 @@ const EventsHistory = (): JSX.Element => {
 
         {/* Renderiza os cards de cada evento. */}
         <div className="card-spacing-bellow">
-          {filteredEvents.map(e => (
-            <EventCard
-              key={e.id}
-              event={e}
-              onEditEvent={openEditEventModal}
-            />
-          ))}
+
+            <Masonry
+              breakpointCols={{ default: 3, 1024: 2, 640: 1 }}
+              className="flex gap-4"
+              columnClassName="flex flex-col gap-4"
+            >
+              {filteredEvents.map(e => (
+                <EventCard
+                  key={e.id}
+                  event={e}
+                  onEditEvent={openEditEventModal}
+                />
+              ))}
+            </Masonry>
+
         </div>
 
         {/* Modal de adição de novo evento. Abre quando isAddEventModalOpen é verdadeiro */}

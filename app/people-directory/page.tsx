@@ -14,6 +14,7 @@ import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { ListFilterIcon } from 'lucide-react';
 import PersonFilterModal from '../components/PersonFilterModal';
 import type { PersonFilter } from '../components/PersonFilterModal';
+import Masonry from 'react-masonry-css'
 
 const defaultFilters: PersonFilter = {
   enabled: true,
@@ -37,7 +38,7 @@ const PeopleDirectory = (): JSX.Element => {
   const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const [people, setPeople] = useState<Person[]>([]);  /** @state {Person[]} people - Array de pessoas buscadas do Firestore. */
   const [isAddPersonModalOpen, setIsAddPersonModalOpen] = useState(false);  /** @state {boolean} isAddPersonModalOpen - Controla a visibilidade do modal de adicionar uma nova pessoa. */
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);  /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de uma pessoa existente. */
+  const [isEditPersonModalOpen, setIsEditPersonModalOpen] = useState(false);  /** @state {boolean} isEditModalOpen - Controla a visibilidade do modal de edição de uma pessoa existente. */
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);  /** @state {Person | null} selectedPerson - A pessoa selecionada para edição. */
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filtersLoaded, setFiltersLoaded] = useState(false); // para evitar renderização prematura
@@ -146,7 +147,7 @@ const PeopleDirectory = (): JSX.Element => {
  */
   const openEditPersonModal = (person: Person) => {
     setSelectedPerson(person);
-    setIsEditModalOpen(true);
+    setIsEditPersonModalOpen(true);
   };
 
   /**
@@ -311,12 +312,20 @@ const PeopleDirectory = (): JSX.Element => {
 
         {/* Renderiza os cards de cada pessoa. */}
         <div className="card-spacing-bellow">
-          {filteredPeople.map(p => (
-            <PersonCard key={p.id} person={p}
-              onEditPerson={openEditPersonModal}
-              onToggleFavorite={toggleFavorite}
-            />
-          ))}
+          <Masonry
+            breakpointCols={{ default: 3, 1024: 2, 640: 1 }}
+            className="flex gap-4"
+            columnClassName="flex flex-col gap-4"
+          >
+            {filteredPeople.map(p => (
+              <PersonCard
+                key={p.id}
+                person={p}
+                onEditPerson={openEditPersonModal}
+                onToggleFavorite={toggleFavorite}
+              />
+            ))}
+          </Masonry>
         </div>
 
         {/* Modal de adição de nova pessoa. Abre quando isAddPersonModalOpen é verdadeiro. */}
@@ -332,11 +341,11 @@ const PeopleDirectory = (): JSX.Element => {
         )}
 
         {/* Modal de edição de pessoa. Abre quando isEditModalOpen é verdadeiro e uma pessoa está selecionada. */}
-        {isEditModalOpen && selectedPerson && (
+        {isEditPersonModalOpen && selectedPerson && (
           <EditPersonModal
             person={selectedPerson}
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
+            isOpen={isEditPersonModalOpen}
+            onClose={() => setIsEditPersonModalOpen(false)}
             onUpdated={fetchPeople}
             onDeleted={handlePersonDeleted}
             availableRelationships={availableRelationships}

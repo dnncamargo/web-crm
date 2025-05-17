@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, JSX } from 'react';
-import { getDocs, query, where, orderBy, collection } from 'firebase/firestore';
+import { getDocs, doc, query, where, orderBy, collection, updateDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
 import { Event, Person } from '../utils/interfaces';
@@ -11,6 +11,7 @@ import ProtectedRoute from '../components/ProtectedRoute'
 import MainMenu from '../components/MainMenu';
 import UpcomingEventCard from '../components/UpcomingEventCard';
 import SuggestionPanel from '../components/SuggestionPanel';
+import Masonry from 'react-masonry-css'
 
 type GroupedEvents = {
   today: Event[],
@@ -47,7 +48,7 @@ export default function Dashboard(): JSX.Element {
       fetchAndGroupEvents()
       fetchPerson();
     }
-  }, [ uid ]); // <- Executa quando user estiver pronto
+  }, [uid]); // <- Executa quando user estiver pronto
 
   /**
   * @async
@@ -131,6 +132,35 @@ export default function Dashboard(): JSX.Element {
     await fetchAndGroupEvents(); // invoca a função para buscar e agrupar eventos novamente
   };
 
+  const handleToggleEventStatus = async (eventId: string, newStatus: 0 | 1) => {
+    try {
+      const eventRef = doc(db, `users/${uid}/events-history`, eventId);
+      await updateDoc(eventRef, { status: newStatus });
+
+      // Atualiza o estado local dos eventos agrupados
+      setEvents(prev => {
+        const updated: GroupedEvents = {
+          today: [],
+          tomorrow: [],
+          thisWeek: [],
+          thisMonth: [],
+          nextMonth: [],
+          future: []
+        };
+
+        for (const [groupName, groupEvents] of Object.entries(prev) as [keyof GroupedEvents, Event[]][]) {
+          updated[groupName] = groupEvents.map(event =>
+            event.id === eventId ? { ...event, status: newStatus } : event
+          );
+        }
+
+        return updated;
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar status do evento:', error);
+    }
+  };
+
   /**
    * @function renderEvent
    * @description Renderiza um cartão de resumo de evento, buscando a pessoa associada na lista de pessoas (se houver).
@@ -139,7 +169,15 @@ export default function Dashboard(): JSX.Element {
   const renderEvent = (event: Event) => {
     const associatedPerson = person.find(p => p.id === event.personId)
     return (
-      <UpcomingEventCard key={event.id} event={event} person={associatedPerson} />
+      <div
+        key={event.id}
+      >
+        <UpcomingEventCard
+          key={event.id}
+          event={event}
+          person={associatedPerson}
+          onToggleStatus={handleToggleEventStatus} />
+      </div>
     )
   }
 
@@ -164,9 +202,15 @@ export default function Dashboard(): JSX.Element {
                 {groupName === 'nextMonth' && `Próximo Mês (${groupEvents.length})`} {/* Eventos do Próximo Mês */}
                 {groupName === 'future' && `Futuro (${groupEvents.length})`} {/* Eventos sem Data Específica */}
               </h2>
-              <div className="card-spacing-bellow">
+              <Masonry
+                breakpointCols={{ default: 3, 1024: 2, 640: 1 }}
+                className="flex gap-4"
+                columnClassName="flex flex-col gap-4"
+              >
+
                 {groupEvents.map(renderEvent)}
-              </div>
+
+              </Masonry>
             </section>
           )
         ))}

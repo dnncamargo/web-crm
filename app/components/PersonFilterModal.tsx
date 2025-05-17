@@ -43,7 +43,7 @@ export default function PersonFilterModal({
           <button
             type="button"
             onClick={toggleEnabled}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${filters.enabled ? 'bg-blue-600' : 'bg-gray-300'
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 ${filters.enabled ? 'bg-green-600' : 'bg-gray-300'
               }`}
           >
             <span

@@ -13,6 +13,7 @@ import MainMenu from "../components/MainMenu"
 import AddTaskModal from "../components/AddTaskModal"
 import TaskSection from "../components/TaskSection"
 import EditTaskModal from "../components/EditTaskModal"
+import Masonry from 'react-masonry-css'
 
 export default function TasksList() {
     const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
@@ -70,32 +71,45 @@ export default function TasksList() {
 
                 <h1 className="text-2xl font-bold mb-4">Lista de Tarefas</h1>
                 <div className="space-y-6">
-                    {tasks.length <= 0 ? <p className="text-gray-500">Nenhuma tarefa.</p> : null}
 
-                    <TaskSection
-                        section="Em Andamento"
-                        status={1}
-                        tasks={tasks.filter(t => t.status === 1)}
-                        onEditTask={openEditTaskModal}
-                        refreshTasks={fetchTasks}
-                        updateTasksLocally={(updatedTasks) => handleUpdateSectionTasks(1, updatedTasks)}
-                    />
-                    <TaskSection
-                        section="Não Iniciadas"
-                        status={0}
-                        tasks={tasks.filter(t => t.status === 0)}
-                        onEditTask={openEditTaskModal}
-                        refreshTasks={fetchTasks}
-                        updateTasksLocally={(updatedTasks) => handleUpdateSectionTasks(0, updatedTasks)}
-                    />
-                    <TaskSection
-                        section="Concluídas"
-                        status={2}
-                        tasks={tasks.filter(t => t.status === 2)}
-                        onEditTask={openEditTaskModal}
-                        refreshTasks={fetchTasks}
-                        updateTasksLocally={(updatedTasks) => handleUpdateSectionTasks(2, updatedTasks)}
-                    />
+                    {tasks.length <= 0 ? (
+                        <p className="text-gray-500">Nenhuma tarefa.</p>
+                    ) : (
+                                <div className="flex flex-col gap-4 md:flex-row md:gap-6">
+                                    <div className="flex-1">
+                                        <TaskSection
+                                            section="Não Iniciadas"
+                                            status={0}
+                                            tasks={tasks.filter(t => t.status === 0)}
+                                            onEditTask={openEditTaskModal}
+                                            refreshTasks={fetchTasks}
+                                            updateTasksLocally={(updatedTasks) => handleUpdateSectionTasks(0, updatedTasks)}
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <TaskSection
+                                            section="Em Andamento"
+                                            status={1}
+                                            tasks={tasks.filter(t => t.status === 1)}
+                                            onEditTask={openEditTaskModal}
+                                            refreshTasks={fetchTasks}
+                                            updateTasksLocally={(updatedTasks) => handleUpdateSectionTasks(1, updatedTasks)}
+                                        />
+                                    </div>
+                                    <div className="flex-1">
+                                        <TaskSection
+                                            section="Concluídas"
+                                            status={2}
+                                            tasks={tasks.filter(t => t.status === 2)}
+                                            onEditTask={openEditTaskModal}
+                                            refreshTasks={fetchTasks}
+                                            updateTasksLocally={(updatedTasks) => handleUpdateSectionTasks(2, updatedTasks)}
+                                        />
+                                    </div>
+                        </div>
+
+                    )}
+
                 </div>
 
                 {isAddTaskModalOpen && <AddTaskModal

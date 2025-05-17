@@ -5,6 +5,7 @@ import { Event, Person } from '@/app/utils/interfaces';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { CalendarDaysIcon as CalendarIcon, UserIcon, PencilSquareIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { LucideCalendarCheck2 as CheckIcon } from 'lucide-react';
 
 type OptionalField = {
   id: string;                 // UUID para controle único
@@ -21,6 +22,7 @@ type OptionalField = {
 interface UpcomingEventCardProps {
   event: Event;
   person?: Person;
+  onToggleStatus?: (eventId: string, newStatus: 0 | 1) => void;
 }
 
 /**
@@ -45,37 +47,43 @@ const formatDate = (date: string, hour?: string) => {
  * @param {UpcomingEventCardProps} props - As propriedades passadas para o componente.
  * @returns {JSX.Element} Um cartão contendo o resumo do evento.
  */
-export default function UpcomingEventCard({ event, person }: UpcomingEventCardProps): JSX.Element {
+export default function UpcomingEventCard({ event, person, onToggleStatus }: UpcomingEventCardProps): JSX.Element {
   return (
     <div className="card-container card-container-bg">
 
       {/* Título do card */}
       <div className="card-header card-header-bg">
         <h2 className="card-header-title">{event.title}</h2>
+        <CheckIcon
+          className={`w-5 h-5 ${event.status === 1 ? 'text-green-600' : 'text-gray-300'
+            }`}
+          onClick={() => onToggleStatus?.(event.id, event.status === 1 ? 0 : 1)}
+        />
+
       </div>
 
       {/* Conteúdo */}
       <div className="card-content">
         {/* Data e Hora */}
         <div className="card-content-info text-gray-600">
-          <div className="w-4 h-4 mr-2 flex-shrink-0"><CalendarIcon className="w-full h-full"/></div>
+          <div className="w-4 h-4 mr-2 flex-shrink-0"><CalendarIcon className="w-full h-full" /></div>
           <div>{formatDate(event.startDate, event.startTime)}</div>
         </div>
         {/* Pessoa associada */}
         {person && (
           <div className="card-content-info text-gray-600">
-            <div className="w-4 h-4 mr-2 flex-shrink-0"><UserIcon className="w-full h-full"/></div>
+            <div className="w-4 h-4 mr-2 flex-shrink-0"><UserIcon className="w-full h-full" /></div>
             <div>{person.name}</div>
           </div>
         )}
-        
+
         {/* Localidade */}
-                 {event.location && (
+        {event.location && (
           <div className="card-content-info text-gray-500">
             <MapPinIcon className="w-4 h-4 mr-2 mt-0.5" />
             {event.location}
           </div>
-        )} 
+        )}
 
         {/* Descrição */}
         {event.optionalFields && event.optionalFields.length > 0 && (
@@ -85,7 +93,7 @@ export default function UpcomingEventCard({ event, person }: UpcomingEventCardPr
               <div key={field.id} >
                 {field.label === 'Descrição' && typeof field.value === 'string' ? (
                   <div className="card-content-info text-gray-500">
-                    <div className="w-4 h-4 mr-2 flex-shrink-0"><PencilSquareIcon className="w-full h-full"/></div>
+                    <div className="w-4 h-4 mr-2 flex-shrink-0"><PencilSquareIcon className="w-full h-full" /></div>
                     <div className="truncate">{field.value}</div>
                   </div>
                 ) : ('')}

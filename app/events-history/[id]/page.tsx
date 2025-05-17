@@ -261,8 +261,9 @@ const EventDetails = () => {
         </div>
 
         {/* Outras informações */}
+        {(event.optionalFields.length > 0 || person) &&
         <div className="bg-white p-4 rounded-lg shadow space-y-2">
-          {event.optionalFields && event.optionalFields.length > 0 && (
+          {event.optionalFields.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-base font-semibold text-gray-700">Outras informações</h3>
               {event.optionalFields.map((field: OptionalField) => (
@@ -283,7 +284,7 @@ const EventDetails = () => {
               <p className="text-sm text-gray-500">{person.phone}</p>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Avaliação do Evento */}
         <div className="bg-white flex items-center p-4 rounded-lg shadow space-y-2">
