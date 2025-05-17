@@ -43,6 +43,7 @@ export interface Event {
   location?: string;
   personId?: string;
   rating?: number;
+  category?: string[];
   optionalFields?: any;
   createdAt?: Date;
 }

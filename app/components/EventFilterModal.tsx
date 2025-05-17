@@ -11,13 +11,15 @@ export interface EventFilter {
   hasTasks: boolean;
   hasNotes: boolean;
   hasAddressByCEP: boolean;
+  selectedCategories: string[];
 }
 
 interface EventFilterModalProps {
-  isOpen: boolean
-  onClose: () => void
-  filters: any
-  setFilters: (filters: any) => void
+  isOpen: boolean;
+  onClose: () => void;
+  filters: EventFilter;
+  setFilters: (filters: EventFilter) => void;
+  availableCategories: string[];
 }
 
 export default function EventFilterModal({
@@ -25,6 +27,7 @@ export default function EventFilterModal({
   onClose,
   filters,
   setFilters,
+  availableCategories,
 }: EventFilterModalProps) {
   if (!isOpen) return null
 
@@ -40,7 +43,7 @@ export default function EventFilterModal({
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-black rounded-lg shadow-lg p-6 w-full max-w-sm space-y-4">
-        <h2 className="text-lg text-white font-semibold">Filtros</h2>
+        <h2 className="text-lg text-white font-semibold mb-4">Filtros</h2>
 
         {/* Switch iOS nativo */}
         <div className="flex items-center justify-between">
@@ -65,7 +68,7 @@ export default function EventFilterModal({
             type="date"
             value={filters.startDate}
             onChange={(e) =>
-              setFilters({ ...filters, startDate: e.target.value || null })
+              setFilters({ ...filters, startDate: e.target.value })
             }
             className="w-full border p-2 rounded mt-1"
           />
@@ -77,7 +80,7 @@ export default function EventFilterModal({
             type="date"
             value={filters.endDate}
             onChange={(e) =>
-              setFilters({ ...filters, endDate: e.target.value || null })
+              setFilters({ ...filters, endDate: e.target.value })
             }
             className="w-full border p-2 rounded mt-1"
           />
@@ -88,19 +91,7 @@ export default function EventFilterModal({
           )}
         </div>
 
-        {/* Checkboxes adicionais */}
         <div className="space-y-2 text-white">
-          {/*           <label className="block">
-            <input
-              type="checkbox"
-              checked={filters.hasRating > 0}
-              onChange={(e) =>
-                setFilters({ ...filters, hasRating: e.target.checked ? 1 : 0 })
-              }
-              className="mr-2"
-            />
-            Com avaliação
-          </label> */}
 
           {/* Filtro por avaliação */}
           <div className="text-white">
@@ -171,6 +162,32 @@ export default function EventFilterModal({
             />
             Com endereço via CEP
           </label>
+
+          {/* Categorias */}
+          <div className="text-sm">
+            <p className="text-white mb-2">Categorias</p>
+            <div className="flex flex-wrap gap-2">
+              {availableCategories.map((cat) => {
+                const selected = filters.selectedCategories.includes(cat);
+                return (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      const updated = selected
+                        ? filters.selectedCategories.filter(c => c !== cat)
+                        : [...filters.selectedCategories, cat];
+                      setFilters({ ...filters, selectedCategories: updated });
+                    }}
+                    className={`px-2 py-1 rounded-full text-xs transition-colors duration-200 ${selected ? 'bg-blue-600 text-white' : 'bg-white text-black'
+                      }`}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
         </div>
 
         <div className="flex justify-end">

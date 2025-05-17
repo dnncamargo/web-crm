@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useLayoutEffect, useRef, JSX } from 'react';
-import { doc, getDocs, updateDoc, deleteDoc, collection } from 'firebase/firestore';
+import { doc, getDocs, updateDoc, deleteDoc, collection, getDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
 import { searchAddress } from '../utils/services';
@@ -25,6 +25,9 @@ interface EditEventModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdated: () => void;
+  availableCategories: string[];
+  setAvailableCategories: React.Dispatch<React.SetStateAction<string[]>>;
+  onAddCategory: (newCategory: string) => void;
 }
 
 type TaskItem = {
@@ -46,7 +49,7 @@ type OptionalField = {
  * @param {EditEventModalProps} props - As propriedades passadas para o componente.
  * @returns {JSX.Element | null} O componente renderizado ou null se `isOpen` for falso.
  */
-const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalProps) => {
+const EditEventModal = ({ event, isOpen, onClose, onUpdated, availableCategories, onAddCategory }: EditEventModalProps) => {
   const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
@@ -64,12 +67,13 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
   const [district, setDistrict] = useState(event.district || '');  /** @state {string} district - Bairro do local do evento. */
   const [city, setCity] = useState(event.city || '');  /** @state {string} city - Cidade do local do evento. */
   const [state, setState] = useState(event.state || '');  /** @state {string} state - Estado (UF) do local do evento. */
-  //const [description, setDescription] = useState(event.description || '');  /** @state {string} description - Notas ou descrição adicional do evento. */
   const [associatePerson, setAssociatePerson] = useState(false);  /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
   const [selectedPersonId, setSelectedPersonId] = useState('');  /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
   const [person, setPerson] = useState<Person[]>([]);  /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
   const [optionalFields, setOptionalFields] = useState<OptionalField[]>(event.optionalFields || []);
   const [showOptionalFieldModal, setShowOptionalFieldModal] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [error, setError] = useState('');
   const [isDraggable, setIsDraggable] = useState(true);  /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
@@ -213,8 +217,8 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
       state,
       useAddressAPI,
       location: [address, number, city, state].filter(Boolean).join(', ') || "",
-      //description: description?.trim() || '',
       optionalFields: [...optionalFields],
+      category: selectedCategories,
       createdAt: new Date(),
     }
 
@@ -355,6 +359,62 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
                 Salvar
               </button>
             </div>
+
+            {/* Modal de Categorias */}
+            {showCategoriesModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-black p-4 rounded-lg w-full max-w-sm shadow-lg">
+                  <h2 className="text-lg text-white font-semibold mb-4">Selecionar categorias</h2>
+
+                  {availableCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategories((prev) =>
+                          prev.includes(cat)
+                            ? prev.filter((c) => c !== cat) // Deseleciona
+                            : [...prev, cat]                // Seleciona
+                        );
+                      }}
+                      className={`relative inline-flex rounded-full px-3 py-1 mb-2 ml-1
+            ${selectedCategories.includes(cat)
+                          ? 'bg-blue-700 text-white'
+                          : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}
+          `}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                  <div className='flex items-center'>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const newCat = prompt('Nova categoria:')?.trim();
+                        if (newCat && !availableCategories.includes(newCat)) {
+                          await onAddCategory(newCat); // <- salva no Firestore e atualiza estado global
+                          setSelectedCategories((prev) => [...prev, newCat]); // <- associa ao evento atual
+                        }
+                      }}
+                      className="text-white px-4 py-2 mb-2"
+                    >
+                      + Nova categoria
+                    </button>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() =>
+                        setShowCategoriesModal(false)
+                      }
+                      className="text-blue-600 hover:underline text-sm"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
 
             {/* Modal de Campos Opcionais */}
             {showOptionalFieldModal && (
@@ -567,73 +627,84 @@ const EditEventModal = ({ event, isOpen, onClose, onUpdated }: EditEventModalPro
 
             {/* Campos Personalizados Adicionados   */}
             {optionalFields.map((field) => (
-            <div key={field.id}  className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
-              <div className="mb-4">
-                <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
+              <div key={field.id} className="mt-6 p-2 bg-gray-50 rounded-lg overflow-hidden border">
+                <div className="mb-4">
+                  <label className="block text-sm text-gray-700 mb-1">{field.label}</label>
 
-                {field.type === 'text' && (
-                  <input
-                    type="text"
-                    value={field.value as string}
-                    onChange={(e) =>
-                      setOptionalFields(prev =>
-                        prev.map(f =>
-                          f.id === field.id ? { ...f, value: e.target.value } : f
+                  {field.type === 'text' && (
+                    <input
+                      type="text"
+                      value={field.value as string}
+                      onChange={(e) =>
+                        setOptionalFields(prev =>
+                          prev.map(f =>
+                            f.id === field.id ? { ...f, value: e.target.value } : f
+                          )
                         )
-                      )
-                    }
-                    className="w-full border p-2 rounded"
-                  />
-                )}
+                      }
+                      className="w-full border p-2 rounded"
+                    />
+                  )}
 
-                {field.type === 'textarea' && (
-                  <textarea
-                    rows={4}
-                    value={field.value as string}
-                    onChange={(e) =>
-                      setOptionalFields(prev =>
-                        prev.map(f =>
-                          f.id === field.id ? { ...f, value: e.target.value } : f
+                  {field.type === 'textarea' && (
+                    <textarea
+                      rows={4}
+                      value={field.value as string}
+                      onChange={(e) =>
+                        setOptionalFields(prev =>
+                          prev.map(f =>
+                            f.id === field.id ? { ...f, value: e.target.value } : f
+                          )
                         )
-                      )
-                    }
-                    className="w-full border p-2 rounded"
-                  />
-                )}
+                      }
+                      className="w-full border p-2 rounded"
+                    />
+                  )}
 
-                {field.type === 'tasks' && (
-                  <OptionalFieldTasksList
-                    tasks={(field.value as TaskItem[]) ?? []}
-                    onChange={(newTasks) =>
-                      setOptionalFields(prev =>
-                        prev.map(f =>
-                          f.id === field.id ? { ...f, value: newTasks } : f
+                  {field.type === 'tasks' && (
+                    <OptionalFieldTasksList
+                      tasks={(field.value as TaskItem[]) ?? []}
+                      onChange={(newTasks) =>
+                        setOptionalFields(prev =>
+                          prev.map(f =>
+                            f.id === field.id ? { ...f, value: newTasks } : f
+                          )
                         )
-                      )
-                    }
-                  />
-                )}
+                      }
+                    />
+                  )}
 
-              </div>
+                </div>
                 <button
                   onClick={() =>
                     setOptionalFields(prev => prev.filter(f => f.id !== field.id))
                   }
                   className="text-xs text-red-500 mt-2"
                 >
-                  Remover 
+                  Remover
                 </button>
-            </div>
+              </div>
             ))}
 
-            {/* Adicionar Campo Personalizado */}
-            <button
-              type="button"
-              onClick={() => setShowOptionalFieldModal(true)}
-              className="text-blue-600 font-medium text-sm underline mb-2"
-            >
-              + Adicionar campo
-            </button>
+            <div className='flex flex-col items-start'>
+              {/* Adicionar Categoria */}
+              <button
+                type="button"
+                onClick={() => setShowCategoriesModal(true)}
+                className="text-blue-600 font-medium text-sm underline mb-2"
+              >
+                + Adicionar categoria
+              </button>
+
+              {/* Adicionar Campo Personalizado */}
+              <button
+                type="button"
+                onClick={() => setShowOptionalFieldModal(true)}
+                className="text-blue-600 font-medium text-sm underline mb-2"
+              >
+                + Adicionar campo
+              </button>
+            </div>
 
             {error && (
               <p className="text-sm text-red-600 mt-1">{error}</p>

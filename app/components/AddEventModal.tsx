@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { addDoc, getDocs, collection } from 'firebase/firestore';
+import { addDoc, getDocs, collection, doc, getDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
 import { useAuth } from '../components/AuthProvider';
 import { searchAddress } from '../utils/services';
@@ -25,6 +25,9 @@ interface AddEventModalProps {
   onClose: () => void;
   onAdded: () => void;
   initialPersonId?: string;
+  availableCategories: string[];
+  setAvailableCategories: React.Dispatch<React.SetStateAction<string[]>>;
+  onAddCategory: (newCategory: string) => void;
 }
 
 type TaskItem = {
@@ -41,7 +44,7 @@ type OptionalField = {
 };
 
 
-const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded, initialPersonId }) => {
+const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded, initialPersonId, availableCategories, onAddCategory }) => {
   const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
   const modalRef = useRef<HTMLDivElement>(null);  /** @ref {HTMLDivElement} modalRef - Referência ao elemento do modal para manipulação direta. */
 
@@ -67,6 +70,8 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
   const [person, setPerson] = useState<Person[]>([]); /** @state {Person[]} person - Array de pessoas buscadas do Firestore para a opção de associação. */
   const [optionalFields, setOptionalFields] = useState<OptionalField[]>([]);
   const [showOptionalFieldModal, setShowOptionalFieldModal] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const [error, setError] = useState('');
   const [isDraggable, setIsDraggable] = useState(true); /** @state {boolean} isDraggable - Controla se o modal pode ser arrastado verticalmente. */
 
@@ -215,6 +220,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
       useAddressAPI,
       location: [address, number, city, state].filter(Boolean).join(', ') || "",
       //description: description?.trim() || '',
+      category: selectedCategories,
       optionalFields: [...optionalFields],
       createdAt: new Date(),
     }
@@ -343,6 +349,61 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
               </button>
             </div>
 
+            {/* Modal de Categorias */}
+            {showCategoriesModal && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-black p-4 rounded-lg w-full max-w-sm shadow-lg">
+                  <h2 className="text-lg text-white font-semibold mb-4">Selecionar categorias</h2>
+
+                  {availableCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategories((prev) =>
+                          prev.includes(cat)
+                            ? prev.filter((c) => c !== cat) // Deseleciona
+                            : [...prev, cat]                // Seleciona
+                        );
+                      }}
+                      className={`relative inline-flex rounded-full px-3 py-1 mb-2 ml-1
+            ${selectedCategories.includes(cat)
+                          ? 'bg-blue-700 text-white'
+                          : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}
+          `}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                  <div className='flex items-center'>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const newCat = prompt('Nova categoria:')?.trim();
+                        if (newCat && !availableCategories.includes(newCat)) {
+                          await onAddCategory(newCat); // <- salva no Firestore e atualiza estado global
+                          setSelectedCategories((prev) => [...prev, newCat]); // <- associa ao evento atual
+                        }
+                      }}
+                      className="text-white px-4 py-2 mb-2"
+                    >
+                      + Nova categoria
+                    </button>
+                  </div>
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() =>
+                        setShowCategoriesModal(false)
+                      }
+                      className="text-blue-600 hover:underline text-sm"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            )}
 
             {/* Modal de Campos Personalizados */}
             {showOptionalFieldModal && (
@@ -615,14 +676,25 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAdded,
               </div>
             ))}
 
-            {/* Adicionar Campo Personalizado */}
-            <button
-              type="button"
-              onClick={() => setShowOptionalFieldModal(true)}
-              className="text-blue-600 font-medium text-sm underline mb-2"
-            >
-              + Adicionar campo
-            </button>
+            <div className='flex flex-col items-start'>
+              {/* Adicionar Categoria */}
+              <button
+                type="button"
+                onClick={() => setShowCategoriesModal(true)}
+                className="text-blue-600 font-medium text-sm underline mb-2"
+              >
+                + Adicionar categoria
+              </button>
+
+              {/* Adicionar Campo Personalizado */}
+              <button
+                type="button"
+                onClick={() => setShowOptionalFieldModal(true)}
+                className="text-blue-600 font-medium text-sm underline mb-2"
+              >
+                + Adicionar campo
+              </button>
+            </div>
 
             {error && (
               <p className="text-sm text-red-600 mt-1">{error}</p>

@@ -15,7 +15,6 @@ import { PlusIcon } from '@heroicons/react/16/solid';
 import { ListFilterIcon } from 'lucide-react';
 import EventFilterModal from '../components/EventFilterModal';
 import type { EventFilter } from '../components/EventFilterModal'
-import { OptionalField } from '../utils/interfaces'
 
 const defaultFilters: EventFilter = {
   enabled: true,
@@ -25,6 +24,7 @@ const defaultFilters: EventFilter = {
   hasTasks: false,
   hasNotes: false,
   hasAddressByCEP: false,
+  selectedCategories: [],
 }
 
 /**
@@ -41,9 +41,11 @@ const EventsHistory = (): JSX.Element => {
   const [menuCloseTrigger, setMenuCloseTrigger] = useState<boolean>(false)  /** @state {boolean} closeMenu - Controla a visibilidade do menu principal. */
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filtersLoaded, setFiltersLoaded] = useState(false); // para evitar renderização prematura
-  const [filters, setFilters] = useState<EventFilter>(defaultFilters)
-
-
+  const [filters, setFilters] = useState<EventFilter>({
+    ...defaultFilters,
+    selectedCategories: [],
+  });
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
   useEffect(() => {
     // Buscar os eventos do Firestore
@@ -64,7 +66,12 @@ const EventsHistory = (): JSX.Element => {
 
         if (snapshot.exists()) {
           const data = snapshot.data();
-          setFilters(data as EventFilter);
+          setFilters(prev => ({
+            ...defaultFilters,
+            ...data,
+            selectedCategories: Array.isArray(data?.selectedCategories) ? data.selectedCategories : []
+          }));
+
         }
       } catch (error) {
         console.error('Erro ao carregar filtros:', error);
@@ -72,6 +79,27 @@ const EventsHistory = (): JSX.Element => {
         setFiltersLoaded(true);
       }
     };
+
+    const fetchCategories = async () => {
+      const docRef = doc(db, `users/${uid}/settings`, 'userCategories');
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const availableCategories = data?.category || [];
+        setAvailableCategories(availableCategories);
+
+        // Atualiza os filtros apenas se ainda estiverem vazios
+        setFilters(prev => ({
+          ...prev,
+          selectedCategories: Array.isArray(prev.selectedCategories) && prev.selectedCategories.length === 0
+            ? availableCategories
+            : (Array.isArray(prev.selectedCategories) ? prev.selectedCategories : [])
+        }));
+
+      }
+    };
+
+    fetchCategories();
 
     init();
   }, [uid]);
@@ -152,18 +180,51 @@ const EventsHistory = (): JSX.Element => {
       // Filtro por endereço com CEP
       const hasAddressByCEP =
         typeof event.zipcode === 'string' &&
-        event.zipcode.trim() !== '' 
+        event.zipcode.trim() !== ''
 
       const matchesAddress = !filters.hasAddressByCEP || hasAddressByCEP;
+
+      const matchesCategory =
+        (filters.selectedCategories?.length ?? 0) === 0 ||
+        (event.category ?? []).some((cat) => filters.selectedCategories.includes(cat));
 
       return (
         matchesDate &&
         matchesRating &&
         matchesTasks &&
         matchesNotes &&
-        matchesAddress
+        matchesAddress &&
+        matchesCategory
       );
-    });
+    }
+    );
+
+  const handleAddCategory = async (newCategory: string) => {
+    if (!uid) return;
+
+    const trimmed = newCategory.trim();
+    if (!trimmed || availableCategories.includes(trimmed)) return;
+
+    const updatedCategories = [...availableCategories, trimmed];
+
+    try {
+      // Salva no Firestore
+      const docRef = doc(db, `users/${uid}/settings`, 'userCategories');
+      await setDoc(docRef, { category: updatedCategories }, { merge: true });
+
+      // Atualiza o estado local
+      setAvailableCategories(updatedCategories);
+
+      // (Opcional) Atualiza o filtro para já incluir a nova categoria
+      setFilters(prev => ({
+        ...prev,
+        selectedCategories: [...prev.selectedCategories, trimmed],
+      }));
+    } catch (error) {
+      console.error('Erro ao adicionar nova categoria:', error);
+    }
+  };
+
 
   const updateFilters = (updated: EventFilter) => {
     setFilters(updated)
@@ -174,16 +235,16 @@ const EventsHistory = (): JSX.Element => {
   }
 
   const filtersAreActive =
-    filters.enabled 
-/*     &&
-    (
-      filters.startDate ||
-      filters.endDate ||
-      filters.hasRating !== null ||
-      filters.hasTasks !== null ||
-      filters.hasNotes !== null ||
-      filters.hasAddressByCEP !== null
-    ); */
+    filters.enabled
+  /*     &&
+      (
+        filters.startDate ||
+        filters.endDate ||
+        filters.hasRating !== null ||
+        filters.hasTasks !== null ||
+        filters.hasNotes !== null ||
+        filters.hasAddressByCEP !== null
+      ); */
 
   return (
 
@@ -211,6 +272,7 @@ const EventsHistory = (): JSX.Element => {
           onClose={() => setShowFilterModal(false)}
           filters={filters}
           setFilters={updateFilters}
+          availableCategories={availableCategories}
         />
 
         {Object.values(events).flat().length === 0 && (
@@ -234,6 +296,9 @@ const EventsHistory = (): JSX.Element => {
             isOpen={isAddEventModalOpen}
             onClose={() => setIsAddEventModalOpen(false)}
             onAdded={fetchEvents}
+            availableCategories={availableCategories}
+            setAvailableCategories={setAvailableCategories}
+            onAddCategory={handleAddCategory}
           />
         )}
 
@@ -244,6 +309,9 @@ const EventsHistory = (): JSX.Element => {
             isOpen={isEditModalOpen}
             onClose={() => setIsEditModalOpen(false)}
             onUpdated={fetchEvents}
+            availableCategories={availableCategories}
+            setAvailableCategories={setAvailableCategories}
+            onAddCategory={handleAddCategory}
           />
         )}
 
