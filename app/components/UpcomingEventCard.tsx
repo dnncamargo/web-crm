@@ -4,7 +4,7 @@ import { JSX } from 'react';
 import { Event, Person } from '@/app/utils/interfaces';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarDaysIcon as CalendarIcon, UserIcon, PencilSquareIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon as CalendarIcon, UserIcon, PencilSquareIcon, LinkIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import { LucideCalendarCheck2 as CheckIcon } from 'lucide-react';
 
 type OptionalField = {
@@ -66,24 +66,41 @@ export default function UpcomingEventCard({ event, person, onToggleStatus }: Upc
       <div className="card-content">
         {/* Data e Hora */}
         <div className="card-content-info text-gray-600">
-          <div className="w-4 h-4 mr-2 flex-shrink-0"><CalendarIcon className="w-full h-full" /></div>
-          <div>{formatDate(event.startDate, event.startTime)}</div>
+          <div className="w-4 h-4 mr-2 mb-1 flex-shrink-0">
+            <CalendarIcon className="w-full h-full" />
+          </div>
+          <div className='mb-1'>
+            {formatDate(event.startDate, event.startTime)}
+          </div>
         </div>
         {/* Pessoa associada */}
         {person && (
           <div className="card-content-info text-gray-600">
-            <div className="w-4 h-4 mr-2 flex-shrink-0"><UserIcon className="w-full h-full" /></div>
-            <div>{person.name}</div>
+            <div className="w-4 h-4 mr-2 mb-1 flex-shrink-0">
+              <UserIcon className="w-full h-full" />
+            </div>
+            <div className='mb-1'>
+              {person.name}
+            </div>
           </div>
         )}
 
         {/* Localidade */}
         {event.location && (
           <div className="card-content-info text-gray-500">
-            <MapPinIcon className="w-4 h-4 mr-2 mt-0.5" />
-            {event.location}
+            <div className="w-4 h-4 mr-2 mb-1 flex-shrink-0">
+              {event.location.startsWith('http') ? (
+                <LinkIcon className="w-full h-full"/>
+              ) : (
+                <MapPinIcon className="w-full h-full"/>
+              )}
+            </div>
+            <div className="text-pretty truncate overflow-x-auto mb-1">
+              {event.location}
+            </div>
           </div>
         )}
+
 
         {/* Descrição */}
         {event.optionalFields && event.optionalFields.length > 0 && (
@@ -93,8 +110,12 @@ export default function UpcomingEventCard({ event, person, onToggleStatus }: Upc
               <div key={field.id} >
                 {field.label === 'Descrição' && typeof field.value === 'string' ? (
                   <div className="card-content-info text-gray-500">
-                    <div className="w-4 h-4 mr-2 flex-shrink-0"><PencilSquareIcon className="w-full h-full" /></div>
-                    <div className="truncate">{field.value}</div>
+                    <div className="w-4 h-4 mr-2 mb-1 flex-shrink-0">
+                      <PencilSquareIcon className="w-full h-full" />
+                    </div>
+                    <div className="truncate">
+                      {field.value}
+                    </div>
                   </div>
                 ) : ('')}
               </div>

@@ -3,7 +3,7 @@
 import { JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { Event } from '../utils/interfaces';
-import { ClockIcon, MapPinIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
+import { ClockIcon, MapPinIcon, LinkIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import { formatDate } from '../utils/services';
 
 type OptionalField = {
@@ -61,8 +61,16 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
         {/* Endereço */}
         {event.address && (
           <div className="card-content-info-large text-gray-500 mb-2">
-            <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0"><MapPinIcon className="w-full h-full" /></div>
-            <div className='text-pretty truncate overflow-x-auto'>{event.address}</div>
+            <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0">
+              {event.address.startsWith('http') ? (
+                <LinkIcon className="w-full h-full" />
+              ) : (
+                <MapPinIcon className="w-full h-full" />
+              )}
+            </div>
+            <div className="text-pretty truncate overflow-x-auto">
+              {event.address}
+            </div>
           </div>
         )}
         {/* todo: incluir Pessoa associada no card */}
