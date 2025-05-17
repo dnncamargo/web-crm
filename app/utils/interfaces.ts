@@ -60,7 +60,7 @@ export interface Task {
 }
 
 export interface EventSuggestion {
-  reason: 'birthday' | 'contactFrequency' | 'inactiveFavorite'
+  reason: 'birthday' | 'belatedBirthday' | 'favoriteMissingBirthday' | 'contactFrequency' | 'inactiveFavorite'
   person: Person
   suggestedDate: string // ISO
   message?: string;

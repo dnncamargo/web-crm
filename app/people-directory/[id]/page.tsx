@@ -119,8 +119,9 @@ const PersonDetails = (): JSX.Element => {
         {Array.isArray(person.optionalFields) && person.optionalFields.length > 0 && (
           <div className="bg-white p-4 rounded-lg shadow space-y-4">
             <h2 className="font-semibold text-lg mb-2">Informações adicionais</h2>
-            {person.optionalFields.map((field: any) => (
-              <div key={field.id}>
+            {person.optionalFields.map((field: any, index: number) => (
+              <div key={field.id || index}>
+
                 <p className="font-semibold">{field.label}</p>
 
                 {field.type === 'note' && (

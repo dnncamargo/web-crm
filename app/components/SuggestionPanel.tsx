@@ -24,11 +24,11 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
         if (uid) {
             fetchSuggestions()
         }
-    }, [ uid ])
+    }, [uid])
 
     if (!uid) {
         return <p>Carregando usuário...</p>;
-      }
+    }
 
     const fetchSuggestions = async () => {
         // buscar pessoas e eventos
@@ -72,14 +72,35 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
             {/* Aniversário nos próximos 7 dias */ }
             if (birthday) {
                 const upcoming = new Date(now.getFullYear(), birthday.getMonth(), birthday.getDate())
-                const daysUntil = differenceInDays(upcoming, now)
-                if (daysUntil >= 0 && daysUntil <= 7) {
+                const daysFromNow = differenceInDays(now, upcoming)
+
+                // Se for nos próximos 7 dias OU até 2 dias depois
+                if ((daysFromNow >= -7 && daysFromNow <= 0) || (daysFromNow > 0 && daysFromNow <= 2)) {
                     suggestions.push({
-                        reason: 'birthday',
+                        reason: daysFromNow > 0 ? 'belatedBirthday' : 'birthday',
                         person,
                         suggestedDate: upcoming.toISOString()
                     })
                 }
+            }
+
+            {/* Favorito sem data de aniversário */ }
+            if (person.favorite && !person.birthday) {
+                suggestions.push({
+                    reason: 'favoriteMissingBirthday',
+                    person,
+                    suggestedDate: now.toISOString()
+                })
+            }
+            else 
+            {/* Favoritos sem eventos há muito tempo (somente se tiver data de aniversário) */ }
+            if (person.favorite &&
+                 (!lastEvent || differenceInDays(now, new Date(lastEvent.startDate)) > 90)) {
+                suggestions.push({
+                    reason: 'inactiveFavorite',
+                    person,
+                    suggestedDate: now.toISOString()
+                })
             }
 
             {/* Frequência de contato vencida */ }
@@ -91,31 +112,28 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
                     suggestedDate: now.toISOString()
                 })
             }
-
-            {/* Favoritos sem eventos há muito tempo */ }
-            if (person.favorite && (!lastEvent || differenceInDays(now, new Date(lastEvent.startDate)) > 90)) {
-                suggestions.push({
-                    reason: 'inactiveFavorite',
-                    person,
-                    suggestedDate: now.toISOString()
-                })
-            }
         }
         return suggestions
     }
 
     const handleAccept = async (suggestion: EventSuggestion) => {
-        // Podemos futuramente abrir um modal para edição
+        if (suggestion.reason === 'favoriteMissingBirthday') {
+            // Redirecionar para edição da pessoa ou abrir modal futuramente
+            alert(`Adicionar data de nascimento para ${suggestion.person.name}.`);
+            return;
+        }
+
         await addDoc(collection(db, `users/${uid}/events-history`), {
-            title: `Contato com ${suggestion.person.name}`,
+            title: suggestion.reason === 'belatedBirthday'
+                ? `Feliz aniversário atrasado para ${suggestion.person.name}`
+                : `Contato com ${suggestion.person.name}`,
             personId: suggestion.person.id,
             date: suggestion.suggestedDate.split('T')[0],
-            hour: '12:00', // ou deixe para o usuário editar futuramente
+            hour: '12:00',
             createdAt: new Date(),
         });
 
-        onEventCreated(); // Chama a função de callback para atualizar o painel principal
-
+        onEventCreated();
         setSuggestions(prev => prev.filter(s => s !== suggestion));
     };
 
@@ -146,8 +164,8 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
                 {/* Sugestões de eventos */}
 
                 {Object.values(suggestions).flat().length === 0 && (
-          <p className="text-gray-600 text-center text-wrap ml-10 w-40">Adicione pessoas e eventos para ver sugestões.</p>
-        )}
+                    <p className="text-gray-600 text-center text-wrap ml-10 w-40">Adicione pessoas e eventos para ver sugestões.</p>
+                )}
 
             </div>
 
@@ -158,7 +176,7 @@ export default function SuggestionPanel({ onClose, onEventCreated }: SuggestionP
                     onAccept={() => handleAccept(sug)}
                     onReject={() => handleReject(sug)}
                 />
-                
+
             ))}
             <button onClick={onClose} className="absolute top-4 right-4 text-gray-400">✕</button>
         </motion.div>
