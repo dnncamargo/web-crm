@@ -68,18 +68,35 @@ const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps)
             {person.email}
           </div>
         )}
-      </div>
 
-      {/* Botão de editar */}
-      <div className="card-bottom-end">
-        <button
-          className="color-pd-base"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEditPerson(person);
-          }}>
-          Editar
-        </button>
+        {/* Relacionamentos */}
+        <div className='mt-2 ml-2'>
+          {person.relationship && person.relationship.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-4">
+              {person.relationship.map((rel: string, index: number) => (
+                <span
+                  key={index}
+                  className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full"
+                >
+                  {rel}
+                </span>
+              ))}
+            </div>
+          )}
+
+
+          {/* Botão de editar */}
+          <div className="card-bottom-end">
+            <button
+              className="color-pd-base"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEditPerson(person);
+              }}>
+              Editar
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

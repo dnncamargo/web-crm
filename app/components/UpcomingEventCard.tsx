@@ -17,7 +17,7 @@ type OptionalField = {
  * @interface EventSummaryCardProps
  * @description Props para o componente `EventSummaryCard`, que exibe um resumo de um evento.
  * @property {Event} event - O objeto do evento a ser exibido no cartão de resumo.
- * @property {Person | undefined} [person] - O objeto da pessoa associada ao evento (opcional). Se fornecido, informações da pessoa podem ser exibidas.
+ * @property {Person} [person] - O objeto da pessoa associada ao evento (opcional). Se fornecido, informações da pessoa podem ser exibidas.
  */
 interface UpcomingEventCardProps {
   event: Event;
@@ -90,9 +90,9 @@ export default function UpcomingEventCard({ event, person, onToggleStatus }: Upc
           <div className="card-content-info text-gray-500">
             <div className="w-4 h-4 mr-2 mb-1 flex-shrink-0">
               {event.location.startsWith('http') ? (
-                <LinkIcon className="w-full h-full"/>
+                <LinkIcon className="w-full h-full" />
               ) : (
-                <MapPinIcon className="w-full h-full"/>
+                <MapPinIcon className="w-full h-full" />
               )}
             </div>
             <div className="text-pretty truncate overflow-x-auto mb-1">
@@ -122,6 +122,36 @@ export default function UpcomingEventCard({ event, person, onToggleStatus }: Upc
             ))}
           </div>
         )}
+
+        <div className='mt-2 ml-2'>
+          {/* Relacionamentos */}
+{/*           {person && person.relationship && person.relationship.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-4">
+              {person.relationship.map((rel: string, index: number) => (
+                <span
+                  key={index}
+                  className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full"
+                >
+                  {rel}
+                </span>
+              ))}
+            </div>
+          )} */}
+
+          {/* Categorias */}
+          {event.category && event.category.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-4">
+              {event.category.map((cat: string, index: number) => (
+                <span
+                  key={index}
+                  className="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-1 rounded-full"
+                >
+                  {cat}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

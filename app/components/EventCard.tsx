@@ -73,8 +73,8 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
             </div>
           </div>
         )}
-        {/* todo: incluir Pessoa associada no card */}
-        {/* Descrição */}
+
+        {/* Campos Opcionais */}
 
         {event.optionalFields && event.optionalFields.length > 0 && (
           <div className="space-y-4">
@@ -95,18 +95,34 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
             ))}
           </div>
         )}
-
       </div>
-      {/* Botão de editar */}
-      <div className="card-bottom-end">
-        <button
-          className="color-eh-base"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEditEvent(event);
-          }}>
-          Editar
-        </button>
+
+      {/* Categorias */}
+      <div className='mt-2 ml-2'>
+        {event.category && event.category.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            {event.category.map((cat: string, index: number) => (
+              <span
+                key={index}
+                className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full"
+              >
+                {cat}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Botão de editar */}
+        <div className="card-bottom-end">
+          <button
+            className="color-eh-base"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditEvent(event);
+            }}>
+            Editar
+          </button>
+        </div>
       </div>
     </div >
 
