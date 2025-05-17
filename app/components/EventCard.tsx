@@ -68,7 +68,6 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
         {/* todo: incluir Pessoa associada no card */}
         {/* Descrição */}
 
-
         {event.optionalFields && event.optionalFields.length > 0 && (
           <div className="space-y-4">
 
@@ -76,8 +75,12 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
               <div key={field.id} >
                 {field.label === 'Descrição' && typeof field.value === 'string' ? (
                   <div className="card-content-info-large text-gray-500 mb-2">
-                    <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0 flex items-start"><PencilSquareIcon className="w-full h-full" /></div>
-                    <div className='text-pretty truncate'>{field.value}</div>
+                    <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0 flex items-start">
+                      <PencilSquareIcon className="w-full h-full" />
+                    </div>
+                    <div className='text-pretty truncate'>
+                      {field.value}
+                    </div>
                   </div>
                 ) : ('')}
               </div>
