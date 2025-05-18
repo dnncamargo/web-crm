@@ -14,6 +14,10 @@ export interface Person {
   createdAt?: Date | Timestamp;
 }
 
+export interface People {
+  people: Person[]
+}
+
 export interface Event {
   id: string;
   title: string;
