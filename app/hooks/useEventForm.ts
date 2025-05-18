@@ -25,8 +25,7 @@ export function useEventForm(initialPersonId?: string) {
     const [state, setState] = useState(''); /** @state {string} state - Estado (UF) do local do evento. */
     const [associatePerson, setAssociatePerson] = useState(false); /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
     const [selectedPersonId, setSelectedPersonId] = useState(initialPersonId || ''); /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
-    const [optionalFields, setOptionalFields] = useState<OptionalField[]>([]);
-    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    //const [optionalFields, setOptionalFields] = useState<OptionalField[]>([]);
     const [error, setError] = useState('');
 
     /**
@@ -64,7 +63,7 @@ export function useEventForm(initialPersonId?: string) {
             state,
             useAddressAPI,
             location: [address, number, city, state].filter(Boolean).join(', ') || "",
-            category: selectedCategories,
+            //category: selectedCategories,
             optionalFields: [...optionalFields],
             createdAt: new Date(),
         }

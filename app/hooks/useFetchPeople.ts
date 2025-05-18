@@ -35,3 +35,15 @@ export function useFetchPeople(uid: string | null): People {
 
   return { people };
 }
+
+{/* Associação de pessoa ao Evento */ }
+/*   export function handleAssociatePerson() {
+    if (initialPersonId) {
+      setAssociatePerson(true); // Se 'initialPersonId' existir, indica que um contato deve ser associado ao evento.
+      setSelectedPersonId(initialPersonId); // Define o ID da pessoa selecionada com o valor de 'event.personId'.
+    } else {
+      setAssociatePerson(false); // Se 'initialPersonId' não existir, indica que nenhum contato deve ser associado.
+      setSelectedPersonId(''); // Limpa o ID da pessoa selecionada.
+    }
+  }
+ */
