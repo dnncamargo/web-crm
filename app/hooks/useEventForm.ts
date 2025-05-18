@@ -64,7 +64,7 @@ export function useEventForm(initialPersonId?: string) {
             useAddressAPI,
             location: [address, number, city, state].filter(Boolean).join(', ') || "",
             //category: selectedCategories,
-            optionalFields: [...optionalFields],
+            //optionalFields: [...optionalFields],
             createdAt: new Date(),
         }
 
