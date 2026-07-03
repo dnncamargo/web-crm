@@ -483,6 +483,10 @@ textarea {
   font-size: 0.88rem;
 }
 
+.product-notes-preview {
+  margin-top: 14px;
+}
+
 .badge-row {
   display: flex;
   flex-wrap: wrap;
@@ -979,4 +983,82 @@ textarea {
   .slide-panel-content {
     padding: 16px;
   }
+}
+
+.tag-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.selectable-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selectable-chip {
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 12px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.86rem;
+  transition: 140ms ease;
+}
+
+.selectable-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.selectable-chip.selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.order-form-items {
+  display: grid;
+  gap: 12px;
+}
+
+.order-item-form-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.order-item-total {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.order-item-total strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.order-summary-box {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.order-summary-box strong {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.order-card-items {
+  margin-top: 14px;
 }

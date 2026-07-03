@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -8,6 +8,7 @@ import { ClientCard } from "./components/ClientCard";
 import { useAddresses } from "../addresses/useAddresses";
 import type { Client, ContactFrequency } from "./clientTypes";
 import { useClients } from "./useClients";
+import { useTags } from "../tags/useTags";
 
 import type { Address, NewAddressData } from "../addresses/addressTypes";
 import { AddressForm } from "../addresses/components/AddressForm";
@@ -17,7 +18,13 @@ import { SlidePanel } from "../../components/ui/SlidePanel";
 type ClientPanelState = { type: "edit-client"; client: Client } | { type: "create-address"; client: Client } | { type: "edit-address"; client: Client; address: Address } | null;
 
 export function ClientsPage() {
-  const { filteredClients, search, setSearch, showOnlyFavorites, setShowOnlyFavorites, loading, error, addClient, editClient, setFavorite, setActive } = useClients();
+  const { activeTags } = useTags();
+
+  const clientTags = useMemo(() => activeTags.filter((tag) => tag.entity === "client" || tag.entity === "global"), [activeTags]);
+
+  const tagLabelsById = useMemo(() => Object.fromEntries(activeTags.map((tag) => [tag.id, tag.label])), [activeTags]);
+
+  const { filteredClients, search, setSearch, showOnlyFavorites, setShowOnlyFavorites, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const { getAddressesByClient, addAddress, editAddress } = useAddresses();
@@ -119,10 +126,7 @@ export function ClientsPage() {
   }
 
   function handleToggleExpandedClient(clientId: string) {
-    setExpandedClientId((currentClientId) => {
-      const nextClientId = currentClientId === clientId ? null : clientId;
-      return nextClientId;
-    });
+    setExpandedClientId((currentClientId) => (currentClientId === clientId ? null : clientId));
   }
 
   return (
@@ -206,6 +210,8 @@ export function ClientsPage() {
             client={client}
             addresses={getAddressesByClient(client.id)}
             expanded={expandedClientId === client.id}
+            availableTags={clientTags}
+            tagLabelsById={tagLabelsById}
             onToggleExpanded={handleToggleExpandedClient}
             onFavoriteChange={setFavorite}
             onActiveChange={setActive}
@@ -235,7 +241,7 @@ export function ClientsPage() {
         }
         onClose={closePanel}
       >
-        {panel?.type === "edit-client" && <ClientEditForm client={panel.client} onCancel={closePanel} onSave={handlePanelEditClient} />}
+        {panel?.type === "edit-client" && <ClientEditForm client={panel.client} availableTags={clientTags} onCancel={closePanel} onSave={handlePanelEditClient} />}
 
         {panel?.type === "create-address" && <AddressForm client={panel.client} onCancel={closePanel} onSave={handlePanelCreateAddress} />}
 

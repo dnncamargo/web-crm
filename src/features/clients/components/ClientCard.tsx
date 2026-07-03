@@ -4,6 +4,7 @@ import { Card } from "../../../components/ui/Card";
 import { Switch } from "../../../components/ui/Switch";
 import type { Address } from "../../addresses/addressTypes";
 import type { Client, ContactFrequency } from "../clientTypes";
+import type { Tag } from "../../tags/tagTypes";
 import { formatDateBR } from "../../../utils/dateFormat";
 
 const frequencyLabels: Record<ContactFrequency, string> = {
@@ -16,6 +17,8 @@ const frequencyLabels: Record<ContactFrequency, string> = {
 interface ClientCardProps {
   client: Client;
   addresses: Address[];
+  availableTags: Tag[];
+  tagLabelsById: Record<string, string>;
   expanded: boolean;
   onToggleExpanded: (clientId: string) => void;
   onFavoriteChange: (client: Client, favorite: boolean) => Promise<void>;
@@ -25,22 +28,22 @@ interface ClientCardProps {
   onRequestEditAddress: (client: Client, address: Address) => void;
 }
 
-export function ClientCard({ 
-    client, 
-    addresses, 
-    expanded, 
-    onToggleExpanded, 
-    onFavoriteChange, 
-    onActiveChange, 
-    onRequestEditClient, 
-    onRequestCreateAddress, 
-    onRequestEditAddress
- }: ClientCardProps) {
+export function ClientCard({
+  client,
+  addresses,
+  expanded,
+  onToggleExpanded,
+  tagLabelsById,
+  onFavoriteChange,
+  onActiveChange,
+  onRequestEditClient,
+  onRequestCreateAddress,
+  onRequestEditAddress,
+}: ClientCardProps) {
   const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
 
   const primaryAddress = addresses.find((address) => address.id === client.primaryAddressId) ?? addresses.find((address) => address.isPrimaryForClient);
-
-  const visibleTags = client.tagIds?.slice(0, 3) ?? [];
+  const visibleTags = (client.tagIds ?? []).slice(0, 3);
 
   return (
     <Card className={!client.active ? "muted-card" : ""}>
@@ -70,8 +73,8 @@ export function ClientCard({
         {!primaryAddress && <Badge>sem-endereco</Badge>}
         {!client.birthDate && <Badge>sem-aniversario</Badge>}
 
-        {visibleTags.map((tag) => (
-          <Badge key={tag}>{tag}</Badge>
+        {visibleTags.map((tagId) => (
+          <Badge key={tagId}>{tagLabelsById[tagId] ?? tagId}</Badge>
         ))}
       </div>
 
@@ -97,6 +100,12 @@ export function ClientCard({
               <span>Pedidos registrados</span>
               <strong>{client.totalOrders ?? 0}</strong>
             </div>
+          </div>
+
+          <div className="subtle-list">
+            <span>Etiquetas</span>
+
+            {client.tagIds?.length ? client.tagIds.map((tagId) => <small key={tagId}>#{tagLabelsById[tagId] ?? tagId}</small>) : <small>Nenhuma etiqueta associada</small>}
           </div>
 
           {client.notes && (
