@@ -45,9 +45,9 @@ export function AppShell() {
             placeholder="Buscar cliente, pedido, produto ou #etiqueta..."
           />
 
-          <button className="quick-action" type="button">
+          {/* <button className="quick-action" type="button">
             + Novo pedido
-          </button>
+          </button> */}
         </header>
 
         <section className="content-area">

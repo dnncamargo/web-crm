@@ -1062,3 +1062,79 @@ textarea {
 .order-card-items {
   margin-top: 14px;
 }
+
+css .order-item-form-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+}
+
+.order-item-form-card.expanded {
+  background: var(--surface);
+}
+
+.order-item-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.order-item-summary-button {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.order-item-summary-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.94rem;
+}
+
+.order-item-summary-button small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.order-item-editor {
+  display: grid;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.order-item-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.order-item-footer strong {
+  color: var(--text);
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .order-item-summary-row,
+  .order-item-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .order-item-footer .button {
+    width: 100%;
+  }
+}
