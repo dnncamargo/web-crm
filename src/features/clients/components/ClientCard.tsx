@@ -3,6 +3,7 @@ import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { Switch } from "../../../components/ui/Switch";
+import { formatDateBR } from "../../../utils/dateFormat";
 import type { Client, ContactFrequency, UpdateClientData } from "../clientTypes";
 import { ClientEditForm } from "./ClientEditForm";
 const frequencyLabels: Record<ContactFrequency, string> = { none: "Sem frequência", weekly: "Semanal", biweekly: "Quinzenal", monthly: "Mensal" };
@@ -73,7 +74,7 @@ export function ClientCard({ client, onFavoriteChange, onActiveChange, onEdit }:
             </div>{" "}
             <div className="detail-block">
               {" "}
-              <span>Aniversário</span> <strong>{client.birthDate || "Não informado"}</strong>{" "}
+              <span>Aniversário</span> <strong>{client.birthDate ? formatDateBR(client.birthDate) : "Não informado"}</strong>{" "}
             </div>{" "}
             <div className="detail-block">
               {" "}
@@ -148,19 +149,6 @@ export function ClientCard({ client, onFavoriteChange, onActiveChange, onEdit }:
           {" "}
           {expanded ? "Mostrar menos" : "Mostrar mais"}{" "}
         </button>{" "}
-        {!editing && (
-          <button
-            type="button"
-            className="text-link"
-            onClick={() => {
-              setEditing(true);
-              setExpanded(false);
-            }}
-          >
-            {" "}
-            Editar{" "}
-          </button>
-        )}{" "}
       </div>{" "}
       <div className="card-footer">
         {" "}
