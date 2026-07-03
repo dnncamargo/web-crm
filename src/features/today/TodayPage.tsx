@@ -1,5 +1,4 @@
 import { Badge } from "../../components/ui/Badge";
-import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 
@@ -9,7 +8,6 @@ export function TodayPage() {
       <PageHeader
         title="Hoje"
         description="Resumo rápido de entregas, pagamentos, tarefas e sugestões inteligentes."
-        action={<Button type="button">+ Novo pedido</Button>}
       />
 
       <div className="summary-grid">

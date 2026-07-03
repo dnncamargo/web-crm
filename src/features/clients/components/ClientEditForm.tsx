@@ -52,8 +52,7 @@ export function ClientEditForm({ client, onCancel, onSave }: ClientEditFormProps
     <form className="client-edit-form" onSubmit={handleSubmit}>
       {" "}
       <div className="form-section-title">
-        {" "}
-        <span>Editar cliente</span>{" "}
+        <span>Dados do cliente</span>
       </div>{" "}
       <div className="input-group">
         {" "}

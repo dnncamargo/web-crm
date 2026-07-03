@@ -5,16 +5,28 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Switch } from "../../components/ui/Switch";
 import { ClientCard } from "./components/ClientCard";
-import type { ContactFrequency } from "./clientTypes";
+import { useAddresses } from "../addresses/useAddresses";
+import type { Client, ContactFrequency } from "./clientTypes";
 import { useClients } from "./useClients";
+
+import type { Address, NewAddressData } from "../addresses/addressTypes";
+import { AddressForm } from "../addresses/components/AddressForm";
+import { ClientEditForm } from "./components/ClientEditForm";
+import { SlidePanel } from "../../components/ui/SlidePanel";
+
+type ClientPanelState = { type: "edit-client"; client: Client } | { type: "create-address"; client: Client } | { type: "edit-address"; client: Client; address: Address } | null;
+
 export function ClientsPage() {
   const { filteredClients, search, setSearch, showOnlyFavorites, setShowOnlyFavorites, loading, error, addClient, editClient, setFavorite, setActive } = useClients();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const { getAddressesByClient, addAddress, editAddress } = useAddresses();
   const [favorite, setFavoriteLocal] = useState(false);
   const [contactFrequency, setContactFrequency] = useState<ContactFrequency>("none");
   const [submitting, setSubmitting] = useState(false);
-  const [showCreateForm, setShowCreateForm] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [panel, setPanel] = useState<ClientPanelState>(null);
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const trimmedName = name.trim();
@@ -30,8 +42,18 @@ export function ClientsPage() {
       favorite,
       birthDate: "",
       contactFrequency,
-      contacts: trimmedPhone && primaryContactId ? [{ id: primaryContactId, type: "whatsapp", value: trimmedPhone, label: "WhatsApp principal", isPrimary: true }] : [],
-      addresses: [],
+      contacts:
+        trimmedPhone && primaryContactId
+          ? [
+              {
+                id: primaryContactId,
+                type: "whatsapp",
+                value: trimmedPhone,
+                label: "WhatsApp principal",
+                isPrimary: true,
+              },
+            ]
+          : [],
       primaryContactId,
       primaryAddressId: null,
       tagIds: [],
@@ -43,6 +65,58 @@ export function ClientsPage() {
     setContactFrequency("none");
     setSubmitting(false);
   }
+
+  function closePanel() {
+    setPanel(null);
+  }
+
+  async function handlePanelEditClient(data: Parameters<typeof editClient>[1]) {
+    if (!panel || panel.type !== "edit-client") {
+      return;
+    }
+
+    await editClient(panel.client.id, data);
+    closePanel();
+  }
+
+  async function handlePanelCreateAddress(data: NewAddressData) {
+    if (!panel || panel.type !== "create-address") {
+      return;
+    }
+
+    const createdAddress = await addAddress(data);
+
+    if (data.isPrimaryForClient) {
+      await editClient(panel.client.id, {
+        primaryAddressId: createdAddress.id,
+      });
+    }
+
+    closePanel();
+  }
+
+  async function handlePanelEditAddress(data: NewAddressData) {
+    if (!panel || panel.type !== "edit-address") {
+      return;
+    }
+
+    await editAddress(panel.address.id, data);
+
+    if (data.isPrimaryForClient) {
+      await editClient(panel.client.id, {
+        primaryAddressId: panel.address.id,
+      });
+    }
+
+    if (!data.isPrimaryForClient && panel.client.primaryAddressId === panel.address.id) {
+      await editClient(panel.client.id, {
+        primaryAddressId: null,
+      });
+    }
+
+    closePanel();
+  }
+
   return (
     <div className="page-stack">
       {" "}
@@ -119,9 +193,44 @@ export function ClientsPage() {
       <div className="cards-grid">
         {" "}
         {filteredClients.map((client) => (
-          <ClientCard key={client.id} client={client} onFavoriteChange={setFavorite} onActiveChange={setActive} onEdit={editClient} />
+          <ClientCard
+            key={client.id}
+            client={client}
+            addresses={getAddressesByClient(client.id)}
+            onFavoriteChange={setFavorite}
+            onActiveChange={setActive}
+            onRequestEditClient={(selectedClient) => setPanel({ type: "edit-client", client: selectedClient })}
+            onRequestCreateAddress={(selectedClient) => setPanel({ type: "create-address", client: selectedClient })}
+            onRequestEditAddress={(selectedClient, address) =>
+              setPanel({
+                type: "edit-address",
+                client: selectedClient,
+                address,
+              })
+            }
+          />
         ))}{" "}
       </div>{" "}
+      <SlidePanel
+        open={panel !== null}
+        title={panel?.type === "edit-client" ? "Editar cliente" : panel?.type === "create-address" ? "Adicionar endereço" : panel?.type === "edit-address" ? "Editar endereço" : ""}
+        description={
+          panel?.type === "edit-client"
+            ? "Atualize os dados principais do cliente."
+            : panel?.type === "create-address"
+              ? "Cadastre um endereço reutilizável para cliente, entrega ou pedido."
+              : panel?.type === "edit-address"
+                ? "Atualize este endereço reutilizável."
+                : ""
+        }
+        onClose={closePanel}
+      >
+        {panel?.type === "edit-client" && <ClientEditForm client={panel.client} onCancel={closePanel} onSave={handlePanelEditClient} />}
+
+        {panel?.type === "create-address" && <AddressForm client={panel.client} onCancel={closePanel} onSave={handlePanelCreateAddress} />}
+
+        {panel?.type === "edit-address" && <AddressForm client={panel.client} address={panel.address} onCancel={closePanel} onSave={handlePanelEditAddress} />}
+      </SlidePanel>
     </div>
   );
 }
