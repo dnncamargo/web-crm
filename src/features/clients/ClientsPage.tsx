@@ -26,6 +26,7 @@ export function ClientsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [panel, setPanel] = useState<ClientPanelState>(null);
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -117,6 +118,13 @@ export function ClientsPage() {
     closePanel();
   }
 
+  function handleToggleExpandedClient(clientId: string) {
+    setExpandedClientId((currentClientId) => {
+      const nextClientId = currentClientId === clientId ? null : clientId;
+      return nextClientId;
+    });
+  }
+
   return (
     <div className="page-stack">
       {" "}
@@ -197,6 +205,8 @@ export function ClientsPage() {
             key={client.id}
             client={client}
             addresses={getAddressesByClient(client.id)}
+            expanded={expandedClientId === client.id}
+            onToggleExpanded={handleToggleExpandedClient}
             onFavoriteChange={setFavorite}
             onActiveChange={setActive}
             onRequestEditClient={(selectedClient) => setPanel({ type: "edit-client", client: selectedClient })}

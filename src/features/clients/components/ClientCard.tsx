@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -18,6 +16,8 @@ const frequencyLabels: Record<ContactFrequency, string> = {
 interface ClientCardProps {
   client: Client;
   addresses: Address[];
+  expanded: boolean;
+  onToggleExpanded: (clientId: string) => void;
   onFavoriteChange: (client: Client, favorite: boolean) => Promise<void>;
   onActiveChange: (client: Client, active: boolean) => Promise<void>;
   onRequestEditClient: (client: Client) => void;
@@ -25,9 +25,17 @@ interface ClientCardProps {
   onRequestEditAddress: (client: Client, address: Address) => void;
 }
 
-export function ClientCard({ client, addresses, onFavoriteChange, onActiveChange, onRequestEditClient, onRequestCreateAddress, onRequestEditAddress }: ClientCardProps) {
-  const [expanded, setExpanded] = useState(false);
-
+export function ClientCard({ 
+    client, 
+    addresses, 
+    expanded, 
+    onToggleExpanded, 
+    onFavoriteChange, 
+    onActiveChange, 
+    onRequestEditClient, 
+    onRequestCreateAddress, 
+    onRequestEditAddress
+ }: ClientCardProps) {
   const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
 
   const primaryAddress = addresses.find((address) => address.id === client.primaryAddressId) ?? addresses.find((address) => address.isPrimaryForClient);
@@ -155,8 +163,6 @@ export function ClientCard({ client, addresses, onFavoriteChange, onActiveChange
             <Button type="button" variant="ghost" onClick={() => onRequestCreateAddress(client)}>
               Adicionar endereço
             </Button>
-
-
           </div>
         </div>
       )}
@@ -170,7 +176,7 @@ export function ClientCard({ client, addresses, onFavoriteChange, onActiveChange
           Interação
         </Button>
 
-        <button type="button" className="text-link" onClick={() => setExpanded((current) => !current)}>
+        <button type="button" className="text-link" onClick={() => onToggleExpanded(client.id)}>
           {expanded ? "Mostrar menos" : "Mostrar mais"}
         </button>
       </div>
