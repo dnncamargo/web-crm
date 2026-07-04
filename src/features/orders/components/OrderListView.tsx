@@ -1,11 +1,11 @@
-import { Badge } from "../../../components/ui/Badge";
+// import { Badge } from "../../../components/ui/Badge";
 import { formatCurrencyBR } from "../../../utils/money";
 import type { Order } from "../orderTypes";
 import {
   formatDateTimeBR,
-  getOrderStatusLabel,
-  getPaymentStatus,
-  getPaymentStatusLabel,
+  // getOrderStatusLabel,
+  // getPaymentStatus,
+  // getPaymentStatusLabel,
 } from "../orderUtils";
 
 interface OrderListViewProps {
@@ -20,7 +20,7 @@ export function OrderListView({
   return (
     <div className="order-list-view">
       {orders.map((order) => {
-        const paymentStatus = getPaymentStatus(order);
+        // const paymentStatus = getPaymentStatus(order);
         const remaining = Math.max(order.total - order.amountPaid, 0);
 
         return (
@@ -34,16 +34,16 @@ export function OrderListView({
               <strong>{order.clientName}</strong>
               <span>{formatDateTimeBR(order.deliveryDateTime)}</span>
 
-              <small>
+              {/* <small>
                 {order.items
                   .map((item) => `${item.quantity}× ${item.productName}`)
                   .join(" · ")}
-              </small>
+              </small> */}
 
-              <div className="order-list-badges">
+              {/* <div className="order-list-badges">
                 <Badge>{getOrderStatusLabel(order.orderStatus)}</Badge>
                 <Badge>{getPaymentStatusLabel(paymentStatus)}</Badge>
-              </div>
+              </div> */}
             </div>
 
             <div className="order-list-values">
