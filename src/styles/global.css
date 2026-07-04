@@ -1138,3 +1138,256 @@ css .order-item-form-card {
     width: 100%;
   }
 }
+
+.order-toolbar {
+  align-items: center;
+}
+.segmented-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+.segmented-control button {
+  min-height: 30px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.segmented-control button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 4px 12px rgba(70, 52, 36, 0.06);
+}
+.toolbar-select {
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+.order-list-view {
+  display: grid;
+  gap: 10px;
+}
+.order-list-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(130px, auto) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.order-list-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.order-list-main strong {
+  font-weight: 500;
+}
+.order-list-main span,
+.order-list-main small,
+.order-list-values span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.order-list-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.order-list-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.order-list-values {
+  display: grid;
+  gap: 3px;
+  text-align: right;
+}
+.order-list-values strong {
+  font-weight: 500;
+}
+
+.order-calendar {
+  display: grid;
+  gap: 12px;
+}
+
+.order-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.order-calendar-header > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.order-calendar-header strong {
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.order-calendar-header span {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.order-calendar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.order-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.order-calendar-weekdays span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.order-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.order-calendar-cell {
+  min-height: 100px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.order-calendar-cell.muted {
+  opacity: 0.45;
+  background: var(--surface-soft);
+}
+
+.order-calendar-cell header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.order-calendar-cell header span {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.order-calendar-cell header small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.order-calendar-cell-list {
+  display: grid;
+  gap: 6px;
+}
+
+.order-calendar-chip {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px;
+  background: var(--surface-soft);
+  color: var(--text);
+  text-align: left;
+}
+
+.order-calendar-chip:hover {
+  border-color: var(--border-strong);
+}
+
+.order-calendar-chip span,
+.order-calendar-chip small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-calendar-chip span {
+  font-size: 0.78rem;
+}
+
+.order-calendar-chip small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 900px) {
+  .order-calendar-grid,
+  .order-calendar-weekdays {
+    grid-template-columns: 1fr;
+  }
+
+  .order-calendar-weekdays {
+    display: none;
+  }
+
+  .order-calendar-cell {
+    min-height: auto;
+  }
+
+  .order-calendar-cell.muted {
+    display: none;
+  }
+
+  .order-calendar-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .order-calendar-actions {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 860px) {
+  .order-list-row,
+
+  .order-list-values {
+    text-align: left;
+  }
+  .order-toolbar {
+    align-items: stretch;
+  }
+  .segmented-control,
+  .toolbar-select {
+    width: 100%;
+  }
+  .segmented-control button {
+    flex: 1;
+  }
+}
