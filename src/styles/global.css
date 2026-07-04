@@ -1346,7 +1346,7 @@ css .order-item-form-card {
   font-size: 0.72rem;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 640px) {
   .order-calendar-grid,
   .order-calendar-weekdays {
     grid-template-columns: 1fr;
