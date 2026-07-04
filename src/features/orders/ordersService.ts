@@ -1,6 +1,7 @@
 import {
   addDoc,
   collection,
+  deleteField,
   doc,
   onSnapshot,
   orderBy,
@@ -55,7 +56,17 @@ export function listenOrders(
 }
 
 export async function createOrder(data: NewOrderData) {
-  const cleanedData = removeUndefinedFields(data);
+  const cleanedData = removeUndefinedFields({
+    ...data,
+    creditApplied:
+      data.creditApplied && data.creditApplied > 0
+        ? data.creditApplied
+        : undefined,
+    creditGenerated:
+      data.creditGenerated && data.creditGenerated > 0
+        ? data.creditGenerated
+        : undefined,
+  });
 
   return addDoc(ordersCollection, {
     ...cleanedData,
@@ -66,10 +77,20 @@ export async function createOrder(data: NewOrderData) {
 
 export async function updateOrder(orderId: string, data: UpdateOrderData) {
   const orderRef = doc(db, "orders", orderId);
+
   const cleanedData = removeUndefinedFields(data);
 
   return updateDoc(orderRef, {
     ...cleanedData,
+
+    ...(data.creditApplied === null
+      ? { creditApplied: deleteField() }
+      : {}),
+
+    ...(data.creditGenerated === null
+      ? { creditGenerated: deleteField() }
+      : {}),
+
     updatedAt: serverTimestamp(),
   });
 }

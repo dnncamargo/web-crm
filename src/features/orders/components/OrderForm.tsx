@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-
+import { getAutomaticCreditApplied, getClientAvailableCredit, getOrderBalanceInfo } from "../orderUtils";
 import { Button } from "../../../components/ui/Button";
 import { formatCurrencyBR, parseCurrencyInput } from "../../../utils/money";
 import type { Address } from "../../addresses/addressTypes";
@@ -18,11 +18,13 @@ interface OrderFormItem {
 
 interface OrderFormProps {
   order?: Order;
+  orders: Order[];
   clients: Client[];
   addresses: Address[];
   products: Product[];
   onCancel: () => void;
   onSave: (data: NewOrderData) => Promise<void>;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 function currencyToInput(value?: number | null) {
@@ -46,7 +48,7 @@ function formatAddressLabel(address: Address) {
   return `${owner}${address.label}: ${address.street}${number}${neighborhood}${city}`;
 }
 
-export function OrderForm({ order, clients, addresses, products, onCancel, onSave }: OrderFormProps) {
+export function OrderForm({ order, orders, clients, addresses, products, onCancel, onSave, onDirtyChange }: OrderFormProps) {
   const [clientId, setClientId] = useState(order?.clientId ?? "");
   const [addressId, setAddressId] = useState(order?.addressId ?? "");
   const [deliveryDateTime, setDeliveryDateTime] = useState(order?.deliveryDateTime ?? "");
@@ -56,25 +58,55 @@ export function OrderForm({ order, clients, addresses, products, onCancel, onSav
   const [notes, setNotes] = useState(order?.notes ?? "");
   const [saving, setSaving] = useState(false);
 
-  const initialItems: 
-      OrderFormItem[] = order?.items.length ? 
-          order.items.map((item) => 
-            ({ 
-              id: item.id, 
-              productId: item.productId, 
-              quantity: String(item.quantity), 
-              unitPrice: currencyToInput(item.unitPrice), 
-              notes: item.notes ?? "", 
-            })) : 
-            [ { 
-              id: crypto.randomUUID(), 
-              productId: "", 
-              quantity: "1", 
-              unitPrice: "", 
-              notes: "", }, 
-            ]; 
-  const [items, setItems] = useState<OrderFormItem[]>(initialItems); 
-  const [expandedItemId, setExpandedItemId] = useState<string | null>( order?.items.length ? null : initialItems[0]?.id ?? null );
+  const initialItems: OrderFormItem[] = order?.items.length
+    ? order.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        quantity: String(item.quantity),
+        unitPrice: currencyToInput(item.unitPrice),
+        notes: item.notes ?? "",
+      }))
+    : [
+        {
+          id: crypto.randomUUID(),
+          productId: "",
+          quantity: "1",
+          unitPrice: "",
+          notes: "",
+        },
+      ];
+  const [items, setItems] = useState<OrderFormItem[]>(initialItems);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(order?.items.length ? null : (initialItems[0]?.id ?? null));
+
+  const initialFormSignature = useMemo(
+    () =>
+      JSON.stringify({
+        clientId: order?.clientId ?? "",
+        addressId: order?.addressId ?? "",
+        deliveryDateTime: order?.deliveryDateTime ?? "",
+        deliveryFee: currencyToInput(order?.deliveryFee ?? 0),
+        amountPaid: currencyToInput(order?.amountPaid ?? 0),
+        orderStatus: order?.orderStatus ?? "active",
+        notes: order?.notes ?? "",
+        items: initialItems,
+      }),
+    [],
+  );
+
+  const currentFormSignature = JSON.stringify({
+    clientId,
+    addressId,
+    deliveryDateTime,
+    deliveryFee,
+    amountPaid,
+    orderStatus,
+    notes,
+    items,
+  });
+
+  useEffect(() => {
+    onDirtyChange?.(currentFormSignature !== initialFormSignature);
+  }, [currentFormSignature, initialFormSignature, onDirtyChange]);
 
   const activeClients = useMemo(() => clients.filter((client) => client.active), [clients]);
 
@@ -107,7 +139,18 @@ export function OrderForm({ order, clients, addresses, products, onCancel, onSav
   const parsedDeliveryFee = parseMoneyOrZero(deliveryFee);
   const parsedAmountPaid = parseMoneyOrZero(amountPaid);
   const total = subtotal + parsedDeliveryFee;
-  const remaining = Math.max(total - parsedAmountPaid, 0);
+
+  const availableClientCredit = selectedClient ? getClientAvailableCredit(orders, selectedClient.id, order?.id) : 0;
+
+  const automaticCreditApplied = getAutomaticCreditApplied(availableClientCredit, total);
+
+  const balanceInfo = getOrderBalanceInfo({
+    total,
+    amountPaid: parsedAmountPaid,
+    creditApplied: automaticCreditApplied,
+  });
+
+  const creditGenerated = balanceInfo.type === "credit" ? balanceInfo.amount : 0;
 
   function updateItem(itemId: string, data: Partial<OrderFormItem>) {
     setItems((currentItems) => currentItems.map((item) => (item.id === itemId ? { ...item, ...data } : item)));
@@ -139,6 +182,20 @@ export function OrderForm({ order, clients, addresses, products, onCancel, onSav
       return;
     }
 
+    const creditFields: Partial<NewOrderData> = {};
+
+    if (automaticCreditApplied > 0) {
+      creditFields.creditApplied = automaticCreditApplied;
+    } else if (order?.creditApplied) {
+      creditFields.creditApplied = null;
+    }
+
+    if (creditGenerated > 0) {
+      creditFields.creditGenerated = creditGenerated;
+    } else if (order?.creditGenerated) {
+      creditFields.creditGenerated = null;
+    }
+
     setSaving(true);
 
     await onSave({
@@ -161,7 +218,6 @@ export function OrderForm({ order, clients, addresses, products, onCancel, onSav
         : null,
 
       deliveryDateTime,
-
       items: parsedItems,
 
       subtotal,
@@ -169,13 +225,15 @@ export function OrderForm({ order, clients, addresses, products, onCancel, onSav
       total,
       amountPaid: parsedAmountPaid,
 
-      orderStatus,
+      ...creditFields,
 
+      orderStatus,
       notes: notes.trim(),
       tagIds: order?.tagIds ?? [],
     });
 
     setSaving(false);
+    onDirtyChange?.(false);
     onCancel();
   }
 
@@ -198,170 +256,204 @@ export function OrderForm({ order, clients, addresses, products, onCancel, onSav
     return `${item.quantity || "0"} × ${productName} · ${formatCurrencyBR(itemTotal)}`;
   }
 
+  function handleClientChange(nextClientId: string) {
+    setClientId(nextClientId);
+
+    const nextClient = clients.find((client) => client.id === nextClientId);
+
+    if (!nextClient?.primaryAddressId) {
+      setAddressId("");
+      return;
+    }
+
+    const primaryAddressExists = addresses.some((address) => address.id === nextClient.primaryAddressId && address.active);
+
+    setAddressId(primaryAddressExists ? nextClient.primaryAddressId : "");
+  }
+
   return (
-    <form className="form-stack" onSubmit={handleSubmit}>
-      <div className="form-section-title">
-        <span>Dados do pedido</span>
-        <small>O preço do produto no pedido é negociável e não altera o cadastro do produto.</small>
-      </div>
+    <form className="order-form-v2" onSubmit={handleSubmit}>
+      <div className="order-form-columns">
+        {/* Dados do pedido */}
+        <section className="order-form-column">
+          <div className="form-section-title">
+            <span>Dados do pedido</span>
+            <small>Cliente, entrega e status.</small>
+          </div>
 
-      <div className="input-group">
-        <label>
-          Cliente
-          <select
-            value={clientId}
-            onChange={(event) => {
-              setClientId(event.target.value);
-              setAddressId("");
-            }}
-          >
-            <option value="">Selecione um cliente</option>
+          <div className="input-group single-column">
+            <label>
+              Cliente
+              <select value={clientId} onChange={(event) => handleClientChange(event.target.value)}>
+                <option value="">Selecione um cliente</option>
 
-            {activeClients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
-          </select>
-        </label>
+                {activeClients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label>
-          Endereço de entrega
-          <select value={addressId} onChange={(event) => setAddressId(event.target.value)}>
-            <option value="">Sem endereço definido</option>
+            <label>
+              Endereço de entrega
+              <select value={addressId} onChange={(event) => setAddressId(event.target.value)}>
+                <option value="">Sem endereço definido</option>
 
-            {activeAddresses.map((address) => (
-              <option key={address.id} value={address.id}>
-                {formatAddressLabel(address)}
-              </option>
-            ))}
-          </select>
-        </label>
+                {activeAddresses.map((address) => (
+                  <option key={address.id} value={address.id}>
+                    {formatAddressLabel(address)}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <label>
-          Data e hora da entrega
-          <input type="datetime-local" value={deliveryDateTime} onChange={(event) => setDeliveryDateTime(event.target.value)} />
-        </label>
+            <label>
+              Data e hora da entrega
+              <input type="datetime-local" value={deliveryDateTime} onChange={(event) => setDeliveryDateTime(event.target.value)} />
+            </label>
 
-        <label>
-          Status do pedido
-          <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value as OrderStatus)}>
-            <option value="active">Ativo</option>
-            <option value="completed">Concluído</option>
-            <option value="cancelled">Cancelado</option>
-          </select>
-        </label>
-      </div>
+            <label>
+              Status do pedido
+              <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value as OrderStatus)}>
+                <option value="active">Ativo</option>
+                <option value="completed">Concluído</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
+            </label>
+          </div>
+        </section>
 
-      <div className="order-form-items">
-        <div className="form-section-title">
-          <span>Itens do pedido</span>
-        </div>
+        {/* Itens do pedido */}
+        <section className="order-form-column order-form-items-column">
+          <div className="form-section-title">
+            <span>Itens do pedido</span>
+            <small>Produtos, quantidades e preços negociados.</small>
+          </div>
 
-        {items.map((item, index) => {
-          const expanded = expandedItemId === item.id;
-          const itemTotal = getItemTotal(item);
-          return (
-            <div className={expanded ? "order-item-form-card expanded" : "order-item-form-card"} key={item.id}>
-              {" "}
-              <div className="order-item-summary-row">
-                {" "}
-                <button type="button" className="order-item-summary-button" onClick={() => setExpandedItemId((currentId) => (currentId === item.id ? null : item.id))}>
-                  {" "}
-                  <span>{getItemSummary(item, index)}</span> <small>{expanded ? "Recolher" : "Editar"}</small>{" "}
-                </button>{" "}
-                <button type="button" className="text-link compact-link" onClick={() => removeItem(item.id)} disabled={items.length === 1}>
-                  {" "}
-                  Remover{" "}
-                </button>{" "}
-              </div>{" "}
-              {expanded && (
-                <div className="order-item-editor">
-                  {" "}
-                  <div className="input-group">
-                    {" "}
-                    <label>
-                      {" "}
-                      Produto{" "}
-                      <select value={item.productId} onChange={(event) => handleProductChange(item.id, event.target.value)}>
-                        {" "}
-                        <option value="">Selecione um produto</option>{" "}
-                        {activeProducts.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {" "}
-                            {product.name} {product.categoryLabel ? ` · ${product.categoryLabel}` : ""}{" "}
-                          </option>
-                        ))}{" "}
-                      </select>{" "}
-                    </label>{" "}
-                    <label>
-                      {" "}
-                      Quantidade <input value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Ex: 1" />{" "}
-                    </label>{" "}
-                    <label>
-                      {" "}
-                      Preço negociado <input value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="Ex: 80,00" />{" "}
-                    </label>{" "}
-                  </div>{" "}
-                  <label className="textarea-field">
-                    {" "}
-                    Observação do item{" "}
-                    <textarea
-                      value={item.notes}
-                      onChange={(event) => updateItem(item.id, { notes: event.target.value })}
-                      placeholder="Ex: sem cobertura, escrever nome, massa branca..."
-                      rows={2}
-                    />{" "}
-                  </label>{" "}
-                  <div className="order-item-footer">
-                    {" "}
-                    <span>
-                      {" "}
-                      Total do item: <strong>{formatCurrencyBR(itemTotal)}</strong>{" "}
-                    </span>{" "}
-                    <Button type="button" variant="ghost" onClick={() => setExpandedItemId(null)} disabled={!item.productId}>
-                      {" "}
-                      Concluir item{" "}
-                    </Button>{" "}
-                  </div>{" "}
-                </div>
-              )}{" "}
+          <div className="order-form-items-scroll">
+            <div className="order-form-items">
+              {items.map((item, index) => {
+                const expanded = expandedItemId === item.id;
+                const itemTotal = getItemTotal(item);
+
+                return (
+                  <div className={expanded ? "order-item-form-card expanded" : "order-item-form-card"} key={item.id}>
+                    <div className="order-item-summary-row">
+                      <button type="button" className="order-item-summary-button" onClick={() => setExpandedItemId((currentId) => (currentId === item.id ? null : item.id))}>
+                        <span>{getItemSummary(item, index)}</span>
+                        <small>{expanded ? "Recolher" : "Editar"}</small>
+                      </button>
+
+                      <button type="button" className="text-link compact-link" onClick={() => removeItem(item.id)} disabled={items.length === 1}>
+                        Remover
+                      </button>
+                    </div>
+
+                    {expanded && (
+                      <div className="order-item-editor">
+                        <div className="input-group single-column">
+                          <label>
+                            Produto
+                            <select value={item.productId} onChange={(event) => handleProductChange(item.id, event.target.value)}>
+                              <option value="">Selecione um produto</option>
+
+                              {activeProducts.map((product) => (
+                                <option key={product.id} value={product.id}>
+                                  {product.name}
+                                  {product.categoryLabel ? ` · ${product.categoryLabel}` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+
+                          <label>
+                            Quantidade
+                            <input value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Ex: 1" />
+                          </label>
+
+                          <label>
+                            Preço negociado
+                            <input value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="Ex: 80,00" />
+                          </label>
+                        </div>
+
+                        <label className="textarea-field">
+                          Observação do item
+                          <textarea
+                            value={item.notes}
+                            onChange={(event) => updateItem(item.id, { notes: event.target.value })}
+                            placeholder="Ex: sem cobertura, escrever nome, massa branca..."
+                            rows={2}
+                          />
+                        </label>
+
+                        <div className="order-item-footer">
+                          <span>
+                            Total do item: <strong>{formatCurrencyBR(itemTotal)}</strong>
+                          </span>
+
+                          <Button type="button" variant="ghost" onClick={() => setExpandedItemId(null)} disabled={!item.productId}>
+                            Concluir item
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {activeProducts.length === 0 && <p className="muted-text">Nenhum produto ativo cadastrado. Cadastre produtos antes de registrar pedidos.</p>}
             </div>
-          );
-        })}
+          </div>
 
-        <Button type="button" variant="ghost" onClick={addItem}>
-          + Adicionar item
-        </Button>
+          <Button type="button" variant="ghost" onClick={addItem}>
+            + Adicionar item
+          </Button>
+        </section>
+
+        {/* Taxa, pago, resumo e observações */}
+        <section className="order-form-column order-form-payment-column">
+          <div className="form-section-title">
+            <span>Pagamento</span>
+            <small>Controle de sinal, entrega, crédito e combinados.</small>
+          </div>
+
+          <div className="order-payment-fields">
+            <label>
+              Taxa de entrega
+              <input value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} placeholder="Ex: 10,00" />
+            </label>
+
+            <label>
+              Valor pago
+              <input value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} placeholder="Ex: 50,00" />
+            </label>
+          </div>
+
+          <div className={["order-balance-card", balanceInfo.type].join(" ")}>
+            <span>{balanceInfo.label}</span>
+
+            <strong>{formatCurrencyBR(balanceInfo.amount)}</strong>
+
+            {balanceInfo.type === "credit" && <small>Valor recebido a mais para abater em pedido futuro.</small>}
+          </div>
+
+          <div className="order-summary-box order-summary-box-compact">
+            <span>Subtotal: {formatCurrencyBR(subtotal)}</span>
+            <span>Entrega: {formatCurrencyBR(parsedDeliveryFee)}</span>
+            <span>Pago: {formatCurrencyBR(parsedAmountPaid)}</span>
+            <strong>Total: {formatCurrencyBR(total)}</strong>
+          </div>
+
+          <label className="textarea-field order-notes-field">
+            Observações do pedido
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes gerais, combinados, horários, forma de pagamento..." rows={6} />
+          </label>
+        </section>
       </div>
 
-      <div className="input-group">
-        <label>
-          Taxa de entrega
-          <input value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} placeholder="Ex: 10,00" />
-        </label>
-
-        <label>
-          Valor pago
-          <input value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} placeholder="Ex: 50,00" />
-        </label>
-      </div>
-
-      <div className="order-summary-box">
-        <span>Subtotal: {formatCurrencyBR(subtotal)}</span>
-        <span>Entrega: {formatCurrencyBR(parsedDeliveryFee)}</span>
-        <strong>Total: {formatCurrencyBR(total)}</strong>
-        <span>Restante: {formatCurrencyBR(remaining)}</span>
-      </div>
-
-      <label className="textarea-field">
-        Observações do pedido
-        <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes gerais, combinados, horários, forma de pagamento..." rows={4} />
-      </label>
-
-      {activeProducts.length === 0 && <p className="muted-text">Nenhum produto ativo cadastrado. Cadastre produtos antes de registrar pedidos.</p>}
-
-      <div className="form-actions split-actions">
+      <div className="order-form-footer">
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancelar
         </Button>

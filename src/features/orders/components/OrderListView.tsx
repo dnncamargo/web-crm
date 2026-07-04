@@ -3,6 +3,7 @@ import { formatCurrencyBR } from "../../../utils/money";
 import type { Order } from "../orderTypes";
 import {
   formatDateTimeBR,
+  getOrderBalanceInfo,
   // getOrderStatusLabel,
   // getPaymentStatus,
   // getPaymentStatusLabel,
@@ -13,23 +14,15 @@ interface OrderListViewProps {
   onRequestViewOrder: (order: Order) => void;
 }
 
-export function OrderListView({
-  orders,
-  onRequestViewOrder,
-}: OrderListViewProps) {
+export function OrderListView({ orders, onRequestViewOrder }: OrderListViewProps) {
   return (
     <div className="order-list-view">
       {orders.map((order) => {
         // const paymentStatus = getPaymentStatus(order);
-        const remaining = Math.max(order.total - order.amountPaid, 0);
+        const balanceInfo = getOrderBalanceInfo(order);
 
         return (
-          <button
-            type="button"
-            className="order-list-row"
-            key={order.id}
-            onClick={() => onRequestViewOrder(order)}
-          >
+          <button type="button" className="order-list-row" key={order.id} onClick={() => onRequestViewOrder(order)}>
             <div className="order-list-main">
               <strong>{order.clientName}</strong>
               <span>{formatDateTimeBR(order.deliveryDateTime)}</span>
@@ -48,7 +41,9 @@ export function OrderListView({
 
             <div className="order-list-values">
               <strong>{formatCurrencyBR(order.total)}</strong>
-              <span>Restante: {formatCurrencyBR(remaining)}</span>
+              <span>
+                {balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}
+              </span>
             </div>
           </button>
         );

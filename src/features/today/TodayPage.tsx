@@ -79,6 +79,7 @@ export function TodayPage() {
       })
       .slice(0, 8);
   }, [filteredClients, todayKey]);
+  
   const loading = loadingOrders || loadingClients || loadingTasks;
   return (
     <div className="page-stack">

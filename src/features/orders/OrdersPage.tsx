@@ -25,7 +25,7 @@ type OrderPaymentFilter = "all" | "unpaid" | "partial" | "paid";
 type OrderSortMode = "deliveryDateTime" | "clientName" | "total";
 
 export function OrdersPage() {
-  const { filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders();
+  const { orders, filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders();
 
   const { filteredClients, loading: loadingClients, error: clientsError } = useClients();
 
@@ -38,6 +38,8 @@ export function OrdersPage() {
   const [paymentFilter, setPaymentFilter] = useState<OrderPaymentFilter>("all");
   const [sortBy, setSortBy] = useState<OrderSortMode>("deliveryDateTime");
   const [stackedEditOrder, setStackedEditOrder] = useState<Order | null>(null);
+  const [orderFormIsDirty, setOrderFormIsDirty] = useState(false);
+  const [stackedOrderFormIsDirty, setStackedOrderFormIsDirty] = useState(false);
 
   const activeProducts = useMemo(() => products.filter((product) => product.active), [products]);
 
@@ -78,6 +80,34 @@ export function OrdersPage() {
   function closePanel() {
     setPanel(null);
     setStackedEditOrder(null);
+    setOrderFormIsDirty(false);
+  }
+
+  function requestCloseOrderFormPanel() {
+    if (!orderFormIsDirty) {
+      closePanel();
+      return;
+    }
+
+    const shouldClose = window.confirm("Você tem informações não salvas neste pedido. Deseja fechar mesmo assim?");
+
+    if (shouldClose) {
+      closePanel();
+    }
+  }
+
+  function requestCloseStackedOrderFormPanel() {
+    if (!stackedOrderFormIsDirty) {
+      setStackedEditOrder(null);
+      return;
+    }
+
+    const shouldClose = window.confirm("Você tem alterações não salvas neste pedido. Deseja fechar mesmo assim?");
+
+    if (shouldClose) {
+      setStackedEditOrder(null);
+      setStackedOrderFormIsDirty(false);
+    }
   }
 
   async function handleCreateOrder(data: NewOrderData) {
@@ -117,9 +147,7 @@ export function OrdersPage() {
     setStackedEditOrder(selectedOrder);
   }
 
-  function closeStackedEditPanel() {
-    setStackedEditOrder(null);
-  }
+  const mainPanelSize = panel?.type === "view-order" && stackedEditOrder ? "fullscreen" : panel?.type === "view-order" ? "wide" : "fullscreen";
 
   return (
     <div className="page-stack">
@@ -132,7 +160,6 @@ export function OrdersPage() {
           </Button>
         }
       />
-
       <Card>
         <div className="toolbar order-toolbar">
           <input className="local-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por cliente, produto, endereço ou observação..." />
@@ -171,16 +198,12 @@ export function OrdersPage() {
           </button>
         </div>
       </Card>
-
       {loadingOrders && <p className="muted-text">Carregando pedidos...</p>}
-
       {loadingDependencies && <p className="muted-text">Carregando clientes e produtos...</p>}
-
       {ordersError && <p className="error-text">{ordersError}</p>}
       {clientsError && <p className="error-text">{clientsError}</p>}
       {addressesError && <p className="error-text">{addressesError}</p>}
       {productsError && <p className="error-text">{productsError}</p>}
-
       {!loadingOrders && visibleOrders.length === 0 && (
         <Card>
           <div className="empty-state">
@@ -189,7 +212,6 @@ export function OrdersPage() {
           </div>
         </Card>
       )}
-
       {viewMode === "cards" && (
         <div className="cards-grid">
           {visibleOrders.map((order) => (
@@ -197,44 +219,71 @@ export function OrdersPage() {
           ))}
         </div>
       )}
-
       {viewMode === "list" && <OrderListView orders={visibleOrders} onRequestViewOrder={openViewOrder} />}
-
       {viewMode === "calendar" && <OrderCalendarView orders={calendarOrders} onRequestEditOrder={openViewOrder} />}
-
       <SlidePanel
         open={panel !== null}
-        size={panel?.type === "view-order" ? "wide" : "normal"}
         level={1}
+        size={mainPanelSize}
+        closeOnBackdrop={panel?.type === "view-order"}
         title={panel?.type === "edit-order" ? "Editar pedido" : panel?.type === "view-order" ? "Detalhes do pedido" : "Adicionar pedido"}
         description={
           panel?.type === "edit-order"
             ? "Atualize os dados deste pedido."
             : panel?.type === "view-order"
               ? "Consulte as informações completas antes de editar."
-              : "Registre um novo pedido com entrega, itens e pagamento."
+              : "Registre um novo pedido com dados, itens e pagamento."
         }
-        onClose={closePanel}
+        onClose={panel?.type === "view-order" ? closePanel : requestCloseOrderFormPanel}
       >
+        {" "}
         {panel?.type === "view-order" && <OrderDetailsPanelContent order={panel.order} onEdit={() => openStackedEditOrder(panel.order)} />}
-        {panel?.type === "create-order" && <OrderForm clients={filteredClients} addresses={activeAddresses} products={activeProducts} onCancel={closePanel} onSave={handleCreateOrder} />}
-
+        {panel?.type === "create-order" && (
+          <OrderForm
+            orders={orders}
+            clients={filteredClients}
+            addresses={activeAddresses}
+            products={activeProducts}
+            onCancel={requestCloseOrderFormPanel}
+            onSave={handleCreateOrder}
+            onDirtyChange={setOrderFormIsDirty}
+          />
+        )}
         {panel?.type === "edit-order" && (
-          <OrderForm order={panel.order} clients={filteredClients} addresses={activeAddresses} products={activeProducts} onCancel={closePanel} onSave={handleEditOrder} />
+          <OrderForm
+            order={panel.order}
+            orders={orders}
+            clients={filteredClients}
+            addresses={activeAddresses}
+            products={activeProducts}
+            onCancel={requestCloseOrderFormPanel}
+            onSave={handleEditOrder}
+            onDirtyChange={setOrderFormIsDirty}
+          />
         )}
       </SlidePanel>
       <SlidePanel
         open={stackedEditOrder !== null}
         level={2}
-        size="normal"
+        size="fullscreen"
+        closeOnBackdrop={false}
         title="Editar pedido"
         description="Edite este pedido mantendo os detalhes visíveis ao fundo."
-        onClose={closeStackedEditPanel}
+        onClose={requestCloseStackedOrderFormPanel}
       >
         {stackedEditOrder && (
-          <OrderForm order={stackedEditOrder} clients={filteredClients} addresses={activeAddresses} products={activeProducts} onCancel={closeStackedEditPanel} onSave={handleStackedEditOrder} />
+          <OrderForm
+            order={stackedEditOrder}
+            orders={orders}
+            clients={filteredClients}
+            addresses={activeAddresses}
+            products={activeProducts}
+            onCancel={requestCloseStackedOrderFormPanel}
+            onSave={handleStackedEditOrder}
+            onDirtyChange={setStackedOrderFormIsDirty}
+          />
         )}
-      </SlidePanel>
+      </SlidePanel>{" "}
     </div>
   );
 }

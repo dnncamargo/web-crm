@@ -6,8 +6,9 @@ interface SlidePanelProps {
   description?: string;
   children: ReactNode;
   onClose: () => void;
-  level?: 1 | 2;
-  size?: "normal" | "wide";
+  level?: 1 | 2 | 3;
+  size?: "normal" | "wide" | "fullscreen";
+  closeOnBackdrop?: boolean;
 }
 
 export function SlidePanel({
@@ -18,9 +19,18 @@ export function SlidePanel({
   onClose,
   level = 1,
   size = "normal",
+  closeOnBackdrop = true,
 }: SlidePanelProps) {
   if (!open) {
     return null;
+  }
+
+  function handleBackdropClick() {
+    if (!closeOnBackdrop) {
+      return;
+    }
+
+    onClose();
   }
 
   return (
@@ -29,18 +39,24 @@ export function SlidePanel({
         type="button"
         className={`slide-panel-backdrop slide-panel-backdrop-level-${level}`}
         aria-label="Fechar painel"
-        onClick={onClose}
+        onClick={handleBackdropClick}
       />
 
       <aside
-        className={`slide-panel slide-panel-${size} slide-panel-level-${level}`}
+        className={[
+          "slide-panel",
+          `slide-panel-${size}`,
+          `slide-panel-level-${level}`,
+        ]
+          .filter(Boolean)
+          .join(" ")}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={`slidePanelTitle${level}`}
+        aria-labelledby={`slidePanelTitle-${level}`}
       >
         <header className="slide-panel-header">
           <div>
-            <h2 id={`slidePanelTitle${level}`}>{title}</h2>
+            <h2 id={`slidePanelTitle-${level}`}>{title}</h2>
             {description && <p>{description}</p>}
           </div>
 

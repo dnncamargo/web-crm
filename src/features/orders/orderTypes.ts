@@ -45,6 +45,9 @@ export interface Order {
   total: number;
   amountPaid: number;
 
+  creditApplied?: number | null;
+  creditGenerated?: number | null;
+
   orderStatus: OrderStatus;
 
   notes?: string;
@@ -62,7 +65,6 @@ export interface NewOrderData {
   addressSnapshot?: OrderAddressSnapshot | null;
 
   deliveryDateTime: string;
-
   items: OrderItem[];
 
   subtotal: number;
@@ -70,8 +72,10 @@ export interface NewOrderData {
   total: number;
   amountPaid: number;
 
-  orderStatus: OrderStatus;
+  creditApplied?: number | null;
+  creditGenerated?: number | null;
 
+  orderStatus: OrderStatus;
   notes?: string;
   tagIds: string[];
 }

@@ -2,24 +2,18 @@ import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { formatCurrencyBR } from "../../../utils/money";
 import type { Order } from "../orderTypes";
-import {
-  formatDateTimeBR,
-  getOrderStatusLabel,
-  getPaymentStatus,
-  getPaymentStatusLabel,
-} from "../orderUtils";
+import { formatDateTimeBR, getOrderStatusLabel, getPaymentStatus, getOrderBalanceInfo, getPaymentStatusLabel } from "../orderUtils";
 
 interface OrderDetailsPanelContentProps {
   order: Order;
   onEdit: () => void;
 }
 
-export function OrderDetailsPanelContent({
-  order,
-  onEdit,
-}: OrderDetailsPanelContentProps) {
+export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelContentProps) {
   const paymentStatus = getPaymentStatus(order);
-  const remaining = Math.max(order.total - order.amountPaid, 0);
+  const balanceInfo = getOrderBalanceInfo(order);
+  const creditApplied = order.creditApplied ?? 0;
+  const creditGenerated = order.creditGenerated ?? 0;
 
   return (
     <div className="order-details-panel">
@@ -58,15 +52,61 @@ export function OrderDetailsPanelContent({
 
       <section className="detail-section">
         <div className="form-section-title">
+          <span>Pagamento</span>
+          <small>Resumo financeiro deste pedido.</small>
+        </div>
+
+        <div className="order-details-financial">
+          <div>
+            <span>Subtotal</span>
+            <strong>{formatCurrencyBR(order.subtotal)}</strong>
+          </div>
+
+          <div>
+            <span>Entrega</span>
+            <strong>{formatCurrencyBR(order.deliveryFee)}</strong>
+          </div>
+
+          <div>
+            <span>Total do pedido</span>
+            <strong>{formatCurrencyBR(order.total)}</strong>
+          </div>
+
+          <div>
+            <span>Recebido agora</span>
+            <strong>{formatCurrencyBR(order.amountPaid)}</strong>
+          </div>
+
+          {creditApplied > 0 && (
+            <div className="credit-detail-row applied">
+              <span>Crédito aplicado automaticamente</span>
+              <strong>{formatCurrencyBR(creditApplied)}</strong>
+            </div>
+          )}
+
+          {creditGenerated > 0 && (
+            <div className="credit-detail-row generated">
+              <span>Crédito gerado para pedidos futuros</span>
+              <strong>{formatCurrencyBR(creditGenerated)}</strong>
+            </div>
+          )}
+
+          <div className={`credit-detail-row ${balanceInfo.type}`}>
+            <span>{balanceInfo.label}</span>
+            <strong>{formatCurrencyBR(balanceInfo.amount)}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="detail-section">
+        <div className="form-section-title">
           <span>Itens</span>
         </div>
 
         <div className="subtle-list">
           {order.items.map((item) => (
             <small key={item.id}>
-              {item.quantity} × {item.productName} ·{" "}
-              {formatCurrencyBR(item.unitPrice)} cada ·{" "}
-              <strong>{formatCurrencyBR(item.total)}</strong>
+              {item.quantity} × {item.productName} · {formatCurrencyBR(item.unitPrice)} cada · <strong>{formatCurrencyBR(item.total)}</strong>
             </small>
           ))}
         </div>
@@ -82,7 +122,10 @@ export function OrderDetailsPanelContent({
           <span>Entrega: {formatCurrencyBR(order.deliveryFee)}</span>
           <strong>Total: {formatCurrencyBR(order.total)}</strong>
           <span>Pago: {formatCurrencyBR(order.amountPaid)}</span>
-          <span>Restante: {formatCurrencyBR(remaining)}</span>
+          <span>
+            {balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}
+          </span>
+          {balanceInfo.type === "credit" && <Badge>{`Crédito ${formatCurrencyBR(balanceInfo.amount)}`}</Badge>}
         </div>
       </section>
 
@@ -96,26 +139,14 @@ export function OrderDetailsPanelContent({
             <span>{order.addressSnapshot.label}</span>
             <p>
               {order.addressSnapshot.street}
-              {order.addressSnapshot.number
-                ? `, ${order.addressSnapshot.number}`
-                : ""}
-              {order.addressSnapshot.complement
-                ? ` · ${order.addressSnapshot.complement}`
-                : ""}
-              {order.addressSnapshot.neighborhood
-                ? ` · ${order.addressSnapshot.neighborhood}`
-                : ""}
-              {order.addressSnapshot.city
-                ? ` · ${order.addressSnapshot.city}`
-                : ""}
-              {order.addressSnapshot.state
-                ? `/${order.addressSnapshot.state}`
-                : ""}
+              {order.addressSnapshot.number ? `, ${order.addressSnapshot.number}` : ""}
+              {order.addressSnapshot.complement ? ` · ${order.addressSnapshot.complement}` : ""}
+              {order.addressSnapshot.neighborhood ? ` · ${order.addressSnapshot.neighborhood}` : ""}
+              {order.addressSnapshot.city ? ` · ${order.addressSnapshot.city}` : ""}
+              {order.addressSnapshot.state ? `/${order.addressSnapshot.state}` : ""}
             </p>
 
-            {order.addressSnapshot.reference && (
-              <p>{order.addressSnapshot.reference}</p>
-            )}
+            {order.addressSnapshot.reference && <p>{order.addressSnapshot.reference}</p>}
           </div>
         </section>
       )}
