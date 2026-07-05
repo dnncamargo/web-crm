@@ -93,15 +93,20 @@ textarea {
 }
 
 .brand-mark {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
+  width: 160px;
+  height: 60px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  display: block;
   border-radius: 14px;
   background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
-  letter-spacing: -0.03em;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
 }
 
 .brand strong {

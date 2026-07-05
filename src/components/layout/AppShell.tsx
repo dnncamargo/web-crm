@@ -49,12 +49,7 @@ export function AppShell() {
     const clientResults = clients
       .filter((client) => {
         const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
-        return [
-          client.name,
-          primaryContact?.value,
-          client.notes,
-          ...(client.tagIds ?? []),
-        ].some((value) => value && includesSearch(value, normalizedGlobalSearch));
+        return [client.name, primaryContact?.value, client.notes, ...(client.tagIds ?? [])].some((value) => value && includesSearch(value, normalizedGlobalSearch));
       })
       .slice(0, 6)
       .map((client) => ({
@@ -64,15 +59,7 @@ export function AppShell() {
       }));
 
     const productResults = products
-      .filter((product) =>
-        [
-          product.name,
-          product.categoryLabel,
-          product.unit,
-          product.notes,
-          ...(product.tagIds ?? []),
-        ].some((value) => value && includesSearch(value, normalizedGlobalSearch)),
-      )
+      .filter((product) => [product.name, product.categoryLabel, product.unit, product.notes, ...(product.tagIds ?? [])].some((value) => value && includesSearch(value, normalizedGlobalSearch)))
       .slice(0, 6)
       .map((product) => ({
         id: product.id,
@@ -100,9 +87,7 @@ export function AppShell() {
       }));
 
     const tagResults = tags
-      .filter((tag) =>
-        [tag.label, tag.slug, tag.entity, tag.group].some((value) => value && includesSearch(value, normalizedGlobalSearch)),
-      )
+      .filter((tag) => [tag.label, tag.slug, tag.entity, tag.group].some((value) => value && includesSearch(value, normalizedGlobalSearch)))
       .slice(0, 6)
       .map((tag) => ({
         id: tag.id,
@@ -124,23 +109,14 @@ export function AppShell() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">DDP</span>
-          <div>
-            <strong>Delícias do Porto</strong>
-            <small>CRM de encomendas</small>
+          <div className="brand-mark">
+            <img src="/brand/brand-mark.jpg" alt="Delícias do Porto" />
           </div>
         </div>
 
         <nav className="sidebar-nav" aria-label="Navegação principal">
           {navItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                isActive ? "nav-link active" : "nav-link"
-              }
-            >
+            <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
               {item.label}
             </NavLink>
           ))}
@@ -189,7 +165,6 @@ export function AppShell() {
               </div>
             )}
           </div>
-
         </header>
 
         <section className="content-area">
@@ -199,14 +174,7 @@ export function AppShell() {
 
       <nav className="mobile-nav" aria-label="Navegação mobile">
         {navItems.slice(0, 4).map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              isActive ? "mobile-nav-link active" : "mobile-nav-link"
-            }
-          >
+          <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? "mobile-nav-link active" : "mobile-nav-link")}>
             {item.label}
           </NavLink>
         ))}
