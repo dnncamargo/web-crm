@@ -62,74 +62,85 @@ export function ClientEditForm({ client, availableTags, onCancel, onSave }: Clie
 
   return (
     <form className="client-edit-form" onSubmit={handleSubmit}>
-      {" "}
-      <div className="form-section-title">
-        <span>Dados do cliente</span>
-      </div>{" "}
-      <div className="input-group">
-        {" "}
-        <label>
-          {" "}
-          Nome <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome do cliente" />{" "}
-        </label>{" "}
-        <label>
-          {" "}
-          Contato principal <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Telefone, WhatsApp, e-mail ou rede social" />{" "}
-        </label>{" "}
-        <label>
-          {" "}
-          Data de nascimento <input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} />{" "}
-        </label>{" "}
-        <label>
-          {" "}
-          Frequência de contato{" "}
-          <select value={contactFrequency} onChange={(event) => setContactFrequency(event.target.value as ContactFrequency)}>
-            {" "}
-            <option value="none">Sem frequência</option> <option value="weekly">Semanal</option> <option value="biweekly">Quinzenal</option> <option value="monthly">Mensal</option>{" "}
-          </select>{" "}
-        </label>{" "}
-      </div>{" "}
-      <div className="tag-picker">
-        <div className="form-section-title">
-          <span>Etiquetas do cliente</span>
-          <small>Use para restrições, preferências e marcações pesquisáveis.</small>
-        </div>
-
-        {availableTags.length ? (
-          <div className="selectable-chip-grid">
-            {availableTags.map((tag) => {
-              const selected = selectedTagIds.includes(tag.id);
-
-              return (
-                <button key={tag.id} type="button" className={selected ? "selectable-chip selected" : "selectable-chip"} aria-pressed={selected} onClick={() => toggleTag(tag.id)}>
-                  #{tag.label}
-                </button>
-              );
-            })}
+      <div className="form-two-columns">
+        <section className="form-column">
+          <div className="form-section-title">
+            <span>Dados do cliente</span>
           </div>
-        ) : (
-          <p className="muted-text">Nenhuma etiqueta de cliente cadastrada. Crie em Etiquetas usando entidade Cliente ou Global.</p>
-        )}
+
+          <div className="input-group">
+            <label>
+              Nome
+              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nome do cliente" />
+            </label>
+
+            <label>
+              Contato principal
+              <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Telefone, WhatsApp, e-mail ou rede social" />
+            </label>
+
+            <label>
+              Data de nascimento
+              <input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} />
+            </label>
+
+            <label>
+              Frequência de contato
+              <select value={contactFrequency} onChange={(event) => setContactFrequency(event.target.value as ContactFrequency)}>
+                <option value="none">Sem frequência</option>
+                <option value="weekly">Semanal</option>
+                <option value="biweekly">Quinzenal</option>
+                <option value="monthly">Mensal</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section className="form-column">
+          <div className="tag-picker">
+            <div className="form-section-title">
+              <span>Etiquetas do cliente</span>
+              <small>Use para restrições, preferências e marcações pesquisáveis.</small>
+            </div>
+
+            {availableTags.length ? (
+              <div className="selectable-chip-grid">
+                {availableTags.map((tag) => {
+                  const selected = selectedTagIds.includes(tag.id);
+
+                  return (
+                    <button key={tag.id} type="button" className={selected ? "selectable-chip selected" : "selectable-chip"} aria-pressed={selected} onClick={() => toggleTag(tag.id)}>
+                      #{tag.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="muted-text">Nenhuma etiqueta de cliente cadastrada. Crie em Etiquetas usando entidade Cliente ou Global.</p>
+            )}
+          </div>
+
+          <label className="textarea-field">
+            Anotações
+            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Preferências, observações ou detalhes importantes..." rows={7} />
+          </label>
+
+          <div className="switch-group">
+            <Switch label="Cliente ativo" checked={active} onChange={setActive} />
+            <Switch label="Favorito" checked={favorite} onChange={setFavorite} />
+          </div>
+        </section>
       </div>
-      <label className="textarea-field">
-        {" "}
-        Anotações <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Preferências, observações ou detalhes importantes..." rows={4} />{" "}
-      </label>{" "}
-      <div className="switch-group">
-        {" "}
-        <Switch label="Cliente ativo" checked={active} onChange={setActive} /> <Switch label="Favorito" checked={favorite} onChange={setFavorite} />{" "}
-      </div>{" "}
+
       <div className="form-actions split-actions">
-        {" "}
         <Button type="button" variant="ghost" onClick={onCancel}>
-          {" "}
-          Cancelar{" "}
-        </Button>{" "}
+          Cancelar
+        </Button>
+
         <Button type="submit" disabled={saving || !name.trim()}>
-          {" "}
-          {saving ? "Salvando..." : "Salvar alterações"}{" "}
-        </Button>{" "}
-      </div>{" "}
+          {saving ? "Salvando..." : "Salvar alterações"}
+        </Button>
+      </div>
     </form>
   );
 }
