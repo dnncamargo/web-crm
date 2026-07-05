@@ -7,13 +7,14 @@ import type { Product } from "../productTypes";
 
 interface ProductCardProps {
   product: Product;
+  onRequestViewProduct: (product: Product) => void;
   onRequestEditProduct: (product: Product) => void;
   onActiveChange: (product: Product, active: boolean) => Promise<void>;
 }
 
-export function ProductCard({ product, onRequestEditProduct, onActiveChange }: ProductCardProps) {
+export function ProductCard({ product, onRequestViewProduct, onRequestEditProduct, onActiveChange }: ProductCardProps) {
   return (
-    <Card className={!product.active ? "muted-card" : ""}>
+    <Card className={!product.active ? "muted-card clickable-card" : "clickable-card"} onClick={() => onRequestViewProduct(product)} role="button" tabIndex={0}>
       <div className="client-card-header">
         <div>
           <h2>{product.name}</h2>
@@ -46,16 +47,19 @@ export function ProductCard({ product, onRequestEditProduct, onActiveChange }: P
       )}
 
       <div className="card-actions">
-        <Button type="button" variant="secondary" onClick={() => onRequestEditProduct(product)}>
+        <Button type="button" variant="secondary" onClick={(event) => {
+          event.stopPropagation();
+          onRequestEditProduct(product);
+        }}>
           Editar produto
         </Button>
 
-        <Button type="button" variant="ghost">
+        <Button type="button" variant="ghost" onClick={(event) => event.stopPropagation()}>
           Usar em pedido
         </Button>
       </div>
 
-      <div className="card-footer">
+      <div className="card-footer" onClick={(event) => event.stopPropagation()}>
         <Switch label="Produto ativo" checked={product.active} onChange={(checked) => onActiveChange(product, checked)} />
       </div>
     </Card>

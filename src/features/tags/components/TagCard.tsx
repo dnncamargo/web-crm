@@ -1,12 +1,11 @@
 import { Badge } from "../../../components/ui/Badge";
-import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { Switch } from "../../../components/ui/Switch";
 import type { Tag, TagEntity } from "../tagTypes";
 
 interface TagCardProps {
   tag: Tag;
-  onRequestEditTag: (tag: Tag) => void;
+  onRequestViewTag: (tag: Tag) => void;
   onActiveChange: (tag: Tag, active: boolean) => Promise<void>;
 }
 
@@ -20,11 +19,11 @@ const entityLabels: Record<TagEntity, string> = {
 
 export function TagCard({
   tag,
-  onRequestEditTag,
+  onRequestViewTag,
   onActiveChange,
 }: TagCardProps) {
   return (
-    <Card className={!tag.active ? "muted-card" : ""}>
+    <Card className={!tag.active ? "muted-card clickable-card" : "clickable-card"} onClick={() => onRequestViewTag(tag)} role="button" tabIndex={0}>
       <div className="client-card-header">
         <div>
           <h2>{tag.label}</h2>
@@ -42,17 +41,7 @@ export function TagCard({
         <span>Grupo: {tag.group || "Sem grupo"}</span>
       </div>
 
-      <div className="card-actions">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onRequestEditTag(tag)}
-        >
-          Editar etiqueta
-        </Button>
-      </div>
-
-      <div className="card-footer">
+      <div className="card-footer" onClick={(event) => event.stopPropagation()}>
         <Switch
           label="Etiqueta ativa"
           checked={tag.active}

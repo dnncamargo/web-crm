@@ -25,15 +25,16 @@ type OrderPaymentFilter = "all" | "unpaid" | "partial" | "paid";
 type OrderSortMode = "deliveryDateTime" | "clientName" | "total";
 
 export function OrdersPage() {
-  const { orders, filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders();
+  const { orders, filteredOrders, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders();
 
   const { filteredClients, loading: loadingClients, error: clientsError } = useClients();
 
-  const { activeAddresses, addressesError } = useAddresses();
+  const { activeAddresses, addressesError, addAddress } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
 
   const [panel, setPanel] = useState<OrderPanelState>(null);
+  const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<OrderViewMode>("list");
   const [paymentFilter, setPaymentFilter] = useState<OrderPaymentFilter>("all");
   const [sortBy, setSortBy] = useState<OrderSortMode>("deliveryDateTime");
@@ -155,15 +156,20 @@ export function OrdersPage() {
         title="Pedidos"
         description="Registre pedidos com cliente, entrega, itens, pagamento e observações."
         action={
-          <Button type="button" variant="secondary" onClick={() => setPanel({ type: "create-order" })} disabled={loadingDependencies}>
-            + Pedido
-          </Button>
+          <div className="header-actions">
+            <button type="button" className={showFilters ? "round-filter-button active" : "round-filter-button"} onClick={() => setShowFilters((current) => !current)} aria-label="Filtros e ordenações">
+              F
+            </button>
+
+            <Button type="button" variant="secondary" onClick={() => setPanel({ type: "create-order" })} disabled={loadingDependencies}>
+              + Pedido
+            </Button>
+          </div>
         }
       />
+      {showFilters && (
       <Card>
         <div className="toolbar order-toolbar">
-          <input className="local-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por cliente, produto, endereço ou observação..." />
-
           <div className="segmented-control">
             <button type="button" className={viewMode === "cards" ? "active" : ""} onClick={() => setViewMode("cards")}>
               Cards
@@ -198,6 +204,7 @@ export function OrdersPage() {
           </button>
         </div>
       </Card>
+      )}
       {loadingOrders && <p className="muted-text">Carregando pedidos...</p>}
       {loadingDependencies && <p className="muted-text">Carregando clientes e produtos...</p>}
       {ordersError && <p className="error-text">{ordersError}</p>}
@@ -208,7 +215,7 @@ export function OrdersPage() {
         <Card>
           <div className="empty-state">
             <strong>Nenhum pedido encontrado.</strong>
-            <span>Cadastre o primeiro pedido ou ajuste a busca/filtros atuais.</span>
+            <span>Cadastre o primeiro pedido ou ajuste os filtros atuais.</span>
           </div>
         </Card>
       )}
@@ -246,6 +253,7 @@ export function OrdersPage() {
             products={activeProducts}
             onCancel={requestCloseOrderFormPanel}
             onSave={handleCreateOrder}
+            onCreateAddress={addAddress}
             onDirtyChange={setOrderFormIsDirty}
           />
         )}
@@ -258,6 +266,7 @@ export function OrdersPage() {
             products={activeProducts}
             onCancel={requestCloseOrderFormPanel}
             onSave={handleEditOrder}
+            onCreateAddress={addAddress}
             onDirtyChange={setOrderFormIsDirty}
           />
         )}
@@ -280,6 +289,7 @@ export function OrdersPage() {
             products={activeProducts}
             onCancel={requestCloseStackedOrderFormPanel}
             onSave={handleStackedEditOrder}
+            onCreateAddress={addAddress}
             onDirtyChange={setStackedOrderFormIsDirty}
           />
         )}

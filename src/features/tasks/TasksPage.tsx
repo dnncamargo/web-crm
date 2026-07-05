@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 
+import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -9,11 +10,12 @@ import { useTags } from "../tags/useTags";
 import { TaskCard } from "./components/TaskCard";
 import { TaskForm } from "./components/TaskForm";
 import type { NewTaskData, Task } from "./taskTypes";
+import { formatTaskDateBR, getSubtaskProgress, getTaskDueStatus, getTaskDueStatusLabel } from "./taskUtils";
 import { useTasks } from "./useTasks";
 
 type TaskPanelState =
   | { type: "create-task" }
-  | { type: "edit-task"; task: Task }
+  | { type: "view-task"; task: Task }
   | null;
 
 export function TasksPage() {
@@ -35,8 +37,6 @@ export function TasksPage() {
 
   const {
     filteredTasks,
-    search,
-    setSearch,
     showOnlyOpen,
     setShowOnlyOpen,
     loadingTasks,
@@ -53,11 +53,14 @@ export function TasksPage() {
   } = useClients();
 
   const [panel, setPanel] = useState<TaskPanelState>(null);
+  const [stackedEditTask, setStackedEditTask] = useState<Task | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const loadingDependencies = loadingClients;
 
   function closePanel() {
     setPanel(null);
+    setStackedEditTask(null);
   }
 
   async function handleCreateTask(data: NewTaskData) {
@@ -66,11 +69,11 @@ export function TasksPage() {
   }
 
   async function handleEditTask(data: NewTaskData) {
-    if (!panel || panel.type !== "edit-task") {
+    if (!stackedEditTask) {
       return;
     }
 
-    await editTask(panel.task.id, data);
+    await editTask(stackedEditTask.id, data);
     closePanel();
   }
 
@@ -80,27 +83,26 @@ export function TasksPage() {
         title="Tarefas"
         description="Organize lembretes, etapas, orçamentos e ações antes de virarem pedido."
         action={
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setPanel({ type: "create-task" })}
-            disabled={loadingDependencies}
-          >
-            + Tarefa
-          </Button>
+          <div className="header-actions">
+            <button type="button" className={showFilters ? "round-filter-button active" : "round-filter-button"} onClick={() => setShowFilters((current) => !current)} aria-label="Filtros">
+              F
+            </button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPanel({ type: "create-task" })}
+              disabled={loadingDependencies}
+            >
+              + Tarefa
+            </Button>
+          </div>
         }
       />
 
+      {showFilters && (
       <Card>
         <div className="toolbar">
-          <input
-            className="local-search"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar por tarefa, cliente, subtarefa ou etiqueta..."
-          />
-
           <button
             type="button"
             className={showOnlyOpen ? "filter-pill active" : "filter-pill"}
@@ -110,6 +112,7 @@ export function TasksPage() {
           </button>
         </div>
       </Card>
+      )}
 
       {loadingTasks && <p className="muted-text">Carregando tarefas...</p>}
 
@@ -138,9 +141,7 @@ export function TasksPage() {
             key={task.id}
             task={task}
             tagLabelsById={tagLabelsById}
-            onRequestEditTask={(selectedTask) =>
-              setPanel({ type: "edit-task", task: selectedTask })
-            }
+            onRequestViewTask={(selectedTask) => setPanel({ type: "view-task", task: selectedTask })}
             onDoneChange={setTaskDone}
           />
         ))}
@@ -148,14 +149,53 @@ export function TasksPage() {
 
       <SlidePanel
         open={panel !== null}
-        title={panel?.type === "edit-task" ? "Editar tarefa" : "Adicionar tarefa"}
+        size={panel?.type === "view-task" ? "wide" : "fullscreen"}
+        title={panel?.type === "view-task" ? "Detalhes da tarefa" : "Adicionar tarefa"}
         description={
-          panel?.type === "edit-task"
-            ? "Atualize esta tarefa."
+          panel?.type === "view-task"
+            ? "Consulte a tarefa antes de editar."
             : "Crie uma tarefa para acompanhar algo que precisa ser feito."
         }
         onClose={closePanel}
       >
+        {panel?.type === "view-task" && (() => {
+          const dueStatus = getTaskDueStatus(panel.task);
+          const progress = getSubtaskProgress(panel.task);
+
+          return (
+            <div className="detail-section">
+              <div className="details-grid">
+                <div className="detail-block"><span>Tarefa</span><strong>{panel.task.title}</strong></div>
+                <div className="detail-block"><span>Cliente</span><strong>{panel.task.clientName || "Sem cliente vinculado"}</strong></div>
+                <div className="detail-block"><span>Prazo</span><strong>{formatTaskDateBR(panel.task.dueDate)}</strong></div>
+                <div className="detail-block"><span>Status</span><strong>{getTaskDueStatusLabel(dueStatus)}</strong></div>
+              </div>
+
+              <div className="badge-row">
+                <Badge>{getTaskDueStatusLabel(dueStatus)}</Badge>
+                {panel.task.subtasks.length > 0 && <Badge>{`Etapas ${progress.label}`}</Badge>}
+              </div>
+
+              {panel.task.description && <div className="notes-preview"><span>Descrição</span><p>{panel.task.description}</p></div>}
+
+              <div className="subtle-list">
+                <span>Subtarefas</span>
+                {panel.task.subtasks.length ? (
+                  panel.task.subtasks.map((subtask) => <small key={subtask.id}>{subtask.done ? "Concluída · " : "Aberta · "}{subtask.title}</small>)
+                ) : (
+                  <small>Nenhuma subtarefa cadastrada</small>
+                )}
+              </div>
+
+              <div className="form-actions">
+                <Button type="button" variant="secondary" onClick={() => setStackedEditTask(panel.task)}>
+                  Editar
+                </Button>
+              </div>
+            </div>
+          );
+        })()}
+
         {panel?.type === "create-task" && (
           <TaskForm
             clients={filteredClients}
@@ -165,12 +205,22 @@ export function TasksPage() {
           />
         )}
 
-        {panel?.type === "edit-task" && (
+      </SlidePanel>
+
+      <SlidePanel
+        open={stackedEditTask !== null}
+        level={2}
+        size="fullscreen"
+        title="Editar tarefa"
+        description="Atualize esta tarefa mantendo os detalhes visíveis ao fundo."
+        onClose={() => setStackedEditTask(null)}
+      >
+        {stackedEditTask && (
           <TaskForm
-            task={panel.task}
+            task={stackedEditTask}
             clients={filteredClients}
             availableTags={taskTags}
-            onCancel={closePanel}
+            onCancel={() => setStackedEditTask(null)}
             onSave={handleEditTask}
           />
         )}

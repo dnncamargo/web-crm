@@ -65,7 +65,7 @@ export function ProductForm({
   }
 
   return (
-    <form className="form-stack" onSubmit={handleSubmit}>
+    <form className="form-stack product-form" onSubmit={handleSubmit}>
       <div className="form-section-title">
         <span>Dados do produto</span>
         <small>

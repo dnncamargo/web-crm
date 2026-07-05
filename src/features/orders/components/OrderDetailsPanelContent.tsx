@@ -2,7 +2,7 @@ import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { formatCurrencyBR } from "../../../utils/money";
 import type { Order } from "../orderTypes";
-import { formatDateTimeBR, getOrderStatusLabel, getPaymentStatus, getOrderBalanceInfo, getPaymentStatusLabel } from "../orderUtils";
+import { formatDateTimeBR, getOrderBalanceInfo, getOrderStatusLabel, getPaymentStatus, getPaymentStatusLabel } from "../orderUtils";
 
 interface OrderDetailsPanelContentProps {
   order: Order;
@@ -14,6 +14,7 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
   const balanceInfo = getOrderBalanceInfo(order);
   const creditApplied = order.creditApplied ?? 0;
   const creditGenerated = order.creditGenerated ?? 0;
+  const effectivePaid = order.amountPaid + creditApplied;
 
   return (
     <div className="order-details-panel">
@@ -47,6 +48,7 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
         <div className="badge-row">
           <Badge>{getOrderStatusLabel(order.orderStatus)}</Badge>
           <Badge>{getPaymentStatusLabel(paymentStatus)}</Badge>
+          {creditGenerated > 0 && <Badge>{`Crédito ${formatCurrencyBR(creditGenerated)}`}</Badge>}
         </div>
       </section>
 
@@ -58,7 +60,7 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
 
         <div className="order-details-financial">
           <div>
-            <span>Subtotal</span>
+            <span>Produtos</span>
             <strong>{formatCurrencyBR(order.subtotal)}</strong>
           </div>
 
@@ -73,23 +75,21 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
           </div>
 
           <div>
-            <span>Recebido agora</span>
+            <span>Pago pelo cliente</span>
             <strong>{formatCurrencyBR(order.amountPaid)}</strong>
           </div>
 
           {creditApplied > 0 && (
             <div className="credit-detail-row applied">
-              <span>Crédito aplicado automaticamente</span>
+              <span>Crédito aplicado</span>
               <strong>{formatCurrencyBR(creditApplied)}</strong>
             </div>
           )}
 
-          {creditGenerated > 0 && (
-            <div className="credit-detail-row generated">
-              <span>Crédito gerado para pedidos futuros</span>
-              <strong>{formatCurrencyBR(creditGenerated)}</strong>
-            </div>
-          )}
+          <div>
+            <span>Total pago considerado</span>
+            <strong>{formatCurrencyBR(effectivePaid)}</strong>
+          </div>
 
           <div className={`credit-detail-row ${balanceInfo.type}`}>
             <span>{balanceInfo.label}</span>
@@ -109,23 +109,6 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
               {item.quantity} × {item.productName} · {formatCurrencyBR(item.unitPrice)} cada · <strong>{formatCurrencyBR(item.total)}</strong>
             </small>
           ))}
-        </div>
-      </section>
-
-      <section className="detail-section">
-        <div className="form-section-title">
-          <span>Valores</span>
-        </div>
-
-        <div className="order-summary-box">
-          <span>Subtotal: {formatCurrencyBR(order.subtotal)}</span>
-          <span>Entrega: {formatCurrencyBR(order.deliveryFee)}</span>
-          <strong>Total: {formatCurrencyBR(order.total)}</strong>
-          <span>Pago: {formatCurrencyBR(order.amountPaid)}</span>
-          <span>
-            {balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}
-          </span>
-          {balanceInfo.type === "credit" && <Badge>{`Crédito ${formatCurrencyBR(balanceInfo.amount)}`}</Badge>}
         </div>
       </section>
 

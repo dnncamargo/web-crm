@@ -1,24 +1,31 @@
 import { useState } from "react";
 
+import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { SlidePanel } from "../../components/ui/SlidePanel";
 import { TagCard } from "./components/TagCard";
 import { TagForm } from "./components/TagForm";
-import type { NewTagData, Tag } from "./tagTypes";
+import type { NewTagData, Tag, TagEntity } from "./tagTypes";
 import { useTags } from "./useTags";
 
 type TagPanelState =
   | { type: "create-tag" }
-  | { type: "edit-tag"; tag: Tag }
+  | { type: "view-tag"; tag: Tag }
   | null;
+
+const entityLabels: Record<TagEntity, string> = {
+  product: "Produto",
+  client: "Cliente",
+  order: "Pedido",
+  task: "Tarefa",
+  global: "Global",
+};
 
 export function TagsPage() {
   const {
     filteredTags,
-    search,
-    setSearch,
     showOnlyActive,
     setShowOnlyActive,
     loadingTags,
@@ -29,9 +36,12 @@ export function TagsPage() {
   } = useTags();
 
   const [panel, setPanel] = useState<TagPanelState>(null);
+  const [stackedEditTag, setStackedEditTag] = useState<Tag | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   function closePanel() {
     setPanel(null);
+    setStackedEditTag(null);
   }
 
   async function handleCreateTag(data: NewTagData) {
@@ -40,11 +50,11 @@ export function TagsPage() {
   }
 
   async function handleEditTag(data: NewTagData) {
-    if (!panel || panel.type !== "edit-tag") {
+    if (!stackedEditTag) {
       return;
     }
 
-    await editTag(panel.tag.id, data);
+    await editTag(stackedEditTag.id, data);
     closePanel();
   }
 
@@ -54,26 +64,25 @@ export function TagsPage() {
         title="Etiquetas"
         description="Personalize categorias, restrições e marcações pesquisáveis do sistema."
         action={
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => setPanel({ type: "create-tag" })}
-          >
-            + Etiqueta
-          </Button>
+          <div className="header-actions">
+            <button type="button" className={showFilters ? "round-filter-button active" : "round-filter-button"} onClick={() => setShowFilters((current) => !current)} aria-label="Filtros">
+              F
+            </button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPanel({ type: "create-tag" })}
+            >
+              + Etiqueta
+            </Button>
+          </div>
         }
       />
 
+      {showFilters && (
       <Card>
         <div className="toolbar">
-          <input
-            className="local-search"
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar etiqueta, entidade, grupo ou slug..."
-          />
-
           <button
             type="button"
             className={showOnlyActive ? "filter-pill active" : "filter-pill"}
@@ -83,6 +92,7 @@ export function TagsPage() {
           </button>
         </div>
       </Card>
+      )}
 
       {loadingTags && <p className="muted-text">Carregando etiquetas...</p>}
 
@@ -105,9 +115,7 @@ export function TagsPage() {
           <TagCard
             key={tag.id}
             tag={tag}
-            onRequestEditTag={(selectedTag) =>
-              setPanel({ type: "edit-tag", tag: selectedTag })
-            }
+            onRequestViewTag={(selectedTag) => setPanel({ type: "view-tag", tag: selectedTag })}
             onActiveChange={setTagActive}
           />
         ))}
@@ -115,22 +123,56 @@ export function TagsPage() {
 
       <SlidePanel
         open={panel !== null}
-        title={panel?.type === "edit-tag" ? "Editar etiqueta" : "Adicionar etiqueta"}
+        size={panel?.type === "view-tag" ? "wide" : "fullscreen"}
+        title={panel?.type === "view-tag" ? "Detalhes da etiqueta" : "Adicionar etiqueta"}
         description={
-          panel?.type === "edit-tag"
-            ? "Atualize esta etiqueta personalizada."
+          panel?.type === "view-tag"
+            ? "Consulte esta etiqueta antes de editar."
             : "Crie uma etiqueta pesquisável para produtos, clientes, pedidos ou tarefas."
         }
         onClose={closePanel}
       >
+        {panel?.type === "view-tag" && (
+          <div className="detail-section">
+            <div className="details-grid">
+              <div className="detail-block"><span>Etiqueta</span><strong>{panel.tag.label}</strong></div>
+              <div className="detail-block"><span>Slug</span><strong>{panel.tag.slug}</strong></div>
+              <div className="detail-block"><span>Entidade</span><strong>{entityLabels[panel.tag.entity]}</strong></div>
+              <div className="detail-block"><span>Grupo</span><strong>{panel.tag.group || "Sem grupo"}</strong></div>
+            </div>
+
+            <div className="badge-row">
+              <Badge>{panel.tag.active ? "Ativa" : "Inativa"}</Badge>
+              <Badge>{entityLabels[panel.tag.entity]}</Badge>
+              {panel.tag.group && <Badge>{panel.tag.group}</Badge>}
+            </div>
+
+            <div className="form-actions">
+              <Button type="button" variant="secondary" onClick={() => setStackedEditTag(panel.tag)}>
+                Editar
+              </Button>
+            </div>
+          </div>
+        )}
+
         {panel?.type === "create-tag" && (
           <TagForm onCancel={closePanel} onSave={handleCreateTag} />
         )}
 
-        {panel?.type === "edit-tag" && (
+      </SlidePanel>
+
+      <SlidePanel
+        open={stackedEditTag !== null}
+        level={2}
+        size="fullscreen"
+        title="Editar etiqueta"
+        description="Atualize esta etiqueta mantendo os detalhes visíveis ao fundo."
+        onClose={() => setStackedEditTag(null)}
+      >
+        {stackedEditTag && (
           <TagForm
-            tag={panel.tag}
-            onCancel={closePanel}
+            tag={stackedEditTag}
+            onCancel={() => setStackedEditTag(null)}
             onSave={handleEditTag}
           />
         )}

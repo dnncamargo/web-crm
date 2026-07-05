@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { getAutomaticCreditApplied, getClientAvailableCredit, getOrderBalanceInfo } from "../orderUtils";
 import { Button } from "../../../components/ui/Button";
+import { SlidePanel } from "../../../components/ui/SlidePanel";
 import { formatCurrencyBR, parseCurrencyInput } from "../../../utils/money";
-import type { Address } from "../../addresses/addressTypes";
+import type { Address, NewAddressData } from "../../addresses/addressTypes";
+import { AddressForm } from "../../addresses/components/AddressForm";
 import type { Client } from "../../clients/clientTypes";
 import type { Product } from "../../products/productTypes";
 import type { NewOrderData, Order, OrderItem, OrderStatus } from "../orderTypes";
@@ -24,6 +26,7 @@ interface OrderFormProps {
   products: Product[];
   onCancel: () => void;
   onSave: (data: NewOrderData) => Promise<void>;
+  onCreateAddress?: (data: NewAddressData) => Promise<{ id: string }>;
   onDirtyChange?: (dirty: boolean) => void;
 }
 
@@ -48,7 +51,7 @@ function formatAddressLabel(address: Address) {
   return `${owner}${address.label}: ${address.street}${number}${neighborhood}${city}`;
 }
 
-export function OrderForm({ order, orders, clients, addresses, products, onCancel, onSave, onDirtyChange }: OrderFormProps) {
+export function OrderForm({ order, orders, clients, addresses, products, onCancel, onSave, onCreateAddress, onDirtyChange }: OrderFormProps) {
   const [clientId, setClientId] = useState(order?.clientId ?? "");
   const [addressId, setAddressId] = useState(order?.addressId ?? "");
   const [deliveryDateTime, setDeliveryDateTime] = useState(order?.deliveryDateTime ?? "");
@@ -56,6 +59,7 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
   const [amountPaid, setAmountPaid] = useState(currencyToInput(order?.amountPaid ?? 0));
   const [orderStatus, setOrderStatus] = useState<OrderStatus>(order?.orderStatus ?? "active");
   const [notes, setNotes] = useState(order?.notes ?? "");
+  const [addressPanelMode, setAddressPanelMode] = useState<"choose" | "create" | null>(null);
   const [saving, setSaving] = useState(false);
 
   const initialItems: OrderFormItem[] = order?.items.length
@@ -111,6 +115,14 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
   const activeClients = useMemo(() => clients.filter((client) => client.active), [clients]);
 
   const activeAddresses = useMemo(() => addresses.filter((address) => address.active), [addresses]);
+
+  const selectableAddresses = useMemo(() => {
+    if (!clientId) {
+      return activeAddresses;
+    }
+
+    return activeAddresses.filter((address) => address.clientId === clientId);
+  }, [activeAddresses, clientId]);
 
   const activeProducts = useMemo(() => products.filter((product) => product.active), [products]);
 
@@ -271,7 +283,18 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
     setAddressId(primaryAddressExists ? nextClient.primaryAddressId : "");
   }
 
+  async function handleCreateAddress(data: NewAddressData) {
+    if (!onCreateAddress) {
+      return;
+    }
+
+    const createdAddress = await onCreateAddress(data);
+    setAddressId(createdAddress.id);
+    setAddressPanelMode(null);
+  }
+
   return (
+    <>
     <form className="order-form-v2" onSubmit={handleSubmit}>
       <div className="order-form-columns">
         {/* Dados do pedido */}
@@ -300,13 +323,23 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
               <select value={addressId} onChange={(event) => setAddressId(event.target.value)}>
                 <option value="">Sem endereço definido</option>
 
-                {activeAddresses.map((address) => (
+                {selectableAddresses.map((address) => (
                   <option key={address.id} value={address.id}>
                     {formatAddressLabel(address)}
                   </option>
                 ))}
               </select>
             </label>
+
+            <div className="inline-field-actions">
+              <Button type="button" variant="ghost" onClick={() => setAddressPanelMode("choose")}>
+                Escolher endereço
+              </Button>
+
+              <Button type="button" variant="ghost" onClick={() => setAddressPanelMode("create")} disabled={!selectedClient || !onCreateAddress}>
+                + Endereço
+              </Button>
+            </div>
 
             <label>
               Data e hora da entrega
@@ -431,18 +464,11 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
             </label>
           </div>
 
-          <div className={["order-balance-card", balanceInfo.type].join(" ")}>
-            <span>{balanceInfo.label}</span>
-
-            <strong>{formatCurrencyBR(balanceInfo.amount)}</strong>
-
-            {balanceInfo.type === "credit" && <small>Valor recebido a mais para abater em pedido futuro.</small>}
-          </div>
-
           <div className="order-summary-box order-summary-box-compact">
             <span>Subtotal: {formatCurrencyBR(subtotal)}</span>
             <span>Entrega: {formatCurrencyBR(parsedDeliveryFee)}</span>
             <span>Pago: {formatCurrencyBR(parsedAmountPaid)}</span>
+            <span>{balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}{balanceInfo.type === "credit"}</span>
             <strong>Total: {formatCurrencyBR(total)}</strong>
           </div>
 
@@ -463,5 +489,49 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
         </Button>
       </div>
     </form>
+    <SlidePanel
+      open={addressPanelMode !== null}
+      level={3}
+      size="normal"
+      title={addressPanelMode === "create" ? "Adicionar endereço" : "Escolher endereço"}
+      description={addressPanelMode === "create" ? "Cadastre um endereço para usar neste pedido." : "Selecione um endereço cadastrado ou deixe o pedido sem endereço."}
+      onClose={() => setAddressPanelMode(null)}
+    >
+      {addressPanelMode === "choose" && (
+        <div className="address-picker-panel">
+          <button
+            type="button"
+            className={!addressId ? "address-option selected" : "address-option"}
+            onClick={() => {
+              setAddressId("");
+              setAddressPanelMode(null);
+            }}
+          >
+            <strong>Sem endereço definido</strong>
+            <span>O pedido pode ser salvo sem endereço.</span>
+          </button>
+
+          {selectableAddresses.map((address) => (
+            <button
+              type="button"
+              className={address.id === addressId ? "address-option selected" : "address-option"}
+              key={address.id}
+              onClick={() => {
+                setAddressId(address.id);
+                setAddressPanelMode(null);
+              }}
+            >
+              <strong>{address.label}</strong>
+              <span>{formatAddressLabel(address)}</span>
+            </button>
+          ))}
+
+          {selectableAddresses.length === 0 && <p className="muted-text">Nenhum endereço cadastrado para este cliente.</p>}
+        </div>
+      )}
+
+      {addressPanelMode === "create" && selectedClient && onCreateAddress && <AddressForm client={selectedClient} onCancel={() => setAddressPanelMode(null)} onSave={handleCreateAddress} />}
+    </SlidePanel>
+    </>
   );
 }

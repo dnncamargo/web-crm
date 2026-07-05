@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
-interface CardProps {
+interface CardProps extends HTMLAttributes<HTMLElement> {
   children: ReactNode;
   className?: string;
 }
 
-export function Card({ children, className = "" }: CardProps) {
-  return <article className={`card ${className}`}>{children}</article>;
+export function Card({ children, className = "", ...props }: CardProps) {
+  return <article className={`card ${className}`} {...props}>{children}</article>;
 }

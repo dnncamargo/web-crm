@@ -1,5 +1,4 @@
 import { Badge } from "../../../components/ui/Badge";
-import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { Switch } from "../../../components/ui/Switch";
 import type { Task } from "../taskTypes";
@@ -13,14 +12,14 @@ import {
 interface TaskCardProps {
   task: Task;
   tagLabelsById: Record<string, string>;
-  onRequestEditTask: (task: Task) => void;
+  onRequestViewTask: (task: Task) => void;
   onDoneChange: (task: Task, done: boolean) => Promise<void>;
 }
 
 export function TaskCard({
   task,
   tagLabelsById,
-  onRequestEditTask,
+  onRequestViewTask,
   onDoneChange,
 }: TaskCardProps) {
   const dueStatus = getTaskDueStatus(task);
@@ -28,7 +27,7 @@ export function TaskCard({
   const visibleTags = task.tagIds.slice(0, 3);
 
   return (
-    <Card className={task.done ? "muted-card" : ""}>
+    <Card className={task.done ? "muted-card clickable-card" : "clickable-card"} onClick={() => onRequestViewTask(task)} role="button" tabIndex={0}>
       <div className="client-card-header">
         <div>
           <h2>{task.title}</h2>
@@ -74,17 +73,7 @@ export function TaskCard({
         </div>
       )}
 
-      <div className="card-actions">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => onRequestEditTask(task)}
-        >
-          Editar tarefa
-        </Button>
-      </div>
-
-      <div className="card-footer">
+      <div className="card-footer" onClick={(event) => event.stopPropagation()}>
         <Switch
           label={task.done ? "Tarefa concluída" : "Tarefa aberta"}
           checked={task.done}
