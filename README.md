@@ -1,4 +1,4 @@
-# Delícias do Porto
+# Sistema de Gestão de Clientes e Produção para Delícias do Porto
 
 Sistema Web de CRM e Gestão de Pedidos para padarias, confeitarias e pequenos negócios de alimentação.
 
@@ -8,7 +8,7 @@ Sistema Web de CRM e Gestão de Pedidos para padarias, confeitarias e pequenos n
 
 ## Sobre o projeto
 
-**Delícias do Porto** é um sistema web desenvolvido para centralizar o relacionamento com clientes, o gerenciamento de pedidos e a organização da produção de pequenas empresas de confeitaria e panificação.
+**web-crm (para Delícias do Porto)** é um sistema web desenvolvido para centralizar o relacionamento com clientes, o gerenciamento de pedidos e a organização da produção de pequenas empresas de confeitaria e panificação.
 
 O projeto nasceu da necessidade de substituir planilhas, anotações em papel e aplicativos de mensagens por um ambiente único, simples e rápido de utilizar durante a rotina de trabalho.
 
