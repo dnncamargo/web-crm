@@ -100,6 +100,7 @@ textarea {
   display: block;
   border-radius: 14px;
   background: var(--accent-soft);
+  
 }
 
 .brand-mark img {
@@ -107,6 +108,7 @@ textarea {
   height: 100%;
   display: block;
   object-fit: cover;
+  object-position: 50% 55%;
 }
 
 .brand strong {
@@ -3023,42 +3025,6 @@ css .order-item-form-card {
   }
 }
 
-@media (max-width: 860px) {
-  .task-form {
-    height: auto;
-    min-height: 100%;
-  }
-
-  .task-form-columns {
-    grid-template-columns: 1fr;
-  }
-
-  .task-form-column {
-    overflow: visible;
-  }
-
-  .task-form-column-scroll,
-  .task-subtasks-scroll {
-    overflow: visible;
-    padding-right: 0;
-  }
-
-  .task-tags-scroll {
-    max-height: none;
-    overflow: visible;
-    padding-right: 0;
-  }
-
-  .task-form-footer {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
-  }
-
-  .task-completion-row {
-    justify-content: stretch;
-  }
-}
 .task-form-v2 {
   height: 100%;
   min-height: 0;
@@ -3210,3 +3176,4 @@ css .order-item-form-card {
     z-index: 2;
   }
 }
+

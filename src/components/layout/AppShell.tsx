@@ -110,7 +110,7 @@ export function AppShell() {
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">
-            <img src="/brand/brand-mark.jpg" alt="Delícias do Porto" />
+            <img src="/brand/brand-mark.png" alt="Delícias do Porto" />
           </div>
         </div>
 
