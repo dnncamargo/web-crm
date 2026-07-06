@@ -61,7 +61,7 @@ export function ClientEditForm({ client, availableTags, onCancel, onSave }: Clie
   }
 
   return (
-    <form className="client-edit-form" onSubmit={handleSubmit}>
+    <form className="task-form-v2" onSubmit={handleSubmit}>
       <div className="form-two-columns">
         <section className="form-column">
           <div className="form-section-title">
@@ -94,52 +94,57 @@ export function ClientEditForm({ client, availableTags, onCancel, onSave }: Clie
               </select>
             </label>
           </div>
+          <div className="switch-group client-edit-switches">
+            <Switch label="Favorito" checked={favorite} onChange={setFavorite} />
+          </div>
         </section>
 
-        <section className="form-column">
-          <div className="tag-picker">
-            <div className="form-section-title">
-              <span>Etiquetas do cliente</span>
-              <small>Use para restrições, preferências e marcações pesquisáveis.</small>
+        <section className="form-column client-edit-secondary-column">
+          <div className="client-edit-scalable-area">
+            <div className="tag-picker client-edit-tags-panel">
+              <div className="form-section-title">
+                <span>Etiquetas do cliente</span>
+                <small>Use para restrições, preferências e marcações pesquisáveis.</small>
+              </div>
+
+              {availableTags.length ? (
+                <div className="selectable-chip-grid client-edit-tags-scroll">
+                  {availableTags.map((tag) => {
+                    const selected = selectedTagIds.includes(tag.id);
+
+                    return (
+                      <button key={tag.id} type="button" className={selected ? "selectable-chip selected" : "selectable-chip"} aria-pressed={selected} onClick={() => toggleTag(tag.id)}>
+                        #{tag.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="muted-text">Nenhuma etiqueta de cliente cadastrada. Crie em Etiquetas usando entidade Cliente ou Global.</p>
+              )}
             </div>
 
-            {availableTags.length ? (
-              <div className="selectable-chip-grid">
-                {availableTags.map((tag) => {
-                  const selected = selectedTagIds.includes(tag.id);
-
-                  return (
-                    <button key={tag.id} type="button" className={selected ? "selectable-chip selected" : "selectable-chip"} aria-pressed={selected} onClick={() => toggleTag(tag.id)}>
-                      #{tag.label}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="muted-text">Nenhuma etiqueta de cliente cadastrada. Crie em Etiquetas usando entidade Cliente ou Global.</p>
-            )}
-          </div>
-
-          <label className="textarea-field">
-            Anotações
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Preferências, observações ou detalhes importantes..." rows={7} />
-          </label>
-
-          <div className="switch-group">
-            <Switch label="Cliente ativo" checked={active} onChange={setActive} />
-            <Switch label="Favorito" checked={favorite} onChange={setFavorite} />
+            <label className="textarea-field client-edit-notes-panel">
+              Anotações
+              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Preferências, observações ou detalhes importantes..." rows={7} />
+            </label>
           </div>
         </section>
       </div>
 
-      <div className="form-actions split-actions">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancelar
-        </Button>
+      <div className="task-form-v2-footer">
+        <div className="task-form-v2-switch-row">
+          <Switch label="Cliente ativo" checked={active} onChange={setActive} />
+        </div>
+        <div className="form-actions split-actions">
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancelar
+          </Button>
 
-        <Button type="submit" disabled={saving || !name.trim()}>
-          {saving ? "Salvando..." : "Salvar alterações"}
-        </Button>
+          <Button type="submit" disabled={saving || !name.trim()}>
+            {saving ? "Salvando..." : "Salvar alterações"}
+          </Button>
+        </div>
       </div>
     </form>
   );

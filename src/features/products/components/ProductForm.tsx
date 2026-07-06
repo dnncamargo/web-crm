@@ -10,11 +10,12 @@ import type { NewProductData, Product } from "../productTypes";
 interface ProductFormProps {
   product?: Product;
   productCategories: Tag[];
+  availableTags: Tag[];
   onCancel: () => void;
   onSave: (data: NewProductData) => Promise<void>;
 }
 
-export function ProductForm({ product, productCategories, onCancel, onSave }: ProductFormProps) {
+export function ProductForm({ product, productCategories, availableTags, onCancel, onSave }: ProductFormProps) {
   const [name, setName] = useState(product?.name ?? "");
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
   const [unit, setUnit] = useState(product?.unit ?? "unidade");
@@ -22,6 +23,7 @@ export function ProductForm({ product, productCategories, onCancel, onSave }: Pr
   const [notes, setNotes] = useState(product?.notes ?? "");
   const [active, setActive] = useState(product?.active ?? true);
   const [saving, setSaving] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(product?.tagIds ?? []);
 
   const selectedCategory = productCategories.find((category) => category.id === categoryId);
 
@@ -43,7 +45,7 @@ export function ProductForm({ product, productCategories, onCancel, onSave }: Pr
       unit: unit.trim(),
       suggestedPrice: suggestedPrice.trim() ? parseCurrencyInput(suggestedPrice) : null,
       active,
-      tagIds: product?.tagIds ?? [],
+      tagIds: selectedTagIds,
       notes: notes.trim(),
     });
 
@@ -51,8 +53,12 @@ export function ProductForm({ product, productCategories, onCancel, onSave }: Pr
     onCancel();
   }
 
+  function toggleTag(tagId: string) {
+    setSelectedTagIds((currentTagIds) => (currentTagIds.includes(tagId) ? currentTagIds.filter((currentTagId) => currentTagId !== tagId) : [...currentTagIds, tagId]));
+  }
+
   return (
-    <form className="form-stack product-form" onSubmit={handleSubmit}>
+    <form className="task-form-v2" onSubmit={handleSubmit}>
       <div className="form-two-columns">
         <section className="form-column">
           <div className="form-section-title">
@@ -92,30 +98,58 @@ export function ProductForm({ product, productCategories, onCancel, onSave }: Pr
 
           {productCategories.length === 0 && <p className="muted-text">Nenhuma categoria de produto cadastrada. Crie etiquetas em Etiquetas → entidade Produto → grupo Categoria.</p>}
         </section>
-
-        <section className="form-column">
-          <div className="form-section-title">
-            <span>Observações</span>
-            <small>Detalhes internos sobre preparo, variações ou tamanhos.</small>
-          </div>
-
-          <label className="textarea-field">
-            Observações
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes sobre preparo, variações, tamanhos ou observações internas..." rows={8} />
-          </label>
-
-          <Switch label="Produto ativo" checked={active} onChange={setActive} />
-        </section>
+        <section className="form-column product-edit-secondary-column">
+          {" "}
+          <div className="product-edit-scalable-area">
+            {" "}
+            <div className="tag-picker product-edit-tags-panel">
+              {" "}
+              <div className="form-section-title">
+                {" "}
+                <span>Etiquetas do produto</span> <small>Use para rotulagem, alertas nutricionais e cuidados.</small>{" "}
+              </div>{" "}
+              {availableTags.length ? (
+                <div className="selectable-chip-grid product-edit-tags-scroll">
+                  {" "}
+                  {availableTags.map((tag) => {
+                    const selected = selectedTagIds.includes(tag.id);
+                    return (
+                      <button key={tag.id} type="button" className={selected ? "selectable-chip selected" : "selectable-chip"} aria-pressed={selected} onClick={() => toggleTag(tag.id)}>
+                        {" "}
+                        #{tag.label}{" "}
+                      </button>
+                    );
+                  })}{" "}
+                </div>
+              ) : (
+                <p className="muted-text"> Nenhuma etiqueta adicional de produto cadastrada. </p>
+              )}{" "}
+            </div>{" "}
+            <label className="textarea-field product-edit-notes-panel">
+              {" "}
+              <div className="form-section-title">
+                {" "}
+                <span>Observações</span> <small>Detalhes internos sobre preparo, variações ou tamanhos.</small>{" "}
+              </div>{" "}
+              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes sobre preparo, variações, tamanhos ou observações internas..." rows={8} />{" "}
+            </label>{" "}
+          </div>{" "}
+        </section>{" "}
       </div>
-      <div className="form-actions split-actions">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancelar
-        </Button>
+      <div className="task-form-v2-footer">
+        <div className="task-form-v2-switch-row">
+          <Switch label="Produto ativo" checked={active} onChange={setActive} />
+        </div>
+        <div className="form-actions split-actions task-form-v2-actions">
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancelar
+          </Button>
 
-        <Button type="submit" disabled={saving || !name.trim()}>
-          {saving ? "Salvando..." : "Salvar produto"}
-        </Button>
-      </div>{" "}
+          <Button type="submit" disabled={saving || !name.trim()}>
+            {saving ? "Salvando..." : "Salvar produto"}
+          </Button>
+        </div>
+      </div>
     </form>
   );
 }

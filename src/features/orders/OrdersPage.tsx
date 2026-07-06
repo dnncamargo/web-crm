@@ -7,6 +7,7 @@ import { SlidePanel } from "../../components/ui/SlidePanel";
 import { useAddresses } from "../addresses/useAddresses";
 import { useClients } from "../clients/useClients";
 import { useProducts } from "../products/useProducts";
+import { useTags } from "../tags/useTags";
 import { OrderCalendarView } from "./components/OrderCalendarView";
 import { OrderCard } from "./components/OrderCard";
 import { OrderForm } from "./components/OrderForm";
@@ -32,6 +33,7 @@ export function OrdersPage() {
   const { activeAddresses, addressesError, addAddress } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
+  const { activeTags } = useTags();
 
   const [panel, setPanel] = useState<OrderPanelState>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -43,6 +45,18 @@ export function OrdersPage() {
   const [stackedOrderFormIsDirty, setStackedOrderFormIsDirty] = useState(false);
 
   const activeProducts = useMemo(() => products.filter((product) => product.active), [products]);
+
+  const orderItemTags = useMemo(
+    () =>
+      activeTags.filter((tag) => {
+        const isAvailableForOrderItem = tag.entity === "product" || tag.entity === "order" || tag.entity === "global";
+
+        const isProductCategory = tag.entity === "product" && tag.group === "Categoria";
+
+        return isAvailableForOrderItem && !isProductCategory;
+      }),
+    [activeTags],
+  );
 
   const visibleOrders = useMemo(() => {
     const filteredByPayment = filteredOrders.filter((order) => {
@@ -157,7 +171,12 @@ export function OrdersPage() {
         description="Registre pedidos com cliente, entrega, itens, pagamento e observações."
         action={
           <div className="header-actions">
-            <button type="button" className={showFilters ? "round-filter-button active" : "round-filter-button"} onClick={() => setShowFilters((current) => !current)} aria-label="Filtros e ordenações">
+            <button
+              type="button"
+              className={showFilters ? "round-filter-button active" : "round-filter-button"}
+              onClick={() => setShowFilters((current) => !current)}
+              aria-label="Filtros e ordenações"
+            >
               F
             </button>
 
@@ -168,42 +187,42 @@ export function OrdersPage() {
         }
       />
       {showFilters && (
-      <Card>
-        <div className="toolbar order-toolbar">
-          <div className="segmented-control">
-            <button type="button" className={viewMode === "cards" ? "active" : ""} onClick={() => setViewMode("cards")}>
-              Cards
-            </button>
+        <Card>
+          <div className="toolbar order-toolbar">
+            <div className="segmented-control">
+              <button type="button" className={viewMode === "cards" ? "active" : ""} onClick={() => setViewMode("cards")}>
+                Cards
+              </button>
 
-            <button type="button" className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")}>
-              Lista
-            </button>
+              <button type="button" className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")}>
+                Lista
+              </button>
 
-            <button type="button" className={viewMode === "calendar" ? "active" : ""} onClick={() => setViewMode("calendar")}>
-              Calendário
+              <button type="button" className={viewMode === "calendar" ? "active" : ""} onClick={() => setViewMode("calendar")}>
+                Calendário
+              </button>
+            </div>
+
+            <select className="toolbar-select" value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value as OrderPaymentFilter)}>
+              <option value="all">Todos os pagamentos</option>
+              <option value="unpaid">A pagar</option>
+              <option value="partial">Parcial</option>
+              <option value="paid">Pago</option>
+            </select>
+
+            {viewMode !== "calendar" && (
+              <select className="toolbar-select" value={sortBy} onChange={(event) => setSortBy(event.target.value as OrderSortMode)}>
+                <option value="deliveryDateTime">Ordenar por entrega</option>
+                <option value="clientName">Ordenar por cliente</option>
+                <option value="total">Ordenar por valor</option>
+              </select>
+            )}
+
+            <button type="button" className={showOnlyActive ? "filter-pill active" : "filter-pill"} onClick={() => setShowOnlyActive(!showOnlyActive)}>
+              Ativos
             </button>
           </div>
-
-          <select className="toolbar-select" value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value as OrderPaymentFilter)}>
-            <option value="all">Todos os pagamentos</option>
-            <option value="unpaid">A pagar</option>
-            <option value="partial">Parcial</option>
-            <option value="paid">Pago</option>
-          </select>
-
-          {viewMode !== "calendar" && (
-            <select className="toolbar-select" value={sortBy} onChange={(event) => setSortBy(event.target.value as OrderSortMode)}>
-              <option value="deliveryDateTime">Ordenar por entrega</option>
-              <option value="clientName">Ordenar por cliente</option>
-              <option value="total">Ordenar por valor</option>
-            </select>
-          )}
-
-          <button type="button" className={showOnlyActive ? "filter-pill active" : "filter-pill"} onClick={() => setShowOnlyActive(!showOnlyActive)}>
-            Ativos
-          </button>
-        </div>
-      </Card>
+        </Card>
       )}
       {loadingOrders && <p className="muted-text">Carregando pedidos...</p>}
       {loadingDependencies && <p className="muted-text">Carregando clientes e produtos...</p>}
@@ -251,6 +270,7 @@ export function OrdersPage() {
             clients={filteredClients}
             addresses={activeAddresses}
             products={activeProducts}
+            itemTags={orderItemTags}
             onCancel={requestCloseOrderFormPanel}
             onSave={handleCreateOrder}
             onCreateAddress={addAddress}
@@ -264,6 +284,7 @@ export function OrdersPage() {
             clients={filteredClients}
             addresses={activeAddresses}
             products={activeProducts}
+            itemTags={orderItemTags}
             onCancel={requestCloseOrderFormPanel}
             onSave={handleEditOrder}
             onCreateAddress={addAddress}
@@ -287,6 +308,7 @@ export function OrdersPage() {
             clients={filteredClients}
             addresses={activeAddresses}
             products={activeProducts}
+            itemTags={orderItemTags}
             onCancel={requestCloseStackedOrderFormPanel}
             onSave={handleStackedEditOrder}
             onCreateAddress={addAddress}

@@ -18,9 +18,20 @@ export function ProductsPage() {
   const [panel, setPanel] = useState<ProductPanelState>(null);
   const [stackedEditProduct, setStackedEditProduct] = useState<Product | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const { getTagsByEntityAndGroup } = useTags();
+  const { activeTags, getTagsByEntityAndGroup } = useTags();
 
   const productCategories = getTagsByEntityAndGroup("product", "Categoria");
+
+  const productAvailableTags = useMemo(
+    () =>
+      activeTags.filter((tag) => {
+        const isProductTag = tag.entity === "product" || tag.entity === "global";
+        const isCategory = tag.group === "Categoria";
+
+        return isProductTag && !isCategory;
+      }),
+    [activeTags],
+  );
 
   function closePanel() {
     setPanel(null);
@@ -76,13 +87,13 @@ export function ProductsPage() {
       />
 
       {showFilters && (
-      <Card>
-        <div className="toolbar">
-          <button type="button" className={showOnlyActive ? "filter-pill active" : "filter-pill"} onClick={() => setShowOnlyActive(!showOnlyActive)}>
-            Ativos
-          </button>
-        </div>
-      </Card>
+        <Card>
+          <div className="toolbar">
+            <button type="button" className={showOnlyActive ? "filter-pill active" : "filter-pill"} onClick={() => setShowOnlyActive(!showOnlyActive)}>
+              Ativos
+            </button>
+          </div>
+        </Card>
       )}
 
       {loadingProducts && <p className="muted-text">Carregando produtos...</p>}
@@ -131,21 +142,46 @@ export function ProductsPage() {
         {panel?.type === "view-product" && (
           <div className="detail-section">
             <div className="details-grid">
-              <div className="detail-block"><span>Produto</span><strong>{panel.product.name}</strong></div>
-              <div className="detail-block"><span>Categoria</span><strong>{panel.product.categoryLabel || "Não definida"}</strong></div>
-              <div className="detail-block"><span>Unidade</span><strong>{panel.product.unit || "Não definida"}</strong></div>
-              <div className="detail-block"><span>Preço sugerido</span><strong>{panel.product.suggestedPrice ? `R$ ${panel.product.suggestedPrice.toFixed(2).replace(".", ",")}` : "Não informado"}</strong></div>
+              <div className="detail-block">
+                <span>Produto</span>
+                <strong>{panel.product.name}</strong>
+              </div>
+              <div className="detail-block">
+                <span>Categoria</span>
+                <strong>{panel.product.categoryLabel || "Não definida"}</strong>
+              </div>
+              <div className="detail-block">
+                <span>Unidade</span>
+                <strong>{panel.product.unit || "Não definida"}</strong>
+              </div>
+              <div className="detail-block">
+                <span>Preço sugerido</span>
+                <strong>{panel.product.suggestedPrice ? `R$ ${panel.product.suggestedPrice.toFixed(2).replace(".", ",")}` : "Não informado"}</strong>
+              </div>
             </div>
-            {panel.product.notes && <div className="notes-preview"><span>Observações</span><p>{panel.product.notes}</p></div>}
-            <div className="form-actions"><Button type="button" variant="secondary" onClick={() => setStackedEditProduct(panel.product)}>Editar</Button></div>
+            {panel.product.notes && (
+              <div className="notes-preview">
+                <span>Observações</span>
+                <p>{panel.product.notes}</p>
+              </div>
+            )}
+            <div className="form-actions">
+              <Button type="button" variant="secondary" onClick={() => setStackedEditProduct(panel.product)}>
+                Editar
+              </Button>
+            </div>
           </div>
         )}
 
-        {panel?.type === "create-product" && <ProductForm
-                                               productCategories={productCategories} 
-                                               onCancel={closePanel} 
-                                               onSave={handleCreateProduct} 
-                                            />}
+        {panel?.type === "create-product" 
+          && 
+          <ProductForm
+            productCategories={productCategories}
+            availableTags={productAvailableTags}
+            onCancel={closePanel}
+            onSave={handleCreateProduct}
+          />
+        }
       </SlidePanel>
       <SlidePanel
         open={stackedEditProduct !== null}
@@ -155,12 +191,15 @@ export function ProductsPage() {
         description="Atualize este produto mantendo os detalhes visíveis ao fundo."
         onClose={() => setStackedEditProduct(null)}
       >
-        {stackedEditProduct && <ProductForm
-          product={stackedEditProduct}
-          productCategories={productCategories}
-          onCancel={() => setStackedEditProduct(null)}
-          onSave={handleEditProduct}
-        />}
+        {stackedEditProduct && 
+          <ProductForm 
+            product={stackedEditProduct} 
+            productCategories={productCategories}   
+            availableTags={productAvailableTags}
+            onCancel={() => setStackedEditProduct(null)} 
+            onSave={handleEditProduct}
+          />
+        }
       </SlidePanel>
     </div>
   );

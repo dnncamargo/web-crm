@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 
 import { Button } from "../../../components/ui/Button";
 import { Switch } from "../../../components/ui/Switch";
 import type { NewTagData, Tag, TagEntity } from "../tagTypes";
 import { createSlug } from "../useTags";
+import {
+  entityLabels,
+  getDefaultTagGroup,
+  getTagGroupOptions,
+} from "../tagConfig";
 
 interface TagFormProps {
   tag?: Tag;
@@ -12,26 +17,52 @@ interface TagFormProps {
   onSave: (data: NewTagData) => Promise<void>;
 }
 
-const entityLabels: Record<TagEntity, string> = {
-  product: "Produto",
-  client: "Cliente",
-  order: "Pedido",
-  task: "Tarefa",
-  global: "Global",
-};
+const customGroupValue = "__custom__";
 
 export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
   const [label, setLabel] = useState(tag?.label ?? "");
   const [entity, setEntity] = useState<TagEntity>(tag?.entity ?? "product");
-  const [group, setGroup] = useState(tag?.group ?? "Categoria");
+  const [group, setGroup] = useState(tag?.group ?? getDefaultTagGroup(tag?.entity ?? "product"));
+  const [customGroup, setCustomGroup] = useState("");
   const [active, setActive] = useState(tag?.active ?? true);
   const [saving, setSaving] = useState(false);
+
+  const groupOptions = useMemo(() => getTagGroupOptions(entity), [entity]);
+
+  const groupIsCustom = Boolean(group) && !groupOptions.includes(group);
+
+  useEffect(() => {
+    if (tag) {
+      return;
+    }
+
+    setGroup(getDefaultTagGroup(entity));
+    setCustomGroup("");
+  }, [entity, tag]);
+
+  function handleEntityChange(nextEntity: TagEntity) {
+    setEntity(nextEntity);
+
+    if (!tag) {
+      setGroup(getDefaultTagGroup(nextEntity));
+      setCustomGroup("");
+      return;
+    }
+
+    const nextOptions = getTagGroupOptions(nextEntity);
+
+    if (!nextOptions.includes(group)) {
+      setGroup(getDefaultTagGroup(nextEntity));
+      setCustomGroup("");
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
     const trimmedLabel = label.trim();
-    const trimmedGroup = group.trim();
+    const finalGroup =
+      group === customGroupValue ? customGroup.trim() : group.trim();
 
     if (!trimmedLabel) {
       return;
@@ -43,7 +74,7 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
       label: trimmedLabel,
       slug: createSlug(trimmedLabel),
       entity,
-      group: trimmedGroup || undefined,
+      group: finalGroup || undefined,
       active,
     });
 
@@ -52,11 +83,11 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
   }
 
   return (
-    <form className="form-stack" onSubmit={handleSubmit}>
+    <form className="form-stack tag-form" onSubmit={handleSubmit}>
       <div className="form-section-title">
         <span>Dados da etiqueta</span>
         <small>
-          Use etiquetas para categorizar, pesquisar e personalizar informações.
+          Escolha onde esta etiqueta será usada e em qual grupo ela aparecerá.
         </small>
       </div>
 
@@ -66,7 +97,7 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
           <input
             value={label}
             onChange={(event) => setLabel(event.target.value)}
-            placeholder="Ex: Doce, Salgado, Sem lactose..."
+            placeholder="Ex: Contém lactose, Bolo, Urgente..."
           />
         </label>
 
@@ -74,7 +105,9 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
           Entidade
           <select
             value={entity}
-            onChange={(event) => setEntity(event.target.value as TagEntity)}
+            onChange={(event) =>
+              handleEntityChange(event.target.value as TagEntity)
+            }
           >
             {Object.entries(entityLabels).map(([value, text]) => (
               <option key={value} value={value}>
@@ -86,12 +119,45 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
 
         <label>
           Grupo
-          <input
-            value={group}
-            onChange={(event) => setGroup(event.target.value)}
-            placeholder="Ex: Categoria, Restrição, Preferência..."
-          />
+          <select
+            value={groupIsCustom ? customGroupValue : group}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+
+              setGroup(nextValue);
+
+              if (nextValue !== customGroupValue) {
+                setCustomGroup("");
+              }
+            }}
+          >
+            {groupOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+
+            <option value={customGroupValue}>Outro grupo...</option>
+          </select>
         </label>
+
+        {(group === customGroupValue || groupIsCustom) && (
+          <label>
+            Novo grupo
+            <input
+              value={groupIsCustom ? group : customGroup}
+              onChange={(event) => {
+                if (groupIsCustom) {
+                  setGroup(event.target.value);
+                  return;
+                }
+
+                setCustomGroup(event.target.value);
+              }}
+              placeholder="Ex: Sazonal, Conservação, Evento..."
+            />
+          </label>
+        )}
       </div>
 
       <Switch label="Etiqueta ativa" checked={active} onChange={setActive} />

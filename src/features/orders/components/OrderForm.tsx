@@ -9,6 +9,7 @@ import { AddressForm } from "../../addresses/components/AddressForm";
 import type { Client } from "../../clients/clientTypes";
 import type { Product } from "../../products/productTypes";
 import type { NewOrderData, Order, OrderItem, OrderStatus } from "../orderTypes";
+import type { Tag } from "../../tags/tagTypes";
 
 interface OrderFormItem {
   id: string;
@@ -16,6 +17,9 @@ interface OrderFormItem {
   quantity: string;
   unitPrice: string;
   notes: string;
+  tagIds: string[];
+  showNotes: boolean;
+  showTags: boolean;
 }
 
 interface OrderFormProps {
@@ -24,6 +28,7 @@ interface OrderFormProps {
   clients: Client[];
   addresses: Address[];
   products: Product[];
+  itemTags?: Tag[];
   onCancel: () => void;
   onSave: (data: NewOrderData) => Promise<void>;
   onCreateAddress?: (data: NewAddressData) => Promise<{ id: string }>;
@@ -51,7 +56,7 @@ function formatAddressLabel(address: Address) {
   return `${owner}${address.label}: ${address.street}${number}${neighborhood}${city}`;
 }
 
-export function OrderForm({ order, orders, clients, addresses, products, onCancel, onSave, onCreateAddress, onDirtyChange }: OrderFormProps) {
+export function OrderForm({ order, orders, clients, addresses, products, itemTags = [], onCancel, onSave, onCreateAddress, onDirtyChange }: OrderFormProps) {
   const [clientId, setClientId] = useState(order?.clientId ?? "");
   const [addressId, setAddressId] = useState(order?.addressId ?? "");
   const [deliveryDateTime, setDeliveryDateTime] = useState(order?.deliveryDateTime ?? "");
@@ -69,6 +74,9 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
         quantity: String(item.quantity),
         unitPrice: currencyToInput(item.unitPrice),
         notes: item.notes ?? "",
+        tagIds: item.tagIds ?? [],
+        showNotes: Boolean(item.notes),
+        showTags: Boolean(item.tagIds?.length),
       }))
     : [
         {
@@ -77,6 +85,9 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
           quantity: "1",
           unitPrice: "",
           notes: "",
+          tagIds: [],
+          showNotes: false,
+          showTags: false,
         },
       ];
   const [items, setItems] = useState<OrderFormItem[]>(initialItems);
@@ -142,7 +153,8 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
         quantity: Number.isFinite(quantity) ? quantity : 0,
         unitPrice,
         total: (Number.isFinite(quantity) ? quantity : 0) * unitPrice,
-        notes: item.notes.trim(),
+        notes: item.showNotes ? item.notes.trim() : "",
+        tagIds: item.showTags ? item.tagIds : [],
       };
     })
     .filter((item) => item.productId && item.productName && item.quantity > 0);
@@ -177,8 +189,57 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
     });
   }
 
+  function toggleItemTag(itemId: string, tagId: string) {
+    setItems((currentItems) =>
+      currentItems.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+
+        const tagIds = item.tagIds.includes(tagId) ? item.tagIds.filter((currentTagId) => currentTagId !== tagId) : [...item.tagIds, tagId];
+
+        return {
+          ...item,
+          tagIds,
+        };
+      }),
+    );
+  }
+
+  function showItemTags(itemId: string) {
+    updateItem(itemId, { showTags: true });
+  }
+
+  function removeItemTags(itemId: string) {
+    updateItem(itemId, {
+      showTags: false,
+      tagIds: [],
+    });
+  }
+
+  function showItemNotes(itemId: string) {
+    updateItem(itemId, { showNotes: true });
+  }
+
+  function removeItemNotes(itemId: string) {
+    updateItem(itemId, {
+      showNotes: false,
+      notes: "",
+    });
+  }
+
   function addItem() {
-    const newItem: OrderFormItem = { id: crypto.randomUUID(), productId: "", quantity: "1", unitPrice: "", notes: "" };
+    const newItem: OrderFormItem = {
+      id: crypto.randomUUID(),
+      productId: "",
+      quantity: "1",
+      unitPrice: "",
+      notes: "",
+      tagIds: [],
+      showNotes: false,
+      showTags: false,
+    };
+
     setItems((currentItems) => [...currentItems, newItem]);
     setExpandedItemId(newItem.id);
   }
@@ -295,243 +356,311 @@ export function OrderForm({ order, orders, clients, addresses, products, onCance
 
   return (
     <>
-    <form className="order-form-v2" onSubmit={handleSubmit}>
-      <div className="order-form-columns">
-        {/* Dados do pedido */}
-        <section className="order-form-column">
-          <div className="form-section-title">
-            <span>Dados do pedido</span>
-            <small>Cliente, entrega e status.</small>
-          </div>
-
-          <div className="input-group single-column">
-            <label>
-              Cliente
-              <select value={clientId} onChange={(event) => handleClientChange(event.target.value)}>
-                <option value="">Selecione um cliente</option>
-
-                {activeClients.map((client) => (
-                  <option key={client.id} value={client.id}>
-                    {client.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Endereço de entrega
-              <select value={addressId} onChange={(event) => setAddressId(event.target.value)}>
-                <option value="">Sem endereço definido</option>
-
-                {selectableAddresses.map((address) => (
-                  <option key={address.id} value={address.id}>
-                    {formatAddressLabel(address)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <div className="inline-field-actions">
-              <Button type="button" variant="ghost" onClick={() => setAddressPanelMode("choose")}>
-                Escolher endereço
-              </Button>
-
-              <Button type="button" variant="ghost" onClick={() => setAddressPanelMode("create")} disabled={!selectedClient || !onCreateAddress}>
-                + Endereço
-              </Button>
+      <form className="order-form-v2" onSubmit={handleSubmit}>
+        <div className="order-form-columns">
+          {/* Dados do pedido */}
+          <section className="order-form-column">
+            <div className="form-section-title">
+              <span>Dados do pedido</span>
+              <small>Cliente, entrega e status.</small>
             </div>
 
-            <label>
-              Data e hora da entrega
-              <input type="datetime-local" value={deliveryDateTime} onChange={(event) => setDeliveryDateTime(event.target.value)} />
-            </label>
+            <div className="input-group single-column">
+              <label>
+                Cliente
+                <select value={clientId} onChange={(event) => handleClientChange(event.target.value)}>
+                  <option value="">Selecione um cliente</option>
 
-            <label>
-              Status do pedido
-              <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value as OrderStatus)}>
-                <option value="active">Ativo</option>
-                <option value="completed">Concluído</option>
-                <option value="cancelled">Cancelado</option>
-              </select>
-            </label>
-          </div>
-        </section>
+                  {activeClients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-        {/* Itens do pedido */}
-        <section className="order-form-column order-form-items-column">
-          <div className="form-section-title">
-            <span>Itens do pedido</span>
-            <small>Produtos, quantidades e preços negociados.</small>
-          </div>
+              <label>
+                Endereço de entrega
+                <select value={addressId} onChange={(event) => setAddressId(event.target.value)}>
+                  <option value="">Sem endereço definido</option>
 
-          <div className="order-form-items-scroll">
-            <div className="order-form-items">
-              {items.map((item, index) => {
-                const expanded = expandedItemId === item.id;
-                const itemTotal = getItemTotal(item);
+                  {selectableAddresses.map((address) => (
+                    <option key={address.id} value={address.id}>
+                      {formatAddressLabel(address)}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-                return (
-                  <div className={expanded ? "order-item-form-card expanded" : "order-item-form-card"} key={item.id}>
-                    <div className="order-item-summary-row">
-                      <button type="button" className="order-item-summary-button" onClick={() => setExpandedItemId((currentId) => (currentId === item.id ? null : item.id))}>
-                        <span>{getItemSummary(item, index)}</span>
-                        <small>{expanded ? "Recolher" : "Editar"}</small>
-                      </button>
+              <div className="inline-field-actions">
+                <Button type="button" variant="ghost" onClick={() => setAddressPanelMode("choose")}>
+                  Escolher endereço
+                </Button>
 
-                      <button type="button" className="text-link compact-link" onClick={() => removeItem(item.id)} disabled={items.length === 1}>
-                        Remover
-                      </button>
-                    </div>
+                <Button type="button" variant="ghost" onClick={() => setAddressPanelMode("create")} disabled={!selectedClient || !onCreateAddress}>
+                  + Endereço
+                </Button>
+              </div>
 
-                    {expanded && (
-                      <div className="order-item-editor">
-                        <div className="input-group single-column">
-                          <label>
-                            Produto
-                            <select value={item.productId} onChange={(event) => handleProductChange(item.id, event.target.value)}>
-                              <option value="">Selecione um produto</option>
+              <label>
+                Data e hora da entrega
+                <input type="datetime-local" value={deliveryDateTime} onChange={(event) => setDeliveryDateTime(event.target.value)} />
+              </label>
 
-                              {activeProducts.map((product) => (
-                                <option key={product.id} value={product.id}>
-                                  {product.name}
-                                  {product.categoryLabel ? ` · ${product.categoryLabel}` : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
+              <label>
+                Status do pedido
+                <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value as OrderStatus)}>
+                  <option value="active">Ativo</option>
+                  <option value="completed">Concluído</option>
+                  <option value="cancelled">Cancelado</option>
+                </select>
+              </label>
+            </div>
+          </section>
 
-                          <label>
-                            Quantidade
-                            <input value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Ex: 1" />
-                          </label>
+          {/* Itens do pedido */}
+          <section className="order-form-column order-form-items-column">
+            <div className="form-section-title">
+              <span>Itens do pedido</span>
+              <small>Produtos, quantidades e preços negociados.</small>
+            </div>
 
-                          <label>
-                            Preço negociado
-                            <input value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="Ex: 80,00" />
-                          </label>
-                        </div>
+            <div className="order-form-items-scroll">
+              <div className="order-form-items">
+                {items.map((item, index) => {
+                  const expanded = expandedItemId === item.id;
+                  const itemTotal = getItemTotal(item);
 
-                        <label className="textarea-field">
-                          Observação do item
-                          <textarea
-                            value={item.notes}
-                            onChange={(event) => updateItem(item.id, { notes: event.target.value })}
-                            placeholder="Ex: sem cobertura, escrever nome, massa branca..."
-                            rows={2}
-                          />
-                        </label>
+                  return (
+                    <div className={expanded ? "order-item-form-card expanded" : "order-item-form-card"} key={item.id}>
+                      <div className="order-item-summary-row">
+                        <button type="button" className="order-item-summary-button" onClick={() => setExpandedItemId((currentId) => (currentId === item.id ? null : item.id))}>
+                          <span>{getItemSummary(item, index)}</span>
+                          <small>{expanded ? "Recolher" : "Editar"}</small>
+                        </button>
 
-                        <div className="order-item-footer">
-                          <span>
-                            Total do item: <strong>{formatCurrencyBR(itemTotal)}</strong>
-                          </span>
-
-                          <Button type="button" variant="ghost" onClick={() => setExpandedItemId(null)} disabled={!item.productId}>
-                            Concluir item
-                          </Button>
-                        </div>
+                        <button type="button" className="text-link compact-link" onClick={() => removeItem(item.id)} disabled={items.length === 1}>
+                          Remover
+                        </button>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
 
-              {activeProducts.length === 0 && <p className="muted-text">Nenhum produto ativo cadastrado. Cadastre produtos antes de registrar pedidos.</p>}
+                      {expanded && (
+                        <div className="order-item-editor">
+                          <div className="input-group single-column">
+                            <label>
+                              Produto
+                              <select value={item.productId} onChange={(event) => handleProductChange(item.id, event.target.value)}>
+                                <option value="">Selecione um produto</option>
+
+                                {activeProducts.map((product) => (
+                                  <option key={product.id} value={product.id}>
+                                    {product.name}
+                                    {product.categoryLabel ? ` · ${product.categoryLabel}` : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            <label>
+                              Quantidade
+                              <input value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Ex: 1" />
+                            </label>
+
+                            <label>
+                              Preço negociado
+                              <input value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="Ex: 80,00" />
+                            </label>
+                          </div>
+
+                          <div className="order-item-extra-actions">
+                            {!item.showTags && (
+                              <Button type="button" variant="ghost" onClick={() => showItemTags(item.id)}>
+                                + Adicionar etiquetas
+                              </Button>
+                            )}
+
+                            {!item.showNotes && (
+                              <Button type="button" variant="ghost" onClick={() => showItemNotes(item.id)}>
+                                + Adicionar comentário
+                              </Button>
+                            )}
+                          </div>
+
+                          {item.showTags && (
+                            <div className="order-item-optional-field">
+                              <header>
+                                <div>
+                                  <strong>Etiquetas do item</strong>
+                                  <span>Use para cuidados, alertas ou detalhes específicos.</span>
+                                </div>
+
+                                <button type="button" className="text-link compact-link" onClick={() => removeItemTags(item.id)}>
+                                  Remover
+                                </button>
+                              </header>
+
+                              {itemTags.length > 0 ? (
+                                <div className="selectable-chip-grid order-item-tags-grid">
+                                  {itemTags.map((tag) => {
+                                    const selected = item.tagIds.includes(tag.id);
+
+                                    return (
+                                      <button
+                                        key={tag.id}
+                                        type="button"
+                                        className={selected ? "selectable-chip selected" : "selectable-chip"}
+                                        aria-pressed={selected}
+                                        onClick={() => toggleItemTag(item.id, tag.id)}
+                                      >
+                                        #{tag.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="muted-text">Nenhuma etiqueta disponível para itens de pedido.</p>
+                              )}
+                            </div>
+                          )}
+
+                          {item.showNotes && (
+                            <div className="order-item-optional-field">
+                              <header>
+                                <div>
+                                  <strong>Comentário do item</strong>
+                                  <span>Use para observações específicas deste produto.</span>
+                                </div>
+
+                                <button type="button" className="text-link compact-link" onClick={() => removeItemNotes(item.id)}>
+                                  Remover
+                                </button>
+                              </header>
+
+                              <label className="textarea-field">
+                                <textarea
+                                  value={item.notes}
+                                  onChange={(event) => updateItem(item.id, { notes: event.target.value })}
+                                  placeholder="Ex: sem cobertura, escrever nome, massa branca..."
+                                  rows={3}
+                                />
+                              </label>
+                            </div>
+                          )}
+
+                          <div className="order-item-footer">
+                            <span>
+                              Total do item: <strong>{formatCurrencyBR(itemTotal)}</strong>
+                            </span>
+
+                            <Button type="button" variant="ghost" onClick={() => setExpandedItemId(null)} disabled={!item.productId}>
+                              Concluir item
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {activeProducts.length === 0 && <p className="muted-text">Nenhum produto ativo cadastrado. Cadastre produtos antes de registrar pedidos.</p>}
+              </div>
             </div>
-          </div>
 
-          <Button type="button" variant="ghost" onClick={addItem}>
-            + Adicionar item
+            <Button type="button" variant="ghost" onClick={addItem}>
+              + Adicionar item
+            </Button>
+          </section>
+
+          {/* Taxa, pago, resumo e observações */}
+          <section className="order-form-column order-form-payment-column">
+            <div className="form-section-title">
+              <span>Pagamento</span>
+              <small>Controle de sinal, entrega, crédito e combinados.</small>
+            </div>
+
+            <div className="order-payment-fields">
+              <label>
+                Taxa de entrega
+                <input value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} placeholder="Ex: 10,00" />
+              </label>
+
+              <label>
+                Valor pago
+                <input value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} placeholder="Ex: 50,00" />
+              </label>
+            </div>
+
+            <div className="order-summary-box order-summary-box-compact">
+              <span>Subtotal: {formatCurrencyBR(subtotal)}</span>
+              <span>Entrega: {formatCurrencyBR(parsedDeliveryFee)}</span>
+              <span>Pago: {formatCurrencyBR(parsedAmountPaid)}</span>
+              <span>
+                {balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}
+                {balanceInfo.type === "credit"}
+              </span>
+              <strong>Total: {formatCurrencyBR(total)}</strong>
+            </div>
+
+            <label className="textarea-field order-notes-field">
+              Observações do pedido
+              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes gerais, combinados, horários, forma de pagamento..." rows={6} />
+            </label>
+          </section>
+        </div>
+
+        <div className="order-form-footer">
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancelar
           </Button>
-        </section>
 
-        {/* Taxa, pago, resumo e observações */}
-        <section className="order-form-column order-form-payment-column">
-          <div className="form-section-title">
-            <span>Pagamento</span>
-            <small>Controle de sinal, entrega, crédito e combinados.</small>
-          </div>
-
-          <div className="order-payment-fields">
-            <label>
-              Taxa de entrega
-              <input value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} placeholder="Ex: 10,00" />
-            </label>
-
-            <label>
-              Valor pago
-              <input value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} placeholder="Ex: 50,00" />
-            </label>
-          </div>
-
-          <div className="order-summary-box order-summary-box-compact">
-            <span>Subtotal: {formatCurrencyBR(subtotal)}</span>
-            <span>Entrega: {formatCurrencyBR(parsedDeliveryFee)}</span>
-            <span>Pago: {formatCurrencyBR(parsedAmountPaid)}</span>
-            <span>{balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}{balanceInfo.type === "credit"}</span>
-            <strong>Total: {formatCurrencyBR(total)}</strong>
-          </div>
-
-          <label className="textarea-field order-notes-field">
-            Observações do pedido
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes gerais, combinados, horários, forma de pagamento..." rows={6} />
-          </label>
-        </section>
-      </div>
-
-      <div className="order-form-footer">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancelar
-        </Button>
-
-        <Button type="submit" disabled={saving || !selectedClient || !deliveryDateTime || parsedItems.length === 0}>
-          {saving ? "Salvando..." : "Salvar pedido"}
-        </Button>
-      </div>
-    </form>
-    <SlidePanel
-      open={addressPanelMode !== null}
-      level={3}
-      size="normal"
-      title={addressPanelMode === "create" ? "Adicionar endereço" : "Escolher endereço"}
-      description={addressPanelMode === "create" ? "Cadastre um endereço para usar neste pedido." : "Selecione um endereço cadastrado ou deixe o pedido sem endereço."}
-      onClose={() => setAddressPanelMode(null)}
-    >
-      {addressPanelMode === "choose" && (
-        <div className="address-picker-panel">
-          <button
-            type="button"
-            className={!addressId ? "address-option selected" : "address-option"}
-            onClick={() => {
-              setAddressId("");
-              setAddressPanelMode(null);
-            }}
-          >
-            <strong>Sem endereço definido</strong>
-            <span>O pedido pode ser salvo sem endereço.</span>
-          </button>
-
-          {selectableAddresses.map((address) => (
+          <Button type="submit" disabled={saving || !selectedClient || !deliveryDateTime || parsedItems.length === 0}>
+            {saving ? "Salvando..." : "Salvar pedido"}
+          </Button>
+        </div>
+      </form>
+      <SlidePanel
+        open={addressPanelMode !== null}
+        level={3}
+        size="normal"
+        title={addressPanelMode === "create" ? "Adicionar endereço" : "Escolher endereço"}
+        description={addressPanelMode === "create" ? "Cadastre um endereço para usar neste pedido." : "Selecione um endereço cadastrado ou deixe o pedido sem endereço."}
+        onClose={() => setAddressPanelMode(null)}
+      >
+        {addressPanelMode === "choose" && (
+          <div className="address-picker-panel">
             <button
               type="button"
-              className={address.id === addressId ? "address-option selected" : "address-option"}
-              key={address.id}
+              className={!addressId ? "address-option selected" : "address-option"}
               onClick={() => {
-                setAddressId(address.id);
+                setAddressId("");
                 setAddressPanelMode(null);
               }}
             >
-              <strong>{address.label}</strong>
-              <span>{formatAddressLabel(address)}</span>
+              <strong>Sem endereço definido</strong>
+              <span>O pedido pode ser salvo sem endereço.</span>
             </button>
-          ))}
 
-          {selectableAddresses.length === 0 && <p className="muted-text">Nenhum endereço cadastrado para este cliente.</p>}
-        </div>
-      )}
+            {selectableAddresses.map((address) => (
+              <button
+                type="button"
+                className={address.id === addressId ? "address-option selected" : "address-option"}
+                key={address.id}
+                onClick={() => {
+                  setAddressId(address.id);
+                  setAddressPanelMode(null);
+                }}
+              >
+                <strong>{address.label}</strong>
+                <span>{formatAddressLabel(address)}</span>
+              </button>
+            ))}
 
-      {addressPanelMode === "create" && selectedClient && onCreateAddress && <AddressForm client={selectedClient} onCancel={() => setAddressPanelMode(null)} onSave={handleCreateAddress} />}
-    </SlidePanel>
+            {selectableAddresses.length === 0 && <p className="muted-text">Nenhum endereço cadastrado para este cliente.</p>}
+          </div>
+        )}
+
+        {addressPanelMode === "create" && selectedClient && onCreateAddress && <AddressForm client={selectedClient} onCancel={() => setAddressPanelMode(null)} onSave={handleCreateAddress} />}
+      </SlidePanel>
     </>
   );
 }
