@@ -28,7 +28,7 @@ type OrderSortMode = "deliveryDateTime" | "clientName" | "total";
 export function OrdersPage() {
   const { orders, filteredOrders, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders();
 
-  const { filteredClients, loading: loadingClients, error: clientsError } = useClients();
+  const { filteredClients, loading: loadingClients, error: clientsError, editClient } = useClients();
 
   const { activeAddresses, addressesError, addAddress } = useAddresses();
 
@@ -125,8 +125,19 @@ export function OrdersPage() {
     }
   }
 
+  async function registerOrderInteraction(data: NewOrderData) {
+    const now = new Date().toISOString();
+
+    await editClient(data.clientId, {
+      lastInteractionAt: now,
+      lastOrderAt: now,
+      lastInteractionType: "pedido",
+    });
+  }
+
   async function handleCreateOrder(data: NewOrderData) {
     await addOrder(data);
+    await registerOrderInteraction(data);
     closePanel();
   }
 
@@ -136,6 +147,11 @@ export function OrdersPage() {
     }
 
     await editOrder(panel.order.id, data);
+
+    if (panel.order.clientId !== data.clientId) {
+      await registerOrderInteraction(data);
+    }
+
     closePanel();
   }
 
@@ -145,6 +161,10 @@ export function OrdersPage() {
     }
 
     await editOrder(stackedEditOrder.id, data);
+
+    if (stackedEditOrder.clientId !== data.clientId) {
+      await registerOrderInteraction(data);
+    }
 
     setStackedEditOrder(null);
     setPanel(null);

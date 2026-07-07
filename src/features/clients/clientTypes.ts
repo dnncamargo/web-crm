@@ -58,4 +58,15 @@ export interface NewClientData {
   notes?: string;
 }
 
-export type UpdateClientData = Partial<NewClientData>;
+export type UpdateClientData = Partial<NewClientData> &
+  Partial<
+    Pick<
+      Client,
+      | "lastInteractionAt"
+      | "lastInteractionType"
+      | "lastOrderAt"
+      | "lastContactAt"
+      | "totalOrders"
+      | "totalSpent"
+    >
+  >;

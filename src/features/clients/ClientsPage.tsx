@@ -1,17 +1,20 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
+
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { SlidePanel } from "../../components/ui/SlidePanel";
 import { Switch } from "../../components/ui/Switch";
 import { useAddresses } from "../addresses/useAddresses";
-import type { Client, ContactFrequency } from "./clientTypes";
-import { useClients } from "./useClients";
-import { useTags } from "../tags/useTags";
 import type { Address, NewAddressData } from "../addresses/addressTypes";
 import { AddressForm } from "../addresses/components/AddressForm";
+import { useTags } from "../tags/useTags";
+import type { Client, ContactFrequency } from "./clientTypes";
+import { useClients } from "./useClients";
+import { ClientDetailsPanelContent } from "./components/ClientDetailsPanelContent";
 import { ClientEditForm } from "./components/ClientEditForm";
-import { SlidePanel } from "../../components/ui/SlidePanel";
+import { ClientListView } from "./components/ClientListView";
 
 type ClientPanelState =
   | { type: "create-client" }
@@ -20,21 +23,66 @@ type ClientPanelState =
   | { type: "edit-address"; client: Client; address: Address }
   | null;
 
+const frequencyLabels: Record<ContactFrequency, string> = {
+  none: "Sem frequência",
+  weekly: "Semanal",
+  biweekly: "Quinzenal",
+  monthly: "Mensal",
+};
+
+function toDateTimeLocalInputValue(value?: string | null) {
+  const sourceDate = value ? new Date(value) : new Date();
+  const date = Number.isNaN(sourceDate.getTime()) ? new Date() : sourceDate;
+
+  const timezoneOffset = date.getTimezoneOffset();
+  const localDate = new Date(date.getTime() - timezoneOffset * 60_000);
+
+  return localDate.toISOString().slice(0, 16);
+}
+
+function formatInteractionDate(value?: string | null) {
+  if (!value) {
+    return "Sem interação registrada";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
 export function ClientsPage() {
   const { activeTags } = useTags();
+
+  const [interactionDateTime, setInteractionDateTime] = useState("");
+
   const clientTags = useMemo(() => activeTags.filter((tag) => tag.entity === "client" || tag.entity === "global"), [activeTags]);
+
   const tagLabelsById = useMemo(() => Object.fromEntries(activeTags.map((tag) => [tag.id, tag.label])), [activeTags]);
 
   const { clients, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
+
   const { getAddressesByClient, addAddress, editAddress } = useAddresses();
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [favorite, setFavoriteLocal] = useState(false);
   const [contactFrequency, setContactFrequency] = useState<ContactFrequency>("none");
+
   const [submitting, setSubmitting] = useState(false);
   const [panel, setPanel] = useState<ClientPanelState>(null);
   const [stackedEditClient, setStackedEditClient] = useState<Client | null>(null);
+
+  const [interactionClient, setInteractionClient] = useState<Client | null>(null);
+  const [interactionNote, setInteractionNote] = useState("");
+  const [savingInteraction, setSavingInteraction] = useState(false);
+
   const [showFilters, setShowFilters] = useState(false);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [showOnlyActive, setShowOnlyActive] = useState(true);
@@ -45,15 +93,35 @@ export function ClientsPage() {
     return clients.filter((client) => {
       if (showOnlyFavorites && !client.favorite) return false;
       if (showOnlyActive && !client.active) return false;
-      if (showOnlyWithContactFrequency && client.contactFrequency === "none") return false;
+      if (showOnlyWithContactFrequency && client.contactFrequency === "none") {
+        return false;
+      }
       if (showOnlyWithBirthDate && !client.birthDate) return false;
+
       return true;
     });
   }, [clients, showOnlyActive, showOnlyFavorites, showOnlyWithBirthDate, showOnlyWithContactFrequency]);
 
+  function closeInteractionPanel() {
+    setInteractionClient(null);
+    setInteractionNote("");
+    setInteractionDateTime("");
+  }
+
   function closePanel() {
     setPanel(null);
     setStackedEditClient(null);
+    closeInteractionPanel();
+  }
+
+  function openViewClient(client: Client) {
+    setPanel({ type: "view-client", client });
+  }
+
+  function openInteractionPanel(client: Client) {
+    setInteractionClient(client);
+    setInteractionNote("");
+    setInteractionDateTime(toDateTimeLocalInputValue());
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -149,6 +217,53 @@ export function ClientsPage() {
     closePanel();
   }
 
+  async function handleRegisterInteraction(event: FormEvent) {
+    event.preventDefault();
+
+    if (!interactionClient) {
+      return;
+    }
+
+    const selectedInteractionDate = interactionDateTime ? new Date(interactionDateTime) : new Date();
+
+    if (Number.isNaN(selectedInteractionDate.getTime())) {
+      return;
+    }
+
+    const now = selectedInteractionDate.toISOString();
+    const trimmedNote = interactionNote.trim();
+
+    const nextNotes = trimmedNote ? [interactionClient.notes?.trim(), `Interação em ${formatInteractionDate(now)}: ${trimmedNote}`].filter(Boolean).join("\n\n") : (interactionClient.notes ?? "");
+
+    setSavingInteraction(true);
+
+    await editClient(interactionClient.id, {
+      lastInteractionAt: now,
+      lastContactAt: now,
+      lastInteractionType: "contato",
+      notes: nextNotes,
+    });
+
+    setSavingInteraction(false);
+
+    if (panel?.type === "view-client" && panel.client.id === interactionClient.id) {
+      setPanel({
+        type: "view-client",
+        client: {
+          ...panel.client,
+          lastInteractionAt: now,
+          lastContactAt: now,
+          lastInteractionType: "contato",
+          notes: nextNotes,
+        },
+      });
+    }
+
+    closeInteractionPanel();
+  }
+
+  const mainPanelSize = panel?.type === "view-client" ? "wide" : "fullscreen";
+
   return (
     <div className="page-stack">
       <PageHeader
@@ -173,12 +288,15 @@ export function ClientsPage() {
             <button type="button" className={showOnlyFavorites ? "filter-pill active" : "filter-pill"} onClick={() => setShowOnlyFavorites(!showOnlyFavorites)}>
               Favoritos
             </button>
+
             <button type="button" className={showOnlyActive ? "filter-pill active" : "filter-pill"} onClick={() => setShowOnlyActive(!showOnlyActive)}>
               Ativos
             </button>
+
             <button type="button" className={showOnlyWithContactFrequency ? "filter-pill active" : "filter-pill"} onClick={() => setShowOnlyWithContactFrequency(!showOnlyWithContactFrequency)}>
               Com frequência
             </button>
+
             <button type="button" className={showOnlyWithBirthDate ? "filter-pill active" : "filter-pill"} onClick={() => setShowOnlyWithBirthDate(!showOnlyWithBirthDate)}>
               Com aniversário
             </button>
@@ -198,27 +316,23 @@ export function ClientsPage() {
         </Card>
       )}
 
-      <div className="entity-list">
-        {visibleClients.map((client) => {
-          const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
-
-          return (
-            <button type="button" className={!client.active ? "entity-list-row muted-card" : "entity-list-row"} key={client.id} onClick={() => setPanel({ type: "view-client", client })}>
-              <div>
-                <strong>{client.name}</strong>
-                <span>{primaryContact ? `${primaryContact.label ?? "Contato principal"} · ${primaryContact.value}` : "Sem contato principal"}</span>
-              </div>
-
-              <small>{client.favorite ? "Favorito" : `${client.totalOrders ?? 0} pedidos`}</small>
-            </button>
-          );
-        })}
-      </div>
+      <ClientListView clients={visibleClients} tagLabelsById={tagLabelsById} onRequestViewClient={openViewClient} onFavoriteChange={setFavorite} />
 
       <SlidePanel
         open={panel !== null}
-        size={panel?.type === "view-client" ? "wide" : "fullscreen"}
-        title={panel?.type === "create-client" ? "Adicionar cliente" : panel?.type === "view-client" ? "Detalhes do cliente" : panel?.type === "create-address" ? "Adicionar endereço" : panel?.type === "edit-address" ? "Editar endereço" : ""}
+        level={1}
+        size={mainPanelSize}
+        title={
+          panel?.type === "create-client"
+            ? "Adicionar cliente"
+            : panel?.type === "view-client"
+              ? "Detalhes do cliente"
+              : panel?.type === "create-address"
+                ? "Adicionar endereço"
+                : panel?.type === "edit-address"
+                  ? "Editar endereço"
+                  : ""
+        }
         description={
           panel?.type === "create-client"
             ? "Cadastre um novo cliente."
@@ -238,13 +352,18 @@ export function ClientsPage() {
               <span>Novo cliente</span>
               <small>Cadastro rápido para começar</small>
             </div>
+
             <div className="input-group">
               <label>
-                Nome <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex: Maria Oliveira" />
+                Nome
+                <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex: Maria Oliveira" />
               </label>
+
               <label>
-                WhatsApp principal <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Ex: 22 99999-9999" />
+                WhatsApp principal
+                <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Ex: 22 99999-9999" />
               </label>
+
               <label>
                 Frequência de contato
                 <select value={contactFrequency} onChange={(event) => setContactFrequency(event.target.value as ContactFrequency)}>
@@ -255,7 +374,9 @@ export function ClientsPage() {
                 </select>
               </label>
             </div>
+
             <Switch label="Marcar como favorito" checked={favorite} onChange={setFavoriteLocal} />
+
             <div className="form-actions">
               <Button type="submit" disabled={submitting || !name.trim()}>
                 {submitting ? "Salvando..." : "Salvar cliente"}
@@ -264,69 +385,28 @@ export function ClientsPage() {
           </form>
         )}
 
-        {panel?.type === "view-client" && (() => {
-          const client = panel.client;
-          const addresses = getAddressesByClient(client.id);
-          const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
-          const primaryAddress = addresses.find((address) => address.id === client.primaryAddressId) ?? addresses.find((address) => address.isPrimaryForClient);
-
-          return (
-            <div className="detail-section">
-              <div className="details-grid">
-                <div className="detail-block"><span>Cliente</span><strong>{client.name}</strong></div>
-                <div className="detail-block"><span>Contato principal</span><strong>{primaryContact?.value || "Não informado"}</strong></div>
-                <div className="detail-block"><span>Endereço principal</span><strong>{primaryAddress ? `${primaryAddress.label} · ${primaryAddress.street}${primaryAddress.number ? `, ${primaryAddress.number}` : ""}` : "Não informado"}</strong></div>
-                <div className="detail-block"><span>Pedidos</span><strong>{client.totalOrders ?? 0}</strong></div>
-              </div>
-
-              <div className="subtle-list">
-                <span>Etiquetas</span>
-                {client.tagIds?.length ? client.tagIds.map((tagId) => <small key={tagId}>#{tagLabelsById[tagId] ?? tagId}</small>) : <small>Nenhuma etiqueta associada</small>}
-              </div>
-
-              {client.notes && <div className="notes-preview"><span>Anotações</span><p>{client.notes}</p></div>}
-
-              <div className="subtle-list">
-                <div className="subtle-list-header">
-                  <span>Endereços cadastrados</span>
-                  <button type="button" className="text-link compact-link" onClick={() => setPanel({ type: "create-address", client })}>
-                    Adicionar
-                  </button>
-                </div>
-
-                {addresses.length ? (
-                  addresses.map((address) => (
-                    <div className="subtle-list-item" key={address.id}>
-                      <small>
-                        {address.id === client.primaryAddressId ? "Principal · " : ""}
-                        {address.label}: {address.street}
-                        {address.number ? `, ${address.number}` : ""}
-                      </small>
-                      <button type="button" className="text-link compact-link" onClick={() => setPanel({ type: "edit-address", client, address })}>
-                        Editar
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <small>Nenhum endereço cadastrado</small>
-                )}
-              </div>
-
-              <div className="switch-group">
-                <Switch label="Cliente ativo" checked={client.active} onChange={(checked) => setActive(client, checked)} />
-                <Switch label="Favorito" checked={client.favorite} onChange={(checked) => setFavorite(client, checked)} />
-              </div>
-
-              <div className="form-actions">
-                <Button type="button" variant="secondary" onClick={() => setStackedEditClient(client)}>
-                  Editar
-                </Button>
-              </div>
-            </div>
-          );
-        })()}
+        {panel?.type === "view-client" && (
+          <ClientDetailsPanelContent
+            client={panel.client}
+            addresses={getAddressesByClient(panel.client.id)}
+            tagLabelsById={tagLabelsById}
+            onEdit={() => setStackedEditClient(panel.client)}
+            onRegisterInteraction={() => openInteractionPanel(panel.client)}
+            onCreateAddress={() => setPanel({ type: "create-address", client: panel.client })}
+            onEditAddress={(address) =>
+              setPanel({
+                type: "edit-address",
+                client: panel.client,
+                address,
+              })
+            }
+            onSetActive={(checked) => setActive(panel.client, checked)}
+            onSetFavorite={(checked) => setFavorite(panel.client, checked)}
+          />
+        )}
 
         {panel?.type === "create-address" && <AddressForm client={panel.client} onCancel={closePanel} onSave={handlePanelCreateAddress} />}
+
         {panel?.type === "edit-address" && <AddressForm client={panel.client} address={panel.address} onCancel={closePanel} onSave={handlePanelEditAddress} />}
       </SlidePanel>
 
@@ -339,6 +419,61 @@ export function ClientsPage() {
         onClose={() => setStackedEditClient(null)}
       >
         {stackedEditClient && <ClientEditForm client={stackedEditClient} availableTags={clientTags} onCancel={() => setStackedEditClient(null)} onSave={handlePanelEditClient} />}
+      </SlidePanel>
+
+      <SlidePanel
+        open={interactionClient !== null}
+        level={2}
+        size="normal"
+        title="Registrar interação"
+        description="Atualize rapidamente o histórico de contato deste cliente."
+        onClose={closeInteractionPanel}
+      >
+        {interactionClient && (
+          <form className="form-stack interaction-form" onSubmit={handleRegisterInteraction}>
+            <div className="notes-preview interaction-client-summary">
+              <span>Cliente</span>
+              <p>{interactionClient.name}</p>
+            </div>
+
+            <div className="details-grid">
+              <div className="detail-block">
+                <span>Última registrada</span>
+                <strong>{formatInteractionDate(interactionClient.lastInteractionAt)}</strong>
+              </div>
+
+              <div className="detail-block">
+                <span>Frequência</span>
+                <strong>{frequencyLabels[interactionClient.contactFrequency]}</strong>
+              </div>
+            </div>
+
+            <label className="datetime-field">
+              Data e hora da interação
+              <input type="datetime-local" value={interactionDateTime} onChange={(event) => setInteractionDateTime(event.target.value)} />
+            </label>
+
+            <label className="textarea-field">
+              Comentário opcional
+              <textarea
+                value={interactionNote}
+                onChange={(event) => setInteractionNote(event.target.value)}
+                placeholder="Ex: Cliente respondeu no WhatsApp, pediu para lembrar no fim do mês..."
+                rows={5}
+              />
+            </label>
+
+            <div className="form-actions split-actions">
+              <Button type="button" variant="ghost" onClick={closeInteractionPanel}>
+                Cancelar
+              </Button>
+
+              <Button type="submit" disabled={savingInteraction}>
+                {savingInteraction ? "Registrando..." : "Registrar interação"}
+              </Button>
+            </div>
+          </form>
+        )}
       </SlidePanel>
     </div>
   );

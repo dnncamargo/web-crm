@@ -3177,3 +3177,150 @@ css .order-item-form-card {
   }
 }
 
+
+.client-list-row {
+  align-items: flex-start;
+}
+
+.client-list-row-main {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.client-list-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.interaction-form {
+  height: 100%;
+  min-height: 0;
+}
+
+.interaction-client-summary {
+  margin: 0;
+}
+
+.interaction-client-summary p {
+  font-size: 1.05rem;
+}
+
+.client-list-view {
+  display: grid;
+  gap: 10px;
+}
+
+.client-list-row-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.client-list-row-card:hover {
+  border-color: rgba(120, 82, 63, 0.26);
+  transform: translateY(-1px);
+}
+
+.client-list-row-button {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.client-list-main-info {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.client-list-main-info strong {
+  color: var(--text);
+  font-size: 0.98rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.client-list-main-info span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.client-list-badges {
+  max-height: calc((1.55rem * 3) + 12px);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.client-list-side {
+  min-width: 128px;
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 9px;
+}
+
+.client-list-last-interaction {
+  display: grid;
+  gap: 3px;
+  text-align: right;
+}
+
+.client-list-last-interaction span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.client-list-last-interaction small {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .client-list-row-card {
+    grid-template-columns: 1fr;
+  }
+
+  .client-list-side {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .client-list-last-interaction {
+    text-align: left;
+  }
+}
+
+.datetime-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.datetime-field input {
+  width: 100%;
+}
