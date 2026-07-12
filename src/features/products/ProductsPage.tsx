@@ -9,6 +9,7 @@ import { formatCurrencyBR } from "../../utils/money";
 import type { NewProductData, Product } from "./productTypes";
 import { useProducts } from "./useProducts";
 import { useTags } from "../tags/useTags";
+import { isProductStructuralGroup } from "../tags/tagConfig";
 
 type ProductPanelState = { type: "create-product" } | { type: "view-product"; product: Product } | null;
 
@@ -22,13 +23,16 @@ export function ProductsPage() {
 
   const productCategories = getTagsByEntityAndGroup("product", "Categoria");
 
+  const productUnits = getTagsByEntityAndGroup("product", "Unidade de venda");
+
   const productAvailableTags = useMemo(
     () =>
       activeTags.filter((tag) => {
-        const isProductTag = tag.entity === "product" || tag.entity === "global";
-        const isCategory = tag.group === "Categoria";
+        const isProductOrGlobalTag = tag.entity === "product" || tag.entity === "global";
 
-        return isProductTag && !isCategory;
+        const isStructuredProductTag = tag.entity === "product" && isProductStructuralGroup(tag.group);
+
+        return isProductOrGlobalTag && !isStructuredProductTag;
       }),
     [activeTags],
   );
@@ -173,15 +177,9 @@ export function ProductsPage() {
           </div>
         )}
 
-        {panel?.type === "create-product" 
-          && 
-          <ProductForm
-            productCategories={productCategories}
-            availableTags={productAvailableTags}
-            onCancel={closePanel}
-            onSave={handleCreateProduct}
-          />
-        }
+        {panel?.type === "create-product" && (
+          <ProductForm productCategories={productCategories} productUnits={productUnits} availableTags={productAvailableTags} onCancel={closePanel} onSave={handleCreateProduct} />
+        )}
       </SlidePanel>
       <SlidePanel
         open={stackedEditProduct !== null}
@@ -191,15 +189,16 @@ export function ProductsPage() {
         description="Atualize este produto mantendo os detalhes visíveis ao fundo."
         onClose={() => setStackedEditProduct(null)}
       >
-        {stackedEditProduct && 
-          <ProductForm 
-            product={stackedEditProduct} 
-            productCategories={productCategories}   
+        {stackedEditProduct && (
+          <ProductForm
+            product={stackedEditProduct}
+            productCategories={productCategories}
+            productUnits={productUnits}
             availableTags={productAvailableTags}
-            onCancel={() => setStackedEditProduct(null)} 
+            onCancel={() => setStackedEditProduct(null)}
             onSave={handleEditProduct}
           />
-        }
+        )}
       </SlidePanel>
     </div>
   );

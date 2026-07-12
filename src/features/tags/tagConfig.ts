@@ -17,7 +17,7 @@ export const tagEntityDescriptions: Record<TagEntity, string> = {
 };
 
 export const tagGroupOptions: Record<TagEntity, string[]> = {
-  product: ["Categoria", "Rotulagem", "Alerta nutricional", "Cuidado"],
+  product: ["Categoria", "Unidade de venda", "Rotulagem", "Alerta nutricional", "Cuidado"],
   client: ["Restrição", "Preferência", "Perfil", "Cuidado"],
   order: ["Cuidado", "Entrega", "Pagamento", "Status interno"],
   task: ["Tipo", "Prioridade", "Contexto"],
@@ -30,4 +30,15 @@ export function getDefaultTagGroup(entity: TagEntity) {
 
 export function getTagGroupOptions(entity: TagEntity) {
   return tagGroupOptions[entity] ?? [];
+}
+
+export const productStructuralGroups = [
+  "Categoria",
+  "Unidade de venda",
+] as const;
+
+export function isProductStructuralGroup(group?: string) {
+  return productStructuralGroups.includes(
+    group as (typeof productStructuralGroups)[number]
+  );
 }
