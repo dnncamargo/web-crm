@@ -200,7 +200,12 @@ export function OrdersPage() {
               F
             </button>
 
-            <Button type="button" variant="secondary" onClick={() => setPanel({ type: "create-order" })} disabled={loadingDependencies}>
+            <Button 
+              type="button" 
+              variant="primary" 
+              onClick={() => setPanel({ type: "create-order" })} 
+              disabled={loadingDependencies}
+            >
               + Pedido
             </Button>
           </div>

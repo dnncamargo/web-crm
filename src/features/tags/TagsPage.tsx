@@ -79,7 +79,7 @@ export function TagsPage() {
               F
             </button>
 
-            <Button type="button" variant="secondary" onClick={() => setPanel({ type: "create-tag" })}>
+            <Button type="button" variant="primary" onClick={() => setPanel({ type: "create-tag" })}>
               + Etiqueta
             </Button>
           </div>
@@ -189,7 +189,7 @@ export function TagsPage() {
             </div>
 
             <div className="form-actions">
-              <Button type="button" variant="secondary" onClick={() => setStackedEditTag(panel.tag)}>
+              <Button type="button" variant="primary" onClick={() => setStackedEditTag(panel.tag)}>
                 Editar
               </Button>
             </div>

@@ -16,32 +16,22 @@ interface OrderListViewProps {
 
 export function OrderListView({ orders, onRequestViewOrder }: OrderListViewProps) {
   return (
-    <div className="order-list-view">
+    <div className="entity-list-view">
       {orders.map((order) => {
-        // const paymentStatus = getPaymentStatus(order);
         const balanceInfo = getOrderBalanceInfo(order);
 
         return (
-          <button type="button" className="order-list-row" key={order.id} onClick={() => onRequestViewOrder(order)}>
-            <div className="order-list-main">
-              <strong>{order.clientName}</strong>
-              <span>{formatDateTimeBR(order.deliveryDateTime)}</span>
+          <button type="button" className="entity-row" key={order.id} onClick={() => onRequestViewOrder(order)}>
+            <div className="entity-row-line">
+              <strong className="entity-title">{order.clientName}</strong>
 
-              {/* <small>
-                {order.items
-                  .map((item) => `${item.quantity}× ${item.productName}`)
-                  .join(" · ")}
-              </small> */}
-
-              {/* <div className="order-list-badges">
-                <Badge>{getOrderStatusLabel(order.orderStatus)}</Badge>
-                <Badge>{getPaymentStatusLabel(paymentStatus)}</Badge>
-              </div> */}
+              <strong className="entity-value">{formatCurrencyBR(order.total)}</strong>
             </div>
 
-            <div className="order-list-values">
-              <strong>{formatCurrencyBR(order.total)}</strong>
-              <span>
+            <div className="entity-row-line">
+              <span className="entity-subtitle">{formatDateTimeBR(order.deliveryDateTime)}</span>
+
+              <span className="entity-subtitle">
                 {balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}
               </span>
             </div>

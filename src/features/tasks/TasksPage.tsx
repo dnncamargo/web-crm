@@ -90,7 +90,7 @@ export function TasksPage() {
 
             <Button
               type="button"
-              variant="secondary"
+              variant="primary"
               onClick={() => setPanel({ type: "create-task" })}
               disabled={loadingDependencies}
             >
@@ -188,7 +188,7 @@ export function TasksPage() {
               </div>
 
               <div className="form-actions">
-                <Button type="button" variant="secondary" onClick={() => setStackedEditTask(panel.task)}>
+                <Button type="button" variant="primary" onClick={() => setStackedEditTask(panel.task)}>
                   Editar
                 </Button>
               </div>

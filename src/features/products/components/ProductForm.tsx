@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 
 import { Button } from "../../../components/ui/Button";
@@ -18,29 +18,70 @@ interface ProductFormProps {
   onSave: (data: NewProductData) => Promise<void>;
 }
 
-export function ProductForm({ product, productCategories, productUnits, availableTags, onCancel, onSave }: ProductFormProps) {
+function getProductUnitOptions(productUnits: Tag[]) {
+  const options = [DEFAULT_PRODUCT_UNIT];
+
+  productUnits.forEach((unitOption) => {
+    const label = unitOption.label.trim();
+
+    if (
+      label &&
+      !options.some(
+        (currentOption) =>
+          currentOption.toLowerCase() === label.toLowerCase()
+      )
+    ) {
+      options.push(label);
+    }
+  });
+
+  return options;
+}
+
+function formatPriceInput(value?: number | null) {
+  return value ? String(value).replace(".", ",") : "";
+}
+
+export function ProductForm({
+  product,
+  productCategories,
+  productUnits,
+  availableTags,
+  onCancel,
+  onSave,
+}: ProductFormProps) {
   const [name, setName] = useState(product?.name ?? "");
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
   const [unit, setUnit] = useState(product?.unit ?? DEFAULT_PRODUCT_UNIT);
-  const [suggestedPrice, setSuggestedPrice] = useState(product?.suggestedPrice ? String(product.suggestedPrice).replace(".", ",") : "");
+  const [suggestedPrice, setSuggestedPrice] = useState(
+    formatPriceInput(product?.suggestedPrice)
+  );
   const [notes, setNotes] = useState(product?.notes ?? "");
   const [active, setActive] = useState(product?.active ?? true);
   const [saving, setSaving] = useState(false);
-  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(product?.tagIds ?? []);
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>(
+    product?.tagIds ?? []
+  );
 
-  const selectedCategory = productCategories.find((category) => category.id === categoryId);
+  const selectedCategory = productCategories.find(
+    (category) => category.id === categoryId
+  );
 
-  const unitOptions = [DEFAULT_PRODUCT_UNIT, ...productUnits.map((unitOption) => unitOption.label).filter((unitLabel) => unitLabel.trim().toLowerCase() !== DEFAULT_PRODUCT_UNIT)];
+  const unitOptions = getProductUnitOptions(productUnits);
 
-  const hasLegacyUnit = Boolean(unit) && !unitOptions.some((unitOption) => unitOption === unit);
+  const hasLegacyUnit =
+    Boolean(unit) &&
+    !unitOptions.some(
+      (unitOption) => unitOption.toLowerCase() === unit.toLowerCase()
+    );
 
-  useEffect(() => {
-    if (product?.unit || unit || productUnits.length === 0) {
-      return;
-    }
-
-    setUnit(productUnits[0].label);
-  }, [product?.unit, productUnits, unit]);
+  function toggleTag(tagId: string) {
+    setSelectedTagIds((currentTagIds) =>
+      currentTagIds.includes(tagId)
+        ? currentTagIds.filter((currentTagId) => currentTagId !== tagId)
+        : [...currentTagIds, tagId]
+    );
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -57,8 +98,10 @@ export function ProductForm({ product, productCategories, productUnits, availabl
       name: trimmedName,
       categoryId: selectedCategory?.id ?? null,
       categoryLabel: selectedCategory?.label ?? null,
-      unit: unit.trim(),
-      suggestedPrice: suggestedPrice.trim() ? parseCurrencyInput(suggestedPrice) : null,
+      unit: unit.trim() || DEFAULT_PRODUCT_UNIT,
+      suggestedPrice: suggestedPrice.trim()
+        ? parseCurrencyInput(suggestedPrice)
+        : null,
       active,
       tagIds: selectedTagIds,
       notes: notes.trim(),
@@ -68,28 +111,34 @@ export function ProductForm({ product, productCategories, productUnits, availabl
     onCancel();
   }
 
-  function toggleTag(tagId: string) {
-    setSelectedTagIds((currentTagIds) => (currentTagIds.includes(tagId) ? currentTagIds.filter((currentTagId) => currentTagId !== tagId) : [...currentTagIds, tagId]));
-  }
-
   return (
     <form className="task-form-v2" onSubmit={handleSubmit}>
       <div className="form-two-columns">
         <section className="form-column">
           <div className="form-section-title">
             <span>Dados do produto</span>
-            <small>Categoria e unidade de venda vêm das Etiquetas. O preço sugerido é opcional.</small>
+            <small>
+              Categoria e unidade de venda vêm das Etiquetas. A unidade
+              “unidade” já existe como padrão.
+            </small>
           </div>
 
           <div className="input-group">
             <label>
               Nome
-              <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex: Bolo de chocolate" />
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Ex: Bolo de chocolate"
+              />
             </label>
 
             <label>
               Categoria
-              <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+              <select
+                value={categoryId}
+                onChange={(event) => setCategoryId(event.target.value)}
+              >
                 <option value="">Sem categoria</option>
 
                 {productCategories.map((category) => (
@@ -102,7 +151,10 @@ export function ProductForm({ product, productCategories, productUnits, availabl
 
             <label>
               Unidade de venda
-              <select value={unit} onChange={(event) => setUnit(event.target.value)}>
+              <select
+                value={unit}
+                onChange={(event) => setUnit(event.target.value)}
+              >
                 {hasLegacyUnit && <option value={unit}>{unit} antiga</option>}
 
                 {unitOptions.map((unitOption) => (
@@ -115,12 +167,25 @@ export function ProductForm({ product, productCategories, productUnits, availabl
 
             <label>
               Preço sugerido
-              <input value={suggestedPrice} onChange={(event) => setSuggestedPrice(event.target.value)} placeholder="Ex: 80,00" />
+              <input
+                value={suggestedPrice}
+                onChange={(event) => setSuggestedPrice(event.target.value)}
+                placeholder="Ex: 80,00"
+              />
             </label>
           </div>
 
-          {productCategories.length === 0 && <p className="muted-text">Nenhuma categoria de produto cadastrada. Crie etiquetas em Etiquetas → entidade Produto → grupo Categoria.</p>}
+          {productCategories.length === 0 && (
+            <p className="muted-text">
+              Nenhuma categoria de produto cadastrada. Crie etiquetas em
+              Etiquetas → entidade Produto → grupo Categoria.
+            </p>
+          )}
 
+          <p className="muted-text">
+            Para cadastrar outras unidades, use Etiquetas → Produto → Unidade de
+            venda.
+          </p>
         </section>
 
         <section className="form-column product-edit-secondary-column">
@@ -128,7 +193,9 @@ export function ProductForm({ product, productCategories, productUnits, availabl
             <div className="tag-picker product-edit-tags-panel">
               <div className="form-section-title">
                 <span>Etiquetas do produto</span>
-                <small>Use para rotulagem, alertas nutricionais e cuidados.</small>
+                <small>
+                  Use para rotulagem, alertas nutricionais e cuidados.
+                </small>
               </div>
 
               {availableTags.length ? (
@@ -137,24 +204,43 @@ export function ProductForm({ product, productCategories, productUnits, availabl
                     const selected = selectedTagIds.includes(tag.id);
 
                     return (
-                      <button key={tag.id} type="button" className={selected ? "selectable-chip selected" : "selectable-chip"} aria-pressed={selected} onClick={() => toggleTag(tag.id)}>
+                      <button
+                        key={tag.id}
+                        type="button"
+                        className={
+                          selected
+                            ? "selectable-chip selected"
+                            : "selectable-chip"
+                        }
+                        aria-pressed={selected}
+                        onClick={() => toggleTag(tag.id)}
+                      >
                         #{tag.label}
                       </button>
                     );
                   })}
                 </div>
               ) : (
-                <p className="muted-text">Nenhuma etiqueta adicional de produto cadastrada.</p>
+                <p className="muted-text">
+                  Nenhuma etiqueta adicional de produto cadastrada.
+                </p>
               )}
             </div>
 
             <label className="textarea-field product-edit-notes-panel">
               <div className="form-section-title">
                 <span>Observações</span>
-                <small>Detalhes internos sobre preparo, variações ou tamanhos.</small>
+                <small>
+                  Detalhes internos sobre preparo, variações ou tamanhos.
+                </small>
               </div>
 
-              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes sobre preparo, variações, tamanhos ou observações internas..." rows={8} />
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Detalhes sobre preparo, variações, tamanhos ou observações internas..."
+                rows={8}
+              />
             </label>
           </div>
         </section>

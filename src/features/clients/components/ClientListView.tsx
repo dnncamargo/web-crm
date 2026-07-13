@@ -1,35 +1,15 @@
 import { Badge } from "../../../components/ui/Badge";
-import type { Client, ContactFrequency } from "../clientTypes";
+import {
+  formatClientDateTimeBR,
+  frequencyLabels,
+} from "../clientFormatters";
+import type { Client } from "../clientTypes";
 
 interface ClientListViewProps {
   clients: Client[];
   tagLabelsById: Record<string, string>;
   onRequestViewClient: (client: Client) => void;
   onFavoriteChange: (client: Client, favorite: boolean) => Promise<void>;
-}
-
-const frequencyLabels: Record<ContactFrequency, string> = {
-  none: "Sem frequência",
-  weekly: "Semanal",
-  biweekly: "Quinzenal",
-  monthly: "Mensal",
-};
-
-function formatDateTimeBR(value?: string | null) {
-  if (!value) {
-    return "Sem interação";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
 }
 
 export function ClientListView({
@@ -39,7 +19,7 @@ export function ClientListView({
   onFavoriteChange,
 }: ClientListViewProps) {
   return (
-    <div className="client-list-view">
+    <div className="entity-list-view">
       {clients.map((client) => {
         const primaryContact = client.contacts?.find(
           (contact) => contact.isPrimary
@@ -51,20 +31,20 @@ export function ClientListView({
           <article
             className={
               client.active
-                ? "client-list-row-card"
-                : "client-list-row-card muted-card"
+                ? "entity-row entity-row-with-side-action"
+                : "entity-row entity-row-with-side-action muted-card"
             }
             key={client.id}
           >
             <button
               type="button"
-              className="client-list-row-button"
+              className="entity-row-clickable"
               onClick={() => onRequestViewClient(client)}
             >
-              <div className="client-list-main-info">
-                <strong>{client.name}</strong>
+              <div className="entity-row-main">
+                <strong className="entity-title">{client.name}</strong>
 
-                <span>
+                <span className="entity-subtitle">
                   {primaryContact
                     ? `${primaryContact.label ?? "Contato principal"} · ${
                         primaryContact.value
@@ -73,7 +53,7 @@ export function ClientListView({
                 </span>
               </div>
 
-              <div className="client-list-badges">
+              <div className="entity-badges">
                 <Badge>{frequencyLabels[client.contactFrequency]}</Badge>
 
                 {!client.active && <Badge>Inativo</Badge>}
@@ -86,7 +66,7 @@ export function ClientListView({
               </div>
             </button>
 
-            <aside className="client-list-side">
+            <aside className="entity-row-side">
               <button
                 type="button"
                 className={client.favorite ? "star-button active" : "star-button"}
@@ -100,9 +80,9 @@ export function ClientListView({
                 ★
               </button>
 
-              <div className="client-list-last-interaction">
+              <div className="entity-side-note">
                 <span>Última interação</span>
-                <small>{formatDateTimeBR(client.lastInteractionAt)}</small>
+                <small>{formatClientDateTimeBR(client.lastInteractionAt)}</small>
               </div>
             </aside>
           </article>

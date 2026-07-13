@@ -3,7 +3,11 @@ import { Button } from "../../../components/ui/Button";
 import { Switch } from "../../../components/ui/Switch";
 import { formatDateBR } from "../../../utils/dateFormat";
 import type { Address } from "../../addresses/addressTypes";
-import type { Client, ContactFrequency } from "../clientTypes";
+import {
+  formatClientDateTimeBR,
+  frequencyLabels,
+} from "../clientFormatters";
+import type { Client } from "../clientTypes";
 
 interface ClientDetailsPanelContentProps {
   client: Client;
@@ -15,30 +19,6 @@ interface ClientDetailsPanelContentProps {
   onEditAddress: (address: Address) => void;
   onSetActive: (checked: boolean) => Promise<void>;
   onSetFavorite: (checked: boolean) => Promise<void>;
-}
-
-const frequencyLabels: Record<ContactFrequency, string> = {
-  none: "Sem frequência",
-  weekly: "Semanal",
-  biweekly: "Quinzenal",
-  monthly: "Mensal",
-};
-
-function formatDateTimeBR(value?: string | null) {
-  if (!value) {
-    return "Sem interação registrada";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
 }
 
 export function ClientDetailsPanelContent({
@@ -96,7 +76,7 @@ export function ClientDetailsPanelContent({
 
         <div className="detail-block">
           <span>Última interação</span>
-          <strong>{formatDateTimeBR(client.lastInteractionAt)}</strong>
+          <strong>{formatClientDateTimeBR(client.lastInteractionAt)}</strong>
         </div>
 
         <div className="detail-block">
@@ -202,7 +182,7 @@ export function ClientDetailsPanelContent({
           Interação
         </Button>
 
-        <Button type="button" variant="secondary" onClick={onEdit}>
+        <Button type="button" variant="primary" onClick={onEdit}>
           Editar
         </Button>
       </div>

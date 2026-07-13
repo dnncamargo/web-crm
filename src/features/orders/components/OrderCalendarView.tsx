@@ -47,9 +47,17 @@ function createCalendarDays(referenceDate: Date): CalendarDay[] {
   }
   return days;
 }
+
 function getTodayKey() {
   return toDateKey(new Date());
 }
+
+function getCurrentMonthReferenceDate() {
+  const today = new Date();
+
+  return new Date(today.getFullYear(), today.getMonth(), 1);
+}
+
 function formatSelectedDateLabel(dateKey: string) {
   const [year, month, day] = dateKey.split("-");
   if (!year || !month || !day) {
@@ -58,17 +66,10 @@ function formatSelectedDateLabel(dateKey: string) {
   const date = new Date(Number(year), Number(month) - 1, Number(day));
   return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long" }).format(date);
 }
+
 export function OrderCalendarView({ orders, onRequestEditOrder }: OrderCalendarViewProps) {
   const todayKey = getTodayKey();
-  const initialReferenceDate = useMemo(() => {
-    const firstOrderWithDate = orders.find((order) => order.deliveryDateTime);
-    if (!firstOrderWithDate) {
-      return new Date();
-    }
-    const date = new Date(firstOrderWithDate.deliveryDateTime);
-    return Number.isNaN(date.getTime()) ? new Date() : date;
-  }, [orders]);
-  const [referenceDate, setReferenceDate] = useState(initialReferenceDate);
+  const [referenceDate, setReferenceDate] = useState(() => getCurrentMonthReferenceDate());
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
   const calendarDays = useMemo(() => createCalendarDays(referenceDate), [referenceDate]);
   const ordersByDate = useMemo(() => {
@@ -77,20 +78,26 @@ export function OrderCalendarView({ orders, onRequestEditOrder }: OrderCalendarV
       return { ...groups, [dateKey]: [...(groups[dateKey] ?? []), order] };
     }, {});
   }, [orders]);
+
   const selectedOrders = useMemo(() => {
     return [...(ordersByDate[selectedDateKey] ?? [])].sort((first, second) => first.deliveryDateTime.localeCompare(second.deliveryDateTime));
   }, [ordersByDate, selectedDateKey]);
+
   function goToPreviousMonth() {
     setReferenceDate((currentDate) => new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   }
+
   function goToNextMonth() {
     setReferenceDate((currentDate) => new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   }
+
   function goToCurrentMonth() {
     const today = new Date();
-    setReferenceDate(today);
+
+    setReferenceDate(new Date(today.getFullYear(), today.getMonth(), 1));
     setSelectedDateKey(toDateKey(today));
   }
+
   return (
     <div className="ios-calendar-view">
       {" "}

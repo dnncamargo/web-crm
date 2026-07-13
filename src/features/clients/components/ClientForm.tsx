@@ -5,14 +5,14 @@ import { Switch } from "../../../components/ui/Switch";
 import type { Client, ClientContact, ContactFrequency, UpdateClientData } from "../clientTypes";
 import type { Tag } from "../../tags/tagTypes";
 
-interface ClientEditFormProps {
+interface ClientFormProps {
   client: Client;
   availableTags: Tag[];
   onCancel: () => void;
   onSave: (data: UpdateClientData) => Promise<void>;
 }
 
-export function ClientEditForm({ client, availableTags, onCancel, onSave }: ClientEditFormProps) {
+export function ClientEditForm({ client, availableTags, onCancel, onSave }: ClientFormProps) {
   const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
   const [name, setName] = useState(client.name);
   const [phone, setPhone] = useState(primaryContact?.value ?? "");

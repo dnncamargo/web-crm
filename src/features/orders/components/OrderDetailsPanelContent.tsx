@@ -147,7 +147,7 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
       )}
 
       <div className="form-actions">
-        <Button type="button" variant="secondary" onClick={onEdit}>
+        <Button type="button" variant="primary" onClick={onEdit}>
           Editar pedido
         </Button>
       </div>

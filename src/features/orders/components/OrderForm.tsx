@@ -127,13 +127,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
   const activeAddresses = useMemo(() => addresses.filter((address) => address.active), [addresses]);
 
-  const selectableAddresses = useMemo(() => {
-    if (!clientId) {
-      return activeAddresses;
-    }
-
-    return activeAddresses.filter((address) => address.clientId === clientId);
-  }, [activeAddresses, clientId]);
+  const selectableAddresses = activeAddresses;
 
   const activeProducts = useMemo(() => products.filter((product) => product.active), [products]);
 
@@ -655,7 +649,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
               </button>
             ))}
 
-            {selectableAddresses.length === 0 && <p className="muted-text">Nenhum endereço cadastrado para este cliente.</p>}
+            {selectableAddresses.length === 0 && <p className="muted-text">Nenhum endereço cadastrado.</p>}
           </div>
         )}
 
