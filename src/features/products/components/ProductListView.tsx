@@ -60,7 +60,7 @@ export function ProductListView({ products, tagLabelsById, onRequestViewProduct 
                     <div className="entity-badges">
                       {!product.active && <Badge>Inativo</Badge>}
 
-                      {visibleTags.length ? visibleTags.map((tagId) => <Badge key={tagId}>#{tagLabelsById[tagId] ?? tagId}</Badge>) : <Badge>sem-etiquetas</Badge>}
+                      {visibleTags.length ? visibleTags.map((tagId) => <Badge key={tagId}>{(tagLabelsById[tagId] ?? tagId).replace(/^#+/, "")}</Badge>) : <Badge>sem-etiquetas</Badge>}
                     </div>
 
                     <small className="entity-subtitle">{product.unit || "unidade"}</small>

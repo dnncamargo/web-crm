@@ -3,10 +3,7 @@ import { Button } from "../../../components/ui/Button";
 import { Switch } from "../../../components/ui/Switch";
 import { formatDateBR } from "../../../utils/dateFormat";
 import type { Address } from "../../addresses/addressTypes";
-import {
-  formatClientDateTimeBR,
-  frequencyLabels,
-} from "../clientFormatters";
+import { formatClientDateTimeBR, frequencyLabels } from "../clientFormatters";
 import type { Client } from "../clientTypes";
 
 interface ClientDetailsPanelContentProps {
@@ -30,161 +27,161 @@ export function ClientDetailsPanelContent({
   onCreateAddress,
   onEditAddress,
   onSetActive,
-  onSetFavorite,
 }: ClientDetailsPanelContentProps) {
   const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
 
-  const primaryAddress =
-    addresses.find((address) => address.id === client.primaryAddressId) ??
-    addresses.find((address) => address.isPrimaryForClient);
+  const primaryAddress = addresses.find((address) => address.id === client.primaryAddressId) ?? addresses.find((address) => address.isPrimaryForClient);
+
+  const tagLabels = client.tagIds?.map((tagId) => (tagLabelsById[tagId] ?? tagId).replace(/^#+/, "")) ?? [];
+
+  const primaryAddressText = primaryAddress ? `${primaryAddress.label}: ${primaryAddress.street}${primaryAddress.number ? `, ${primaryAddress.number}` : ""}` : "Não informado";
+
+  function formatAddressLine(address: Address) {
+    return [address.street, address.number, address.neighborhood, address.city].filter(Boolean).join(" · ");
+  }
 
   return (
-    <div className="detail-section">
-      <div className="details-grid">
-        <div className="detail-block">
-          <span>Cliente</span>
-          <strong>{client.name}</strong>
-        </div>
+    <div className="panel-view">
+      <div className="panel-columns panel-columns-2">
+        <section className="panel-column panel-column-scroll is-plain">
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Resumo do cliente</span>
+              <small>Dados principais e histórico do relacionamento.</small>
+            </div>
 
-        <div className="detail-block">
-          <span>Contato principal</span>
-          <strong>{primaryContact?.value || "Não informado"}</strong>
-        </div>
+            <div className="compact-summary-box panel-details-summary">
+              <span>
+                Cliente: <strong>{client.name}</strong>
+              </span>
 
-        <div className="detail-block">
-          <span>Endereço principal</span>
-          <strong>
-            {primaryAddress
-              ? `${primaryAddress.label} · ${primaryAddress.street}${
-                  primaryAddress.number ? `, ${primaryAddress.number}` : ""
-                }`
-              : "Não informado"}
-          </strong>
-        </div>
+              <span>
+                Contato: <strong>{primaryContact?.value || "Não informado"}</strong>
+              </span>
 
-        <div className="detail-block">
-          <span>Aniversário</span>
-          <strong>
-            {client.birthDate ? formatDateBR(client.birthDate) : "Não informado"}
-          </strong>
-        </div>
+              <span>
+                Aniversário: <strong>{client.birthDate ? formatDateBR(client.birthDate) : "Não informado"}</strong>
+              </span>
 
-        <div className="detail-block">
-          <span>Frequência de contato</span>
-          <strong>{frequencyLabels[client.contactFrequency]}</strong>
-        </div>
+              <span>
+                Frequência: <strong>{frequencyLabels[client.contactFrequency]}</strong>
+              </span>
 
-        <div className="detail-block">
-          <span>Última interação</span>
-          <strong>{formatClientDateTimeBR(client.lastInteractionAt)}</strong>
-        </div>
+              <span>
+                Última interação: <strong>{formatClientDateTimeBR(client.lastInteractionAt)}</strong>
+              </span>
 
-        <div className="detail-block">
-          <span>Pedidos</span>
-          <strong>{client.totalOrders ?? 0}</strong>
-        </div>
-      </div>
+              <span>
+                Pedidos: <strong>{client.totalOrders ?? 0}</strong>
+              </span>
 
-      <div className="badge-row">
-        <Badge>{client.active ? "Ativo" : "Inativo"}</Badge>
-        {client.favorite && <Badge>Favorito</Badge>}
-        <Badge>{frequencyLabels[client.contactFrequency]}</Badge>
-      </div>
+              <span className="summary-full">
+                Endereço principal: <strong>{primaryAddressText}</strong>
+              </span>
+            </div>
+          </section>
 
-      <div className="subtle-list">
-        <span>Etiquetas</span>
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Etiquetas</span>
+            </div>
 
-        {client.tagIds?.length ? (
-          client.tagIds.map((tagId) => (
-            <small key={tagId}>#{tagLabelsById[tagId] ?? tagId}</small>
-          ))
-        ) : (
-          <small>Nenhuma etiqueta associada</small>
-        )}
-      </div>
+            <div className="panel-badges panel-badges-visible">
+              <Badge>{client.active ? "Ativo" : "Inativo"}</Badge>
 
-      {client.notes && (
-        <div className="notes-preview">
-          <span>Anotações</span>
-          <p>{client.notes}</p>
-        </div>
-      )}
+              {client.favorite && <Badge>Favorito</Badge>}
 
-      <div className="subtle-list">
-        <span>Contatos cadastrados</span>
+              {tagLabels.length ? tagLabels.map((label) => <Badge key={label}>{label}</Badge>) : <Badge>Sem etiquetas</Badge>}
+            </div>
+          </section>
 
-        {client.contacts?.length ? (
-          client.contacts.map((contact) => (
-            <small key={contact.id}>
-              {contact.isPrimary ? "Principal · " : ""}
-              {contact.label ?? contact.type}: {contact.value}
-            </small>
-          ))
-        ) : (
-          <small>Nenhum contato cadastrado</small>
-        )}
-      </div>
+          {client.notes && (
+            <section className="panel-section">
+              <div className="panel-section-title">
+                <span>Anotações</span>
+              </div>
 
-      <div className="subtle-list">
-        <div className="subtle-list-header">
-          <span>Endereços cadastrados</span>
+              <div className="panel-note">
+                <p>{client.notes}</p>
+              </div>
+            </section>
+          )}
+        </section>
 
-          <button
-            type="button"
-            className="text-link compact-link"
-            onClick={onCreateAddress}
-          >
-            Adicionar
-          </button>
-        </div>
+        <section className="panel-column panel-column-scroll">
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Contatos</span>
+            </div>
 
-        {addresses.length ? (
-          addresses.map((address) => (
-            <div className="subtle-list-item" key={address.id}>
-              <small>
-                {address.id === client.primaryAddressId ? "Principal · " : ""}
-                {address.label}: {address.street}
-                {address.number ? `, ${address.number}` : ""}
-                {address.neighborhood ? ` · ${address.neighborhood}` : ""}
-                {address.city ? ` · ${address.city}` : ""}
-              </small>
+            <div className="panel-list compact-list">
+              {client.contacts?.length ? (
+                client.contacts.map((contact) => (
+                  <div className="panel-list-row compact-row" key={contact.id}>
+                    <strong>
+                      {contact.isPrimary ? "Principal · " : ""}
+                      {contact.label ?? contact.type}
+                    </strong>
+                    <span>{contact.value}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="panel-muted">Nenhum contato cadastrado.</p>
+              )}
+            </div>
+          </section>
 
-              <button
-                type="button"
-                className="text-link compact-link"
-                onClick={() => onEditAddress(address)}
-              >
-                Editar
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Endereços</span>
+
+              <button type="button" className="text-link compact-link" onClick={onCreateAddress}>
+                + Adicionar endereço
               </button>
             </div>
-          ))
-        ) : (
-          <small>Nenhum endereço cadastrado</small>
-        )}
+
+            <div className="panel-list compact-list">
+              {addresses.length ? (
+                addresses.map((address) => (
+                  <div className="panel-list-row compact-row" key={address.id}>
+                    <strong>
+                      {address.id === client.primaryAddressId ? "Principal · " : ""}
+                      {address.label}
+                    </strong>
+
+                    <span>{formatAddressLine(address)}</span>
+
+                    <button type="button" className="text-link compact-link" onClick={() => onEditAddress(address)}>
+                      Editar endereço
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="panel-muted">Nenhum endereço cadastrado.</p>
+              )}
+            </div>
+          </section>
+        </section>
       </div>
 
-      <div className="switch-group">
-        <Switch
-          label="Cliente ativo"
-          checked={client.active}
-          onChange={onSetActive}
-        />
-
-        <Switch
-          label="Favorito"
-          checked={client.favorite}
-          onChange={onSetFavorite}
-        />
+      <div className="panel-mobile-switch">
+        <Switch label="Cliente ativo" checked={client.active} onChange={onSetActive} />
       </div>
 
-      <div className="form-actions split-actions">
-        <Button type="button" variant="ghost" onClick={onRegisterInteraction}>
-          Interação
-        </Button>
+      <div className="panel-footer inline-footer">
+        <div className="panel-switches panel-desktop-switch">
+          <Switch label="Cliente ativo" checked={client.active} onChange={onSetActive} />
+        </div>
 
-        <Button type="button" variant="primary" onClick={onEdit}>
-          Editar
-        </Button>
+        <div className="panel-actions">
+          <Button type="button" variant="ghost" onClick={onRegisterInteraction}>
+            Interação
+          </Button>
+
+          <Button type="button" variant="primary" onClick={onEdit}>
+            Editar
+          </Button>
+        </div>
       </div>
     </div>
   );

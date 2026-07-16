@@ -9,12 +9,14 @@ import { AddressForm } from "../../addresses/components/AddressForm";
 import type { Client } from "../../clients/clientTypes";
 import type { Product } from "../../products/productTypes";
 import type { NewOrderData, Order, OrderItem, OrderStatus } from "../orderTypes";
+import { AddressPickerContent } from "../../addresses/components/AddressPickerContent";
 import type { Tag } from "../../tags/tagTypes";
 
 interface OrderFormItem {
   id: string;
   productId: string;
   quantity: string;
+  unit: string;
   unitPrice: string;
   notes: string;
   tagIds: string[];
@@ -56,6 +58,16 @@ function formatAddressLabel(address: Address) {
   return `${owner}${address.label}: ${address.street}${number}${neighborhood}${city}`;
 }
 
+const DEFAULT_ITEM_UNIT = "unidade";
+
+type OrderItemWithUnit = OrderItem & {
+  unit?: string;
+};
+
+function getProductUnit(product?: Product) {
+  return product?.unit?.trim() || DEFAULT_ITEM_UNIT;
+}
+
 export function OrderForm({ order, orders, clients, addresses, products, itemTags = [], onCancel, onSave, onCreateAddress, onDirtyChange }: OrderFormProps) {
   const [clientId, setClientId] = useState(order?.clientId ?? "");
   const [addressId, setAddressId] = useState(order?.addressId ?? "");
@@ -68,21 +80,30 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   const [saving, setSaving] = useState(false);
 
   const initialItems: OrderFormItem[] = order?.items.length
-    ? order.items.map((item) => ({
-        id: item.id,
-        productId: item.productId,
-        quantity: String(item.quantity),
-        unitPrice: currencyToInput(item.unitPrice),
-        notes: item.notes ?? "",
-        tagIds: item.tagIds ?? [],
-        showNotes: Boolean(item.notes),
-        showTags: Boolean(item.tagIds?.length),
-      }))
+    ? order.items.map((item) => {
+        const savedItem = item as OrderItemWithUnit;
+        const product = products.find(
+          (currentProduct) => currentProduct.id === item.productId
+        );
+
+        return {
+          id: item.id,
+          productId: item.productId,
+          quantity: String(item.quantity),
+          unit: savedItem.unit ?? getProductUnit(product),
+          unitPrice: currencyToInput(item.unitPrice),
+          notes: item.notes ?? "",
+          tagIds: item.tagIds ?? [],
+          showNotes: Boolean(item.notes),
+          showTags: Boolean(item.tagIds?.length),
+        };
+      })
     : [
         {
           id: crypto.randomUUID(),
           productId: "",
           quantity: "1",
+          unit: DEFAULT_ITEM_UNIT,
           unitPrice: "",
           notes: "",
           tagIds: [],
@@ -93,8 +114,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   const [items, setItems] = useState<OrderFormItem[]>(initialItems);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(order?.items.length ? null : (initialItems[0]?.id ?? null));
 
-  const initialFormSignature = useMemo(
-    () =>
+  const [initialFormSignature] = useState(() =>
       JSON.stringify({
         clientId: order?.clientId ?? "",
         addressId: order?.addressId ?? "",
@@ -105,7 +125,6 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
         notes: order?.notes ?? "",
         items: initialItems,
       }),
-    [],
   );
 
   const currentFormSignature = JSON.stringify({
@@ -131,6 +150,14 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
   const activeProducts = useMemo(() => products.filter((product) => product.active), [products]);
 
+  const itemUnitOptions = useMemo(() => {
+  const productUnits = activeProducts
+      .map((product) => product.unit?.trim())
+      .filter((unit): unit is string => Boolean(unit));
+
+    return Array.from(new Set([DEFAULT_ITEM_UNIT, ...productUnits]));
+  }, [activeProducts]);
+
   const selectedClient = clients.find((client) => client.id === clientId);
   const selectedAddress = addresses.find((address) => address.id === addressId);
 
@@ -145,6 +172,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
         productId: item.productId,
         productName: product?.name ?? "",
         quantity: Number.isFinite(quantity) ? quantity : 0,
+        unit: item.unit.trim() || getProductUnit(product),
         unitPrice,
         total: (Number.isFinite(quantity) ? quantity : 0) * unitPrice,
         notes: item.showNotes ? item.notes.trim() : "",
@@ -152,6 +180,12 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
       };
     })
     .filter((item) => item.productId && item.productName && item.quantity > 0);
+
+  const expandedItem = items.find((item) => item.id === expandedItemId) ?? null;
+
+  const expandedItemIndex = expandedItem ? items.findIndex((item) => item.id === expandedItem.id) : -1;
+
+  const isEditingItem = expandedItem !== null && expandedItemIndex >= 0;
 
   const subtotal = parsedItems.reduce((sum, item) => sum + item.total, 0);
   const parsedDeliveryFee = parseMoneyOrZero(deliveryFee);
@@ -170,6 +204,12 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
   const creditGenerated = balanceInfo.type === "credit" ? balanceInfo.amount : 0;
 
+  const effectivePaid = parsedAmountPaid + automaticCreditApplied;
+
+  const statusLabel = balanceInfo.type === "credit" ? "Crédito gerado" : balanceInfo.type === "settled" ? "Quitado" : "Restante";
+
+  const statusAmount = balanceInfo.type === "credit" ? balanceInfo.amount : balanceInfo.type === "settled" ? total : balanceInfo.amount;
+
   function updateItem(itemId: string, data: Partial<OrderFormItem>) {
     setItems((currentItems) => currentItems.map((item) => (item.id === itemId ? { ...item, ...data } : item)));
   }
@@ -179,7 +219,12 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
     updateItem(itemId, {
       productId,
-      unitPrice: selectedProduct?.suggestedPrice !== undefined && selectedProduct.suggestedPrice !== null ? currencyToInput(selectedProduct.suggestedPrice) : "",
+      unit: getProductUnit(selectedProduct),
+      unitPrice:
+        selectedProduct?.suggestedPrice !== undefined &&
+        selectedProduct.suggestedPrice !== null
+          ? currencyToInput(selectedProduct.suggestedPrice)
+          : "",
     });
   }
 
@@ -227,6 +272,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
       id: crypto.randomUUID(),
       productId: "",
       quantity: "1",
+      unit: DEFAULT_ITEM_UNIT,
       unitPrice: "",
       notes: "",
       tagIds: [],
@@ -239,7 +285,13 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   }
 
   function removeItem(itemId: string) {
-    setItems((currentItems) => (currentItems.length === 1 ? currentItems : currentItems.filter((item) => item.id !== itemId)));
+    setItems((currentItems) =>
+      currentItems.length === 1
+        ? currentItems
+        : currentItems.filter((item) => item.id !== itemId)
+    );
+
+    setExpandedItemId((currentId) => (currentId === itemId ? null : currentId));
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -320,7 +372,23 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     if (!productName) {
       return `Item ${index + 1} sem produto`;
     }
-    return `${item.quantity || "0"} × ${productName} · ${formatCurrencyBR(itemTotal)}`;
+    return `${item.quantity || "0"} ${item.unit || DEFAULT_ITEM_UNIT} · ${productName} · ${formatCurrencyBR(itemTotal)}`;
+  }
+
+  function requestRemoveItem(item: OrderFormItem, index: number) {
+    if (items.length === 1) {
+      return;
+    }
+
+    const itemSummary = getItemSummary(item, index);
+
+    const shouldRemove = window.confirm(`Remover este item do pedido?\n\n${itemSummary}`);
+
+    if (!shouldRemove) {
+      return;
+    }
+
+    removeItem(item.id);
   }
 
   function handleClientChange(nextClientId: string) {
@@ -350,11 +418,11 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
   return (
     <>
-      <form className="order-form-v2" onSubmit={handleSubmit}>
-        <div className="order-form-columns">
+      <form className="panel-view" onSubmit={handleSubmit}>
+        <div className="panel-columns panel-columns-3">
           {/* Dados do pedido */}
-          <section className="order-form-column">
-            <div className="form-section-title">
+          <section className="panel-column panel-column-scroll">
+            <div className="panel-section-title">
               <span>Dados do pedido</span>
               <small>Cliente, entrega e status.</small>
             </div>
@@ -411,202 +479,324 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
               </label>
             </div>
           </section>
-
           {/* Itens do pedido */}
-          <section className="order-form-column order-form-items-column">
-            <div className="form-section-title">
-              <span>Itens do pedido</span>
-              <small>Produtos, quantidades e preços negociados.</small>
-            </div>
+          <section
+            className={
+              isEditingItem
+                ? "panel-column order-items-column order-items-column-editing"
+                : "panel-column order-items-column"
+            }
+          >
+            {!isEditingItem && (
+              <>
+                <div className="panel-section-title order-items-title">
+                  <span>Itens do pedido</span>
+                  <small>Produtos, quantidades e preços negociados.</small>
+                </div>
 
-            <div className="order-form-items-scroll">
-              <div className="order-form-items">
-                {items.map((item, index) => {
-                  const expanded = expandedItemId === item.id;
-                  const itemTotal = getItemTotal(item);
+                <div className="order-items-list-scroll">
+                  <div className="order-items-list">
+                    {items.map((item, index) => (
+                      <div className="expandable-card order-item-collapsed-card" key={item.id}>
+                        <div className="expandable-card-header">
+                          <button
+                            type="button"
+                            className="expandable-card-trigger"
+                            onClick={() => setExpandedItemId(item.id)}
+                          >
+                            <span>{getItemSummary(item, index)}</span>
+                            <small>Editar</small>
+                          </button>
 
-                  return (
-                    <div className={expanded ? "order-item-form-card expanded" : "order-item-form-card"} key={item.id}>
-                      <div className="order-item-summary-row">
-                        <button type="button" className="order-item-summary-button" onClick={() => setExpandedItemId((currentId) => (currentId === item.id ? null : item.id))}>
-                          <span>{getItemSummary(item, index)}</span>
-                          <small>{expanded ? "Recolher" : "Editar"}</small>
-                        </button>
+                          <button
+                            type="button"
+                            className="text-link compact-link"
+                            onClick={() => requestRemoveItem(item, index)}
+                            disabled={items.length === 1}
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      </div>
+                    ))}
 
-                        <button type="button" className="text-link compact-link" onClick={() => removeItem(item.id)} disabled={items.length === 1}>
-                          Remover
-                        </button>
+                    {activeProducts.length === 0 && (
+                      <p className="muted-text">
+                        Nenhum produto ativo cadastrado. Cadastre produtos antes de
+                        registrar pedidos.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="panel-column-actions order-items-actions">
+                  <Button type="button" variant="ghost" onClick={addItem}>
+                    + Adicionar item
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {isEditingItem && expandedItem && (
+              <div className="order-item-expanded-shell">
+                <div className="expandable-card expanded order-item-expanded-card">
+                  <div className="expandable-card-header">
+                    <button
+                      type="button"
+                      className="expandable-card-trigger"
+                      onClick={() => setExpandedItemId(null)}
+                    >
+                      <span>{getItemSummary(expandedItem, expandedItemIndex)}</span>
+                      <small>Recolher</small>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="text-link compact-link"
+                      onClick={() => requestRemoveItem(expandedItem, expandedItemIndex)}
+                      disabled={items.length === 1}
+                    >
+                      Remover
+                    </button>
+                  </div>
+
+                  <div className="expandable-card-body">
+                    <div className="input-group single-column">
+                      <label>
+                        Produto
+                        <select
+                          value={expandedItem.productId}
+                          onChange={(event) =>
+                            handleProductChange(expandedItem.id, event.target.value)
+                          }
+                        >
+                          <option value="">Selecione um produto</option>
+
+                          {activeProducts.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name}
+                              {product.categoryLabel ? ` · ${product.categoryLabel}` : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <div className="order-item-quantity-unit-row">
+                        <label>
+                          Quantidade
+                          <input
+                            value={expandedItem.quantity}
+                            onChange={(event) =>
+                              updateItem(expandedItem.id, { quantity: event.target.value })
+                            }
+                            placeholder="Ex: 1"
+                          />
+                        </label>
+
+                        <label>
+                          Unidade
+                          <select
+                            value={expandedItem.unit}
+                            onChange={(event) =>
+                              updateItem(expandedItem.id, { unit: event.target.value })
+                            }
+                          >
+                            {!itemUnitOptions.includes(expandedItem.unit) && (
+                              <option value={expandedItem.unit}>{expandedItem.unit}</option>
+                            )}
+
+                            {itemUnitOptions.map((unitOption) => (
+                              <option key={unitOption} value={unitOption}>
+                                {unitOption}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
                       </div>
 
-                      {expanded && (
-                        <div className="order-item-editor">
-                          <div className="input-group single-column">
-                            <label>
-                              Produto
-                              <select value={item.productId} onChange={(event) => handleProductChange(item.id, event.target.value)}>
-                                <option value="">Selecione um produto</option>
+                      <label>
+                        Preço negociado
+                        <input
+                          value={expandedItem.unitPrice}
+                          onChange={(event) =>
+                            updateItem(expandedItem.id, { unitPrice: event.target.value })
+                          }
+                          placeholder="Ex: 80,00"
+                        />
+                      </label>
+                    </div>
 
-                                {activeProducts.map((product) => (
-                                  <option key={product.id} value={product.id}>
-                                    {product.name}
-                                    {product.categoryLabel ? ` · ${product.categoryLabel}` : ""}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                    {activeProducts.length === 0 && (
+                      <p className="muted-text">
+                        Nenhum produto ativo cadastrado. Cadastre produtos antes de
+                        registrar pedidos.
+                      </p>
+                    )}
 
-                            <label>
-                              Quantidade
-                              <input value={item.quantity} onChange={(event) => updateItem(item.id, { quantity: event.target.value })} placeholder="Ex: 1" />
-                            </label>
+                    <div className="panel-optional-actions">
+                      {!expandedItem.showTags && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => showItemTags(expandedItem.id)}
+                        >
+                          + Adicionar etiquetas
+                        </Button>
+                      )}
 
-                            <label>
-                              Preço negociado
-                              <input value={item.unitPrice} onChange={(event) => updateItem(item.id, { unitPrice: event.target.value })} placeholder="Ex: 80,00" />
-                            </label>
-                          </div>
-
-                          <div className="order-item-extra-actions">
-                            {!item.showTags && (
-                              <Button type="button" variant="ghost" onClick={() => showItemTags(item.id)}>
-                                + Adicionar etiquetas
-                              </Button>
-                            )}
-
-                            {!item.showNotes && (
-                              <Button type="button" variant="ghost" onClick={() => showItemNotes(item.id)}>
-                                + Adicionar comentário
-                              </Button>
-                            )}
-                          </div>
-
-                          {item.showTags && (
-                            <div className="order-item-optional-field">
-                              <header>
-                                <div>
-                                  <strong>Etiquetas do item</strong>
-                                  <span>Use para cuidados, alertas ou detalhes específicos.</span>
-                                </div>
-
-                                <button type="button" className="text-link compact-link" onClick={() => removeItemTags(item.id)}>
-                                  Remover
-                                </button>
-                              </header>
-
-                              {itemTags.length > 0 ? (
-                                <div className="selectable-chip-grid order-item-tags-grid">
-                                  {itemTags.map((tag) => {
-                                    const selected = item.tagIds.includes(tag.id);
-
-                                    return (
-                                      <button
-                                        key={tag.id}
-                                        type="button"
-                                        className={selected ? "selectable-chip selected" : "selectable-chip"}
-                                        aria-pressed={selected}
-                                        onClick={() => toggleItemTag(item.id, tag.id)}
-                                      >
-                                        #{tag.label}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <p className="muted-text">Nenhuma etiqueta disponível para itens de pedido.</p>
-                              )}
-                            </div>
-                          )}
-
-                          {item.showNotes && (
-                            <div className="order-item-optional-field">
-                              <header>
-                                <div>
-                                  <strong>Comentário do item</strong>
-                                  <span>Use para observações específicas deste produto.</span>
-                                </div>
-
-                                <button type="button" className="text-link compact-link" onClick={() => removeItemNotes(item.id)}>
-                                  Remover
-                                </button>
-                              </header>
-
-                              <label className="textarea-field">
-                                <textarea
-                                  value={item.notes}
-                                  onChange={(event) => updateItem(item.id, { notes: event.target.value })}
-                                  placeholder="Ex: sem cobertura, escrever nome, massa branca..."
-                                  rows={3}
-                                />
-                              </label>
-                            </div>
-                          )}
-
-                          <div className="order-item-footer">
-                            <span>
-                              Total do item: <strong>{formatCurrencyBR(itemTotal)}</strong>
-                            </span>
-
-                            <Button type="button" variant="ghost" onClick={() => setExpandedItemId(null)} disabled={!item.productId}>
-                              Concluir item
-                            </Button>
-                          </div>
-                        </div>
+                      {!expandedItem.showNotes && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => showItemNotes(expandedItem.id)}
+                        >
+                          + Adicionar comentário
+                        </Button>
                       )}
                     </div>
-                  );
-                })}
 
-                {activeProducts.length === 0 && <p className="muted-text">Nenhum produto ativo cadastrado. Cadastre produtos antes de registrar pedidos.</p>}
+                    {expandedItem.showTags && (
+                      <div className="panel-optional-field">
+                        <header>
+                          <div>
+                            <strong>Etiquetas do item</strong>
+                            <span>Use para cuidados, alertas ou detalhes específicos.</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="text-link compact-link"
+                            onClick={() => removeItemTags(expandedItem.id)}
+                          >
+                            Remover
+                          </button>
+                        </header>
+
+                        {itemTags.length > 0 ? (
+                          <div className="panel-chip-grid">
+                            {itemTags.map((tag) => {
+                              const selected = expandedItem.tagIds.includes(tag.id);
+
+                              return (
+                                <button
+                                  key={tag.id}
+                                  type="button"
+                                  className={selected ? "panel-chip selected" : "panel-chip"}
+                                  aria-pressed={selected}
+                                  onClick={() => toggleItemTag(expandedItem.id, tag.id)}
+                                >
+                                  #{tag.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="muted-text">
+                            Nenhuma etiqueta disponível para itens de pedido.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {expandedItem.showNotes && (
+                      <div className="panel-optional-field">
+                        <header>
+                          <div>
+                            <strong>Comentário do item</strong>
+                            <span>Use para observações específicas deste produto.</span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="text-link compact-link"
+                            onClick={() => removeItemNotes(expandedItem.id)}
+                          >
+                            Remover
+                          </button>
+                        </header>
+
+                        <label className="panel-field">
+                          <textarea
+                            value={expandedItem.notes}
+                            onChange={(event) =>
+                              updateItem(expandedItem.id, { notes: event.target.value })
+                            }
+                            placeholder="Ex: sem cobertura, escrever nome, massa branca..."
+                            rows={3}
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    <div className="panel-inline-footer">
+                      <span>
+                        Total do item:{" "}
+                        <strong>{formatCurrencyBR(getItemTotal(expandedItem))}</strong>
+                      </span>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setExpandedItemId(null)}
+                        disabled={!expandedItem.productId}
+                      >
+                        Concluir item
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-
-            <Button type="button" variant="ghost" onClick={addItem}>
-              + Adicionar item
-            </Button>
-          </section>
-
+            )}
+          </section>          
           {/* Taxa, pago, resumo e observações */}
-          <section className="order-form-column order-form-payment-column">
-            <div className="form-section-title">
-              <span>Pagamento</span>
-              <small>Controle de sinal, entrega, crédito e combinados.</small>
+          <section className="panel-column">
+            <div className="panel-column-scroll">
+              <section className="panel-section">
+                <div className="panel-section-title">
+                  <span>Pagamento</span>
+                  <small>Controle de sinal, entrega, crédito e combinados.</small>
+                </div>
+
+                <div className="panel-field-row">
+                  <label className="panel-field-card">
+                    Taxa de entrega
+                    <input value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} placeholder="Ex: 10,00" />
+                  </label>
+
+                  <label className="panel-field-card">
+                    Valor pago
+                    <input value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} placeholder={automaticCreditApplied > 0 ? "Opcional" : "Ex: 50,00"} />
+                  </label>
+                </div>
+              </section>
+
+              <section className="panel-section">
+                <div className="compact-summary-box">
+                  <span>Subtotal: {formatCurrencyBR(subtotal)}</span>
+
+                  <span>Entrega: {formatCurrencyBR(parsedDeliveryFee)}</span>
+
+                  <span>Pago: {formatCurrencyBR(effectivePaid)}</span>
+
+                  <span className="summary-status">
+                    {statusLabel}: {formatCurrencyBR(statusAmount)}
+                  </span>
+
+                  <strong className="summary-total">Total: {formatCurrencyBR(total)}</strong>
+                </div>
+              </section>
+
+              <section className="panel-section">
+                <label className="panel-textarea">
+                  Observações do pedido
+                  <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes gerais, combinados, horários, forma de pagamento..." rows={4} />
+                </label>
+              </section>
             </div>
-
-            <div className="order-payment-fields">
-              <label>
-                Taxa de entrega
-                <input value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} placeholder="Ex: 10,00" />
-              </label>
-
-              <label>
-                Valor pago
-                <input value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} placeholder="Ex: 50,00" />
-              </label>
-            </div>
-
-            <div className="order-summary-box order-summary-box-compact">
-              <span>Subtotal: {formatCurrencyBR(subtotal)}</span>
-              <span>Entrega: {formatCurrencyBR(parsedDeliveryFee)}</span>
-              <span>Pago: {formatCurrencyBR(parsedAmountPaid)}</span>
-              <span>
-                {balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}
-                {balanceInfo.type === "credit"}
-              </span>
-              <strong>Total: {formatCurrencyBR(total)}</strong>
-            </div>
-
-            <label className="textarea-field order-notes-field">
-              Observações do pedido
-              <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes gerais, combinados, horários, forma de pagamento..." rows={6} />
-            </label>
-          </section>
+          </section>{" "}
         </div>
 
-        <div className="order-form-footer">
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            Cancelar
-          </Button>
-
+        <div className="panel-footer">
           <Button type="submit" disabled={saving || !selectedClient || !deliveryDateTime || parsedItems.length === 0}>
             {saving ? "Salvando..." : "Salvar pedido"}
           </Button>
@@ -615,46 +805,26 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
       <SlidePanel
         open={addressPanelMode !== null}
         level={3}
-        size="normal"
+        size="wide"
         title={addressPanelMode === "create" ? "Adicionar endereço" : "Escolher endereço"}
-        description={addressPanelMode === "create" ? "Cadastre um endereço para usar neste pedido." : "Selecione um endereço cadastrado ou deixe o pedido sem endereço."}
+        description={addressPanelMode === "create" ? "Cadastre um endereço para usar neste pedido." : "Selecione um endereço cadastrado para este pedido."}
         onClose={() => setAddressPanelMode(null)}
       >
         {addressPanelMode === "choose" && (
-          <div className="address-picker-panel">
-            <button
-              type="button"
-              className={!addressId ? "address-option selected" : "address-option"}
-              onClick={() => {
-                setAddressId("");
-                setAddressPanelMode(null);
-              }}
-            >
-              <strong>Sem endereço definido</strong>
-              <span>O pedido pode ser salvo sem endereço.</span>
-            </button>
-
-            {selectableAddresses.map((address) => (
-              <button
-                type="button"
-                className={address.id === addressId ? "address-option selected" : "address-option"}
-                key={address.id}
-                onClick={() => {
-                  setAddressId(address.id);
-                  setAddressPanelMode(null);
-                }}
-              >
-                <strong>{address.label}</strong>
-                <span>{formatAddressLabel(address)}</span>
-              </button>
-            ))}
-
-            {selectableAddresses.length === 0 && <p className="muted-text">Nenhum endereço cadastrado.</p>}
-          </div>
+          <AddressPickerContent
+            addresses={selectableAddresses}
+            selectedAddressId={addressId}
+            onCancel={() => setAddressPanelMode(null)}
+            onConfirm={(nextAddressId) => {
+              setAddressId(nextAddressId);
+              setAddressPanelMode(null);
+            }}
+            onRequestCreateAddress={selectedClient && onCreateAddress ? () => setAddressPanelMode("create") : undefined}
+          />
         )}
 
         {addressPanelMode === "create" && selectedClient && onCreateAddress && <AddressForm client={selectedClient} onCancel={() => setAddressPanelMode(null)} onSave={handleCreateAddress} />}
-      </SlidePanel>
+      </SlidePanel>{" "}
     </>
   );
 }

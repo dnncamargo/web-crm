@@ -1,77 +1,91 @@
 import { Badge } from "../../../components/ui/Badge";
 import { Card } from "../../../components/ui/Card";
-import { formatDateKeyShort } from "../todayUtils";
+import { addDaysToDateKey } from "../todayUtils";
 
-interface ProductionItem {
-  productName: string;
-  quantity: number;
-}
-
-interface ProductionByDate {
+interface ProductionDateGroup {
   dateKey: string;
-  items: ProductionItem[];
+  items: {
+    productName: string;
+    quantity: number;
+  }[];
 }
 
 interface TodayProductionSectionProps {
   todayKey: string;
-  productionByDate: ProductionByDate[];
+  productionByDate: ProductionDateGroup[];
 }
 
-export function TodayProductionSection({
-  todayKey,
-  productionByDate,
-}: TodayProductionSectionProps) {
+export function TodayProductionSection({ todayKey, productionByDate }: TodayProductionSectionProps) {
+  const tomorrowKey = addDaysToDateKey(todayKey, 1);
+  const itemsByDate = new Map(productionByDate.map((group) => [group.dateKey, group.items]));
+  const nextDaysTotals = new Map<string, number>();
+
+  productionByDate
+    .filter((group) => group.dateKey !== todayKey && group.dateKey !== tomorrowKey)
+    .forEach((group) => {
+      group.items.forEach((item) => {
+        nextDaysTotals.set(item.productName, (nextDaysTotals.get(item.productName) ?? 0) + item.quantity);
+      });
+    });
+
+  const summaryCards = [
+    { key: "today", title: "Hoje", items: itemsByDate.get(todayKey) ?? [] },
+    { key: "tomorrow", title: "Amanhã", items: itemsByDate.get(tomorrowKey) ?? [] },
+    {
+      key: "next-days",
+      title: "Próximos 3 dias",
+      items: Array.from(nextDaysTotals, ([productName, quantity]) => ({ productName, quantity })).sort((first, second) =>
+        first.productName.localeCompare(second.productName),
+      ),
+    },
+  ];
+
   return (
-    <section className="today-section">
-      <div className="today-section-header">
+    <section className="entity-list-group">
+      <header>
         <div>
-          <h2>Produção do dia</h2>
-          <p>Produtos iguais agrupados por data de entrega</p>
+          <strong>Produção do dia</strong>
+          <p>Produtos iguais agrupados por período de entrega</p>
         </div>
-      </div>
+      </header>
 
-      <div className="today-date-groups">
-        {productionByDate.length === 0 ? (
-          <Card>
-            <div className="empty-state">
-              <strong>Nenhuma produção próxima.</strong>
-              <span>Não há produtos previstos para hoje e os próximos 5 dias.</span>
-            </div>
-          </Card>
-        ) : (
-          productionByDate.map((dateProduction) => (
-            <Card key={dateProduction.dateKey}>
-              <div className="today-date-group">
-                <header>
-                  <strong>
-                    {dateProduction.dateKey === todayKey
-                      ? "Hoje"
-                      : formatDateKeyShort(dateProduction.dateKey)}
-                  </strong>
+      <div className="dashboard-grid dashboard-grid-3">
+        {summaryCards.map((summaryCard) => (
+          <Card className="dashboard-card" key={summaryCard.key}>
+            <section className="entity-list-group">
+              <header>
+                <div>
+                  <strong>{summaryCard.title}</strong>
+                  <p>Total agrupado por produto</p>
+                </div>
 
-                  <Badge>
-                    {`${dateProduction.items.length} ${
-                      dateProduction.items.length === 1 ? "produto" : "produtos"
-                    }`}
-                  </Badge>
-                </header>
+                <Badge>{summaryCard.items.length}</Badge>
+              </header>
 
-                <div className="today-list">
-                  {dateProduction.items.map((item) => (
-                    <article className="today-list-item" key={item.productName}>
-                      <div>
-                        <strong>{item.productName}</strong>
-                        <span>Total a produzir no dia</span>
+              {summaryCard.items.length ? (
+                <div className="entity-list-view dashboard-card-list">
+                  {summaryCard.items.map((item) => (
+                    <article className="entity-row entity-row-with-side-action" key={item.productName}>
+                      <div className="entity-row-clickable">
+                        <div className="entity-row-main">
+                          <strong className="entity-title">{item.productName}</strong>
+                        </div>
                       </div>
 
-                      <small>{item.quantity}</small>
+                      <aside className="entity-row-side">
+                        <strong className="entity-value">{item.quantity}</strong>
+                      </aside>
                     </article>
                   ))}
                 </div>
-              </div>
-            </Card>
-          ))
-        )}
+              ) : (
+                <div className="empty-state dashboard-empty-state">
+                  <span>Nenhuma produção prevista.</span>
+                </div>
+              )}
+            </section>
+          </Card>
+        ))}
       </div>
     </section>
   );

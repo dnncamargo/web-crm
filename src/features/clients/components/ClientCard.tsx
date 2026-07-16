@@ -1,4 +1,4 @@
-import { Badge } from "../../../components/ui/Badge";
+﻿import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { Switch } from "../../../components/ui/Switch";
@@ -8,7 +8,7 @@ import type { Tag } from "../../tags/tagTypes";
 import { formatDateBR } from "../../../utils/dateFormat";
 
 const frequencyLabels: Record<ContactFrequency, string> = {
-  none: "Sem frequência",
+  none: "Sem frequÃªncia",
   weekly: "Semanal",
   biweekly: "Quinzenal",
   monthly: "Mensal",
@@ -50,7 +50,7 @@ export function ClientCard({
       <div className="client-card-header">
         <div>
           <h2>{client.name}</h2>
-          <p>{primaryContact ? `${primaryContact.label ?? "Contato principal"} · ${primaryContact.value}` : "Sem contato principal"}</p>
+          <p>{primaryContact ? `${primaryContact.label ?? "Contato principal"} Â· ${primaryContact.value}` : "Sem contato principal"}</p>
         </div>
 
         <button
@@ -59,69 +59,69 @@ export function ClientCard({
           onClick={() => onFavoriteChange(client, !client.favorite)}
           aria-label={client.favorite ? "Remover dos favoritos" : "Marcar como favorito"}
         >
-          ★
+          â˜…
         </button>
       </div>
 
       <div className="client-meta">
         <span>{frequencyLabels[client.contactFrequency]}</span>
-        <span>{client.lastInteractionAt ? `Última interação: ${client.lastInteractionAt}` : "Sem interação registrada"}</span>
+        <span>{client.lastInteractionAt ? `Ãšltima interaÃ§Ã£o: ${client.lastInteractionAt}` : "Sem interaÃ§Ã£o registrada"}</span>
       </div>
 
-      <div className="badge-row">
+      <div className="entity-badges">
         {!primaryContact && <Badge>sem-contato</Badge>}
         {!primaryAddress && <Badge>sem-endereco</Badge>}
         {!client.birthDate && <Badge>sem-aniversario</Badge>}
 
         {visibleTags.map((tagId) => (
-          <Badge key={tagId}>{tagLabelsById[tagId] ?? tagId}</Badge>
+          <Badge key={tagId}>{(tagLabelsById[tagId] ?? tagId).replace(/^#+/, "")}</Badge>
         ))}
       </div>
 
       {expanded && (
         <div className="client-expanded-area">
-          <div className="details-grid">
-            <div className="detail-block">
+          <div className="panel-block-grid">
+            <div className="panel-block">
               <span>Contato principal</span>
-              <strong>{primaryContact?.value || "Não informado"}</strong>
+              <strong>{primaryContact?.value || "NÃ£o informado"}</strong>
             </div>
 
-            <div className="detail-block">
-              <span>Endereço principal</span>
-              <strong>{primaryAddress ? `${primaryAddress.label} · ${primaryAddress.street}${primaryAddress.number ? `, ${primaryAddress.number}` : ""}` : "Não informado"}</strong>
+            <div className="panel-block">
+              <span>EndereÃ§o principal</span>
+              <strong>{primaryAddress ? `${primaryAddress.label} Â· ${primaryAddress.street}${primaryAddress.number ? `, ${primaryAddress.number}` : ""}` : "NÃ£o informado"}</strong>
             </div>
 
-            <div className="detail-block">
-              <span>Aniversário</span>
-              <strong>{client.birthDate ? formatDateBR(client.birthDate) : "Não informado"}</strong>
+            <div className="panel-block">
+              <span>AniversÃ¡rio</span>
+              <strong>{client.birthDate ? formatDateBR(client.birthDate) : "NÃ£o informado"}</strong>
             </div>
 
-            <div className="detail-block">
+            <div className="panel-block">
               <span>Pedidos registrados</span>
               <strong>{client.totalOrders ?? 0}</strong>
             </div>
           </div>
 
-          <div className="subtle-list">
+          <div className="panel-list">
             <span>Etiquetas</span>
 
-            {client.tagIds?.length ? client.tagIds.map((tagId) => <small key={tagId}>#{tagLabelsById[tagId] ?? tagId}</small>) : <small>Nenhuma etiqueta associada</small>}
+            {client.tagIds?.length ? client.tagIds.map((tagId) => <small key={tagId}>#{(tagLabelsById[tagId] ?? tagId).replace(/^#+/, "")}</small>) : <small>Nenhuma etiqueta associada</small>}
           </div>
 
           {client.notes && (
-            <div className="notes-preview">
-              <span>Anotações</span>
+            <div className="panel-note">
+              <span>AnotaÃ§Ãµes</span>
               <p>{client.notes}</p>
             </div>
           )}
 
-          <div className="subtle-list">
+          <div className="panel-list">
             <span>Contatos cadastrados</span>
 
             {client.contacts?.length ? (
               client.contacts.map((contact) => (
                 <small key={contact.id}>
-                  {contact.isPrimary ? "Principal · " : ""}
+                  {contact.isPrimary ? "Principal Â· " : ""}
                   {contact.label ?? contact.type}: {contact.value}
                 </small>
               ))
@@ -130,9 +130,9 @@ export function ClientCard({
             )}
           </div>
 
-          <div className="subtle-list">
-            <div className="subtle-list-header">
-              <span>Endereços cadastrados</span>
+          <div className="panel-list">
+            <div className="panel-section-title">
+              <span>EndereÃ§os cadastrados</span>
 
               <button type="button" className="text-link compact-link" onClick={() => onRequestCreateAddress(client)}>
                 Adicionar
@@ -144,13 +144,13 @@ export function ClientCard({
                 const isPrimary = address.id === client.primaryAddressId;
 
                 return (
-                  <div className="subtle-list-item" key={address.id}>
+                  <div className="panel-list-row" key={address.id}>
                     <small>
-                      {isPrimary ? "Principal · " : ""}
+                      {isPrimary ? "Principal Â· " : ""}
                       {address.label}: {address.street}
                       {address.number ? `, ${address.number}` : ""}
-                      {address.neighborhood ? ` · ${address.neighborhood}` : ""}
-                      {address.city ? ` · ${address.city}` : ""}
+                      {address.neighborhood ? ` Â· ${address.neighborhood}` : ""}
+                      {address.city ? ` Â· ${address.city}` : ""}
                     </small>
 
                     <button type="button" className="text-link compact-link" onClick={() => onRequestEditAddress(client, address)}>
@@ -160,7 +160,7 @@ export function ClientCard({
                 );
               })
             ) : (
-              <small>Nenhum endereço cadastrado</small>
+              <small>Nenhum endereÃ§o cadastrado</small>
             )}
           </div>
 
@@ -170,7 +170,7 @@ export function ClientCard({
             </Button>
 
             <Button type="button" variant="ghost" onClick={() => onRequestCreateAddress(client)}>
-              Adicionar endereço
+              Adicionar endereÃ§o
             </Button>
           </div>
         </div>
@@ -182,7 +182,7 @@ export function ClientCard({
         </Button>
 
         <Button type="button" variant="ghost">
-          Interação
+          InteraÃ§Ã£o
         </Button>
 
         <button type="button" className="text-link" onClick={() => onToggleExpanded(client.id)}>
@@ -196,3 +196,4 @@ export function ClientCard({
     </Card>
   );
 }
+

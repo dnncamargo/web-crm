@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Filter } from "lucide-react";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -9,7 +10,6 @@ import { useClients } from "../clients/useClients";
 import { useProducts } from "../products/useProducts";
 import { useTags } from "../tags/useTags";
 import { OrderCalendarView } from "./components/OrderCalendarView";
-import { OrderCard } from "./components/OrderCard";
 import { OrderForm } from "./components/OrderForm";
 import { OrderListView } from "./components/OrderListView";
 import type { NewOrderData, Order } from "./orderTypes";
@@ -19,7 +19,7 @@ import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent"
 
 type OrderPanelState = { type: "create-order" } | { type: "edit-order"; order: Order } | { type: "view-order"; order: Order } | null;
 
-type OrderViewMode = "cards" | "list" | "calendar";
+type OrderViewMode = "list" | "calendar";
 
 type OrderPaymentFilter = "all" | "unpaid" | "partial" | "paid";
 
@@ -174,10 +174,6 @@ export function OrdersPage() {
     setPanel({ type: "view-order", order: selectedOrder });
   }
 
-  function openEditOrder(selectedOrder: Order) {
-    setPanel({ type: "edit-order", order: selectedOrder });
-  }
-
   function openStackedEditOrder(selectedOrder: Order) {
     setStackedEditOrder(selectedOrder);
   }
@@ -197,7 +193,7 @@ export function OrdersPage() {
               onClick={() => setShowFilters((current) => !current)}
               aria-label="Filtros e ordenações"
             >
-              F
+              <Filter size={18} aria-hidden="true" />
             </button>
 
             <Button 
@@ -215,10 +211,6 @@ export function OrdersPage() {
         <Card>
           <div className="toolbar order-toolbar">
             <div className="segmented-control">
-              <button type="button" className={viewMode === "cards" ? "active" : ""} onClick={() => setViewMode("cards")}>
-                Cards
-              </button>
-
               <button type="button" className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")}>
                 Lista
               </button>
@@ -263,15 +255,19 @@ export function OrdersPage() {
           </div>
         </Card>
       )}
-      {viewMode === "cards" && (
-        <div className="cards-grid">
-          {visibleOrders.map((order) => (
-            <OrderCard key={order.id} order={order} onRequestEditOrder={openEditOrder} />
-          ))}
-        </div>
+      {viewMode === "list" && (
+        <OrderListView
+          orders={visibleOrders}
+          onRequestViewOrder={openViewOrder}
+        />
       )}
-      {viewMode === "list" && <OrderListView orders={visibleOrders} onRequestViewOrder={openViewOrder} />}
-      {viewMode === "calendar" && <OrderCalendarView orders={calendarOrders} onRequestEditOrder={openViewOrder} />}
+
+      {viewMode === "calendar" && (
+        <OrderCalendarView
+          orders={calendarOrders}
+          onRequestEditOrder={openViewOrder}
+        />
+      )}
       <SlidePanel
         open={panel !== null}
         level={1}

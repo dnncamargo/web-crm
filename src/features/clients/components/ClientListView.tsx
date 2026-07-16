@@ -61,7 +61,7 @@ export function ClientListView({
                 {!client.birthDate && <Badge>sem-aniversário</Badge>}
 
                 {visibleTags.map((tagId) => (
-                  <Badge key={tagId}>#{tagLabelsById[tagId] ?? tagId}</Badge>
+                  <Badge key={tagId}>{(tagLabelsById[tagId] ?? tagId).replace(/^#+/, "")}</Badge>
                 ))}
               </div>
             </button>

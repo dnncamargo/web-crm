@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Filter } from "lucide-react";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -61,9 +62,7 @@ export function ProductsPage() {
   const mainPanelSize =
     panel?.type === "view-product" && stackedEditProduct
       ? "fullscreen"
-      : panel?.type === "view-product"
-        ? "wide"
-        : "fullscreen";
+      : "wide";
 
   function closePanel() {
     setPanel(null);
@@ -109,7 +108,7 @@ export function ProductsPage() {
               onClick={() => setShowFilters((current) => !current)}
               aria-label="Filtros"
             >
-              F
+              <Filter size={18} aria-hidden="true" />
             </button>
 
             <Button
@@ -195,7 +194,7 @@ export function ProductsPage() {
       <SlidePanel
         open={stackedEditProduct !== null}
         level={2}
-        size="fullscreen"
+        size="wide"
         title="Editar produto"
         description="Atualize este produto mantendo os detalhes visíveis ao fundo."
         onClose={() => setStackedEditProduct(null)}

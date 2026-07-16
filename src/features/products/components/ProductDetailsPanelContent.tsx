@@ -13,71 +13,82 @@ function formatOptionalPrice(value?: number | null) {
   return value ? formatCurrencyBR(value) : "Não informado";
 }
 
-export function ProductDetailsPanelContent({
-  product,
-  tagLabelsById,
-  onEdit,
-}: ProductDetailsPanelContentProps) {
+export function ProductDetailsPanelContent({ product, tagLabelsById, onEdit }: ProductDetailsPanelContentProps) {
+  const tagLabels = product.tagIds?.map((tagId) => (tagLabelsById[tagId] ?? tagId).replace(/^#+/, "")) ?? [];
+
   return (
-    <div className="detail-section">
-      <div className="details-grid">
-        <div className="detail-block">
-          <span>Produto</span>
-          <strong>{product.name}</strong>
-        </div>
+    <div className="panel-view">
+      <div className="panel-columns panel-columns-2">
+        <section className="panel-column panel-column-scroll is-plain">
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Resumo do produto</span>
+              <small>Identificação, classificação e preço.</small>
+            </div>
 
-        <div className="detail-block">
-          <span>Categoria</span>
-          <strong>{product.categoryLabel || "Não definida"}</strong>
-        </div>
+            <div className="compact-summary-box panel-details-summary">
+              <span>
+                Produto: <strong>{product.name}</strong>
+              </span>
+              <span>
+                Categoria: <strong>{product.categoryLabel || "Não definida"}</strong>
+              </span>
+              <span>
+                Unidade: <strong>{product.unit || "unidade"}</strong>
+              </span>
+              <span>
+                Preço sugerido: <strong>{formatOptionalPrice(product.suggestedPrice)}</strong>
+              </span>
+              <span className="summary-full">
+                Status: <strong>{product.active ? "Ativo" : "Inativo"}</strong>
+              </span>
+            </div>
+          </section>
 
-        <div className="detail-block">
-          <span>Unidade</span>
-          <strong>{product.unit || "unidade"}</strong>
-        </div>
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Marcadores</span>
+            </div>
 
-        <div className="detail-block">
-          <span>Preço sugerido</span>
-          <strong>{formatOptionalPrice(product.suggestedPrice)}</strong>
-        </div>
+            <div className="panel-badges panel-badges-visible">
+              <Badge>{product.active ? "Ativo" : "Inativo"}</Badge>
+              {product.categoryLabel && <Badge>{product.categoryLabel}</Badge>}
+              {product.unit && <Badge>{product.unit}</Badge>}
+            </div>
+          </section>
+        </section>
 
-        <div className="detail-block">
-          <span>Status</span>
-          <strong>{product.active ? "Ativo" : "Inativo"}</strong>
-        </div>
+        <section className="panel-column panel-column-scroll">
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Etiquetas</span>
+            </div>
+
+            <div className="panel-badges panel-badges-visible">
+              {tagLabels.length ? tagLabels.map((label) => <Badge key={label}>{label}</Badge>) : <Badge>Sem etiquetas</Badge>}
+            </div>
+          </section>
+
+          {product.notes && (
+            <section className="panel-section">
+              <div className="panel-section-title">
+                <span>Observações</span>
+              </div>
+
+              <div className="panel-note">
+                <p>{product.notes}</p>
+              </div>
+            </section>
+          )}
+        </section>
       </div>
 
-      <div className="badge-row">
-        <Badge>{product.active ? "Ativo" : "Inativo"}</Badge>
-
-        {product.categoryLabel && <Badge>{product.categoryLabel}</Badge>}
-
-        {product.unit && <Badge>{product.unit}</Badge>}
-      </div>
-
-      <div className="subtle-list">
-        <span>Etiquetas</span>
-
-        {product.tagIds?.length ? (
-          product.tagIds.map((tagId) => (
-            <small key={tagId}>#{tagLabelsById[tagId] ?? tagId}</small>
-          ))
-        ) : (
-          <small>Nenhuma etiqueta adicional</small>
-        )}
-      </div>
-
-      {product.notes && (
-        <div className="notes-preview">
-          <span>Observações</span>
-          <p>{product.notes}</p>
+      <div className="panel-footer">
+        <div className="panel-actions">
+          <Button type="button" variant="primary" onClick={onEdit}>
+            Editar
+          </Button>
         </div>
-      )}
-
-      <div className="form-actions">
-        <Button type="button" variant="secondary" onClick={onEdit}>
-          Editar
-        </Button>
       </div>
     </div>
   );

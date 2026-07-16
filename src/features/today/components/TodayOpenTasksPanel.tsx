@@ -1,4 +1,4 @@
-import type { Task } from "../../tasks/taskTypes";
+﻿import type { Task } from "../../tasks/taskTypes";
 import {
   formatTaskDateBR,
   getTaskDueStatus,
@@ -11,7 +11,7 @@ interface TodayOpenTasksPanelProps {
 
 export function TodayOpenTasksPanel({ openTasks }: TodayOpenTasksPanelProps) {
   return (
-    <div className="today-panel">
+    <div className="entity-list-group">
       <header>
         <div>
           <h2>Tarefas abertas</h2>
@@ -22,12 +22,12 @@ export function TodayOpenTasksPanel({ openTasks }: TodayOpenTasksPanelProps) {
       {openTasks.length === 0 ? (
         <p className="muted-text">Nenhuma tarefa aberta.</p>
       ) : (
-        <div className="today-list">
+        <div className="entity-list-view">
           {openTasks.map((task) => {
             const dueStatus = getTaskDueStatus(task);
 
             return (
-              <article className="today-list-item" key={task.id}>
+              <article className="entity-row" key={task.id}>
                 <div>
                   <strong>{task.title}</strong>
                   <span>{task.clientName || "Sem cliente vinculado"}</span>

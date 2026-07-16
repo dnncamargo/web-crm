@@ -1,4 +1,4 @@
-import { Badge } from "../../../components/ui/Badge";
+﻿import { Badge } from "../../../components/ui/Badge";
 import { Card } from "../../../components/ui/Card";
 import { Switch } from "../../../components/ui/Switch";
 import type { Task } from "../taskTypes";
@@ -35,7 +35,7 @@ export function TaskCard({
         </div>
       </div>
 
-      <div className="badge-row">
+      <div className="entity-badges">
         <Badge>{getTaskDueStatusLabel(dueStatus)}</Badge>
 
         {task.dueDate && <Badge>{formatTaskDateBR(task.dueDate)}</Badge>}
@@ -50,19 +50,19 @@ export function TaskCard({
       </div>
 
       {task.description && (
-        <div className="notes-preview">
-          <span>Descrição</span>
+        <div className="panel-note">
+          <span>DescriÃ§Ã£o</span>
           <p>{task.description}</p>
         </div>
       )}
 
       {task.subtasks.length > 0 && (
-        <div className="subtle-list task-subtask-list">
+        <div className="panel-list task-subtask-list">
           <span>Subtarefas</span>
 
           {task.subtasks.slice(0, 4).map((subtask) => (
             <small key={subtask.id}>
-              {subtask.done ? "✓ " : "○ "}
+              {subtask.done ? "âœ“ " : "â—‹ "}
               {subtask.title}
             </small>
           ))}
@@ -75,7 +75,7 @@ export function TaskCard({
 
       <div className="card-footer" onClick={(event) => event.stopPropagation()}>
         <Switch
-          label={task.done ? "Tarefa concluída" : "Tarefa aberta"}
+          label={task.done ? "Tarefa concluÃ­da" : "Tarefa aberta"}
           checked={task.done}
           onChange={(checked) => onDoneChange(task, checked)}
         />
@@ -83,3 +83,4 @@ export function TaskCard({
     </Card>
   );
 }
+

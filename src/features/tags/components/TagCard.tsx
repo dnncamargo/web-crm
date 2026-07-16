@@ -1,4 +1,4 @@
-import { Badge } from "../../../components/ui/Badge";
+﻿import { Badge } from "../../../components/ui/Badge";
 import { Card } from "../../../components/ui/Card";
 import { Switch } from "../../../components/ui/Switch";
 import type { Tag, TagEntity } from "../tagTypes";
@@ -31,7 +31,7 @@ export function TagCard({
         </div>
       </div>
 
-      <div className="badge-row">
+      <div className="entity-badges">
         <Badge>{tag.slug}</Badge>
         {tag.group && <Badge>{tag.group}</Badge>}
       </div>
@@ -51,3 +51,4 @@ export function TagCard({
     </Card>
   );
 }
+

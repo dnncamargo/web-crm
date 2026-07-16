@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Filter } from "lucide-react";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -12,15 +13,17 @@ import type { Client, NewClientData, UpdateClientData } from "./clientTypes";
 import { filterVisibleClients } from "./clientFormatters";
 import { ClientQuickForm } from "./components/ClientQuickForm";
 import { ClientDetailsPanelContent } from "./components/ClientDetailsPanelContent";
-import { ClientEditForm } from "./components/ClientForm";
+import { ClientForm } from "./components/ClientForm";
 import { ClientFiltersPanel } from "./components/ClientFiltersPanel";
 import { ClientInteractionForm } from "./components/ClientInteractionForm";
 import { ClientListView } from "./components/ClientListView";
 import { useClients } from "./useClients";
 
-type ClientPanelState =
-  | { type: "create-client" }
-  | { type: "view-client"; client: Client }
+type ClientMainPanelState = { type: "create-client" } | { type: "view-client"; client: Client } | null;
+
+type ClientStackedPanelState =
+  | { type: "edit-client"; client: Client }
+  | { type: "register-interaction"; client: Client }
   | { type: "create-address"; client: Client }
   | { type: "edit-address"; client: Client; address: Address }
   | null;
@@ -28,43 +31,23 @@ type ClientPanelState =
 export function ClientsPage() {
   const { activeTags } = useTags();
 
-  const clientTags = useMemo(
-    () =>
-      activeTags.filter(
-        (tag) => tag.entity === "client" || tag.entity === "global"
-      ),
-    [activeTags]
-  );
+  const clientTags = useMemo(() => activeTags.filter((tag) => tag.entity === "client" || tag.entity === "global"), [activeTags]);
 
-  const tagLabelsById = useMemo(
-    () => Object.fromEntries(activeTags.map((tag) => [tag.id, tag.label])),
-    [activeTags]
-  );
+  const tagLabelsById = useMemo(() => Object.fromEntries(activeTags.map((tag) => [tag.id, tag.label])), [activeTags]);
 
-  const {
-    clients,
-    loading,
-    error,
-    addClient,
-    editClient,
-    setFavorite,
-    setActive,
-  } = useClients(tagLabelsById);
+  const { clients, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
 
   const { getAddressesByClient, addAddress, editAddress } = useAddresses();
 
-  const [panel, setPanel] = useState<ClientPanelState>(null);
-  const [stackedEditClient, setStackedEditClient] =
-    useState<Client | null>(null);
-  const [interactionClient, setInteractionClient] =
-    useState<Client | null>(null);
+  const [panel, setPanel] = useState<ClientMainPanelState>(null);
+  const [stackedPanel, setStackedPanel] = useState<ClientStackedPanelState>(null);
 
   const [showFilters, setShowFilters] = useState(false);
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const [showOnlyActive, setShowOnlyActive] = useState(true);
-  const [showOnlyWithContactFrequency, setShowOnlyWithContactFrequency] =
-    useState(false);
+  const [showOnlyWithContactFrequency, setShowOnlyWithContactFrequency] = useState(false);
   const [showOnlyWithBirthDate, setShowOnlyWithBirthDate] = useState(false);
+  const [createClientFavorite, setCreateClientFavorite] = useState(false);
 
   const visibleClients = useMemo(
     () =>
@@ -74,30 +57,143 @@ export function ClientsPage() {
         showOnlyWithContactFrequency,
         showOnlyWithBirthDate,
       }),
-    [
-      clients,
-      showOnlyActive,
-      showOnlyFavorites,
-      showOnlyWithBirthDate,
-      showOnlyWithContactFrequency,
-    ]
+    [clients, showOnlyActive, showOnlyFavorites, showOnlyWithBirthDate, showOnlyWithContactFrequency],
   );
 
-  const mainPanelSize =
-    panel?.type === "view-client" && stackedEditClient
-      ? "fullscreen"
-      : panel?.type === "view-client"
-        ? "wide"
-        : "fullscreen";
+  const mainPanelSize = panel?.type === "view-client" ? "wide" : "normal";
+
+  const stackedPanelSize = stackedPanel?.type === "register-interaction" ? "normal" : "wide";
+
+  const stackedPanelTitle =
+    stackedPanel?.type === "edit-client"
+      ? "Editar cliente"
+      : stackedPanel?.type === "register-interaction"
+        ? "Registrar interação"
+        : stackedPanel?.type === "create-address"
+          ? "Adicionar endereço"
+          : stackedPanel?.type === "edit-address"
+            ? "Editar endereço"
+            : "";
+
+  const stackedPanelDescription =
+    stackedPanel?.type === "edit-client"
+      ? "Atualize os dados principais mantendo os detalhes visíveis ao fundo."
+      : stackedPanel?.type === "register-interaction"
+        ? "Atualize rapidamente o histórico de contato deste cliente."
+        : stackedPanel?.type === "create-address"
+          ? "Cadastre um endereço reutilizável para este cliente."
+          : stackedPanel?.type === "edit-address"
+            ? "Atualize este endereço reutilizável."
+            : "";
 
   function closePanel() {
     setPanel(null);
-    setStackedEditClient(null);
-    setInteractionClient(null);
+    setStackedPanel(null);
+    setCreateClientFavorite(false);
+  }
+
+  function closeStackedPanel() {
+    setStackedPanel(null);
   }
 
   function openViewClient(client: Client) {
     setPanel({ type: "view-client", client });
+    setStackedPanel(null);
+  }
+
+  function updateViewedClient(clientId: string, data: UpdateClientData) {
+    setPanel((currentPanel) => {
+      if (currentPanel?.type !== "view-client" || currentPanel.client.id !== clientId) {
+        return currentPanel;
+      }
+
+      return {
+        type: "view-client",
+        client: {
+          ...currentPanel.client,
+          ...data,
+        },
+      };
+    });
+  }
+
+  function updateClientInPanels(clientId: string, data: Partial<Client>) {
+    setPanel((currentPanel) => {
+      if (currentPanel?.type !== "view-client" || currentPanel.client.id !== clientId) {
+        return currentPanel;
+      }
+
+      return {
+        ...currentPanel,
+        client: {
+          ...currentPanel.client,
+          ...data,
+        },
+      };
+    });
+
+    setStackedPanel((currentPanel) => {
+      if (!currentPanel || currentPanel.type === "create-address" || currentPanel.type === "edit-address" || currentPanel.client.id !== clientId) {
+        return currentPanel;
+      }
+
+      return {
+        ...currentPanel,
+        client: {
+          ...currentPanel.client,
+          ...data,
+        },
+      };
+    });
+  }
+
+  async function toggleClientFavorite(client: Client) {
+    const nextFavorite = !client.favorite;
+
+    await setFavorite(client, nextFavorite);
+    updateClientInPanels(client.id, { favorite: nextFavorite });
+  }
+
+  function renderFavoriteButton({ favorite, onClick }: { favorite: boolean; onClick: () => void }) {
+    return (
+      <button
+        type="button"
+        className={favorite ? "star-button panel-star-button active" : "star-button panel-star-button"}
+        aria-label={favorite ? "Remover dos favoritos" : "Marcar como favorito"}
+        onClick={onClick}
+      >
+        ★
+      </button>
+    );
+  }
+
+  function getMainPanelHeaderAction() {
+    if (panel?.type === "create-client") {
+      return renderFavoriteButton({
+        favorite: createClientFavorite,
+        onClick: () => setCreateClientFavorite((current) => !current),
+      });
+    }
+
+    if (panel?.type === "view-client") {
+      return renderFavoriteButton({
+        favorite: panel.client.favorite,
+        onClick: () => void toggleClientFavorite(panel.client),
+      });
+    }
+
+    return undefined;
+  }
+
+  function getStackedPanelHeaderAction() {
+    if (stackedPanel?.type === "edit-client" || stackedPanel?.type === "register-interaction") {
+      return renderFavoriteButton({
+        favorite: stackedPanel.client.favorite,
+        onClick: () => void toggleClientFavorite(stackedPanel.client),
+      });
+    }
+
+    return undefined;
   }
 
   async function handleCreateClient(data: NewClientData) {
@@ -106,76 +202,78 @@ export function ClientsPage() {
   }
 
   async function handlePanelEditClient(data: UpdateClientData) {
-    if (!stackedEditClient) {
+    const editPanel = stackedPanel;
+
+    if (!editPanel || editPanel.type !== "edit-client") {
       return;
     }
 
-    await editClient(stackedEditClient.id, data);
-    closePanel();
+    await editClient(editPanel.client.id, data);
+    updateViewedClient(editPanel.client.id, data);
+    closeStackedPanel();
   }
 
   async function handlePanelCreateAddress(data: NewAddressData) {
-    if (!panel || panel.type !== "create-address") {
+    const addressPanel = stackedPanel;
+
+    if (!addressPanel || addressPanel.type !== "create-address") {
       return;
     }
 
     const createdAddress = await addAddress(data);
 
     if (data.isPrimaryForClient) {
-      await editClient(panel.client.id, {
+      const clientUpdate = {
         primaryAddressId: createdAddress.id,
-      });
+      };
+
+      await editClient(addressPanel.client.id, clientUpdate);
+      updateViewedClient(addressPanel.client.id, clientUpdate);
     }
 
-    closePanel();
+    closeStackedPanel();
   }
 
   async function handlePanelEditAddress(data: NewAddressData) {
-    if (!panel || panel.type !== "edit-address") {
+    const addressPanel = stackedPanel;
+
+    if (!addressPanel || addressPanel.type !== "edit-address") {
       return;
     }
 
-    await editAddress(panel.address.id, data);
+    await editAddress(addressPanel.address.id, data);
 
     if (data.isPrimaryForClient) {
-      await editClient(panel.client.id, {
-        primaryAddressId: panel.address.id,
-      });
+      const clientUpdate = {
+        primaryAddressId: addressPanel.address.id,
+      };
+
+      await editClient(addressPanel.client.id, clientUpdate);
+      updateViewedClient(addressPanel.client.id, clientUpdate);
     }
 
-    if (
-      !data.isPrimaryForClient &&
-      panel.client.primaryAddressId === panel.address.id
-    ) {
-      await editClient(panel.client.id, {
+    if (!data.isPrimaryForClient && addressPanel.client.primaryAddressId === addressPanel.address.id) {
+      const clientUpdate = {
         primaryAddressId: null,
-      });
+      };
+
+      await editClient(addressPanel.client.id, clientUpdate);
+      updateViewedClient(addressPanel.client.id, clientUpdate);
     }
 
-    closePanel();
+    closeStackedPanel();
   }
 
   async function handleRegisterInteraction(data: UpdateClientData) {
-    if (!interactionClient) {
+    const interactionPanel = stackedPanel;
+
+    if (!interactionPanel || interactionPanel.type !== "register-interaction") {
       return;
     }
 
-    await editClient(interactionClient.id, data);
-
-    if (
-      panel?.type === "view-client" &&
-      panel.client.id === interactionClient.id
-    ) {
-      setPanel({
-        type: "view-client",
-        client: {
-          ...panel.client,
-          ...data,
-        },
-      });
-    }
-
-    setInteractionClient(null);
+    await editClient(interactionPanel.client.id, data);
+    updateViewedClient(interactionPanel.client.id, data);
+    closeStackedPanel();
   }
 
   return (
@@ -185,23 +283,15 @@ export function ClientsPage() {
         description="Cadastre clientes, contatos principais, favoritos e frequência de relacionamento."
         action={
           <div className="header-actions">
-            <button
-              type="button"
-              className={
-                showFilters
-                  ? "round-filter-button active"
-                  : "round-filter-button"
-              }
-              onClick={() => setShowFilters((current) => !current)}
-              aria-label="Filtros"
-            >
-              F
+            <button type="button" className={showFilters ? "round-filter-button active" : "round-filter-button"} onClick={() => setShowFilters((current) => !current)} aria-label="Filtros">
+              <Filter size={18} aria-hidden="true" />
             </button>
 
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => setPanel({ type: "create-client" })}
+            <Button type="button" variant="primary" 
+              onClick={() => {
+                setCreateClientFavorite(false);
+                setPanel({ type: "create-client" });
+              }}
             >
               + Cliente
             </Button>
@@ -215,16 +305,10 @@ export function ClientsPage() {
           showOnlyActive={showOnlyActive}
           showOnlyWithContactFrequency={showOnlyWithContactFrequency}
           showOnlyWithBirthDate={showOnlyWithBirthDate}
-          onToggleFavorites={() =>
-            setShowOnlyFavorites((current) => !current)
-          }
+          onToggleFavorites={() => setShowOnlyFavorites((current) => !current)}
           onToggleActive={() => setShowOnlyActive((current) => !current)}
-          onToggleWithContactFrequency={() =>
-            setShowOnlyWithContactFrequency((current) => !current)
-          }
-          onToggleWithBirthDate={() =>
-            setShowOnlyWithBirthDate((current) => !current)
-          }
+          onToggleWithContactFrequency={() => setShowOnlyWithContactFrequency((current) => !current)}
+          onToggleWithBirthDate={() => setShowOnlyWithBirthDate((current) => !current)}
         />
       )}
 
@@ -240,121 +324,83 @@ export function ClientsPage() {
         </Card>
       )}
 
-      <ClientListView
-        clients={visibleClients}
-        tagLabelsById={tagLabelsById}
-        onRequestViewClient={openViewClient}
-        onFavoriteChange={setFavorite}
-      />
+      <ClientListView clients={visibleClients} tagLabelsById={tagLabelsById} onRequestViewClient={openViewClient} onFavoriteChange={setFavorite} />
 
       <SlidePanel
         open={panel !== null}
         level={1}
         size={mainPanelSize}
-        title={
-          panel?.type === "create-client"
-            ? "Adicionar cliente"
-            : panel?.type === "view-client"
-              ? "Detalhes do cliente"
-              : panel?.type === "create-address"
-                ? "Adicionar endereço"
-                : panel?.type === "edit-address"
-                  ? "Editar endereço"
-                  : ""
-        }
-        description={
-          panel?.type === "create-client"
-            ? "Cadastre um novo cliente."
-            : panel?.type === "view-client"
-              ? "Consulte os dados do cliente antes de editar."
-              : panel?.type === "create-address"
-                ? "Cadastre um endereço reutilizável para cliente, entrega ou pedido."
-                : panel?.type === "edit-address"
-                  ? "Atualize este endereço reutilizável."
-                  : ""
-        }
+        title={panel?.type === "create-client" ? "Adicionar cliente" : panel?.type === "view-client" ? "Detalhes do cliente" : ""}
+        description={panel?.type === "create-client" ? "Cadastre um novo cliente." : panel?.type === "view-client" ? "Consulte os dados do cliente antes de editar." : ""}
         onClose={closePanel}
+        headerAction={getMainPanelHeaderAction()}
       >
-        {panel?.type === "create-client" && (
-          <ClientQuickForm
-            onCancel={closePanel}
-            onSave={handleCreateClient}
+        {panel?.type === "create-client" && 
+          <ClientQuickForm 
+            favorite={createClientFavorite} 
+            onCancel={closePanel} 
+            onSave={handleCreateClient} 
           />
-        )}
+        }
 
         {panel?.type === "view-client" && (
           <ClientDetailsPanelContent
             client={panel.client}
             addresses={getAddressesByClient(panel.client.id)}
             tagLabelsById={tagLabelsById}
-            onEdit={() => setStackedEditClient(panel.client)}
-            onRegisterInteraction={() => setInteractionClient(panel.client)}
+            onEdit={() =>
+              setStackedPanel({
+                type: "edit-client",
+                client: panel.client,
+              })
+            }
+            onRegisterInteraction={() =>
+              setStackedPanel({
+                type: "register-interaction",
+                client: panel.client,
+              })
+            }
             onCreateAddress={() =>
-              setPanel({ type: "create-address", client: panel.client })
+              setStackedPanel({
+                type: "create-address",
+                client: panel.client,
+              })
             }
             onEditAddress={(address) =>
-              setPanel({
+              setStackedPanel({
                 type: "edit-address",
                 client: panel.client,
                 address,
               })
             }
-            onSetActive={(checked) => setActive(panel.client, checked)}
-            onSetFavorite={(checked) => setFavorite(panel.client, checked)}
-          />
-        )}
-
-        {panel?.type === "create-address" && (
-          <AddressForm
-            client={panel.client}
-            onCancel={closePanel}
-            onSave={handlePanelCreateAddress}
-          />
-        )}
-
-        {panel?.type === "edit-address" && (
-          <AddressForm
-            client={panel.client}
-            address={panel.address}
-            onCancel={closePanel}
-            onSave={handlePanelEditAddress}
+            onSetActive={async (checked) => {
+              await setActive(panel.client, checked);
+              updateViewedClient(panel.client.id, { active: checked });
+            }}
+            onSetFavorite={async (checked) => {
+              await setFavorite(panel.client, checked);
+              updateViewedClient(panel.client.id, { favorite: checked });
+            }}
           />
         )}
       </SlidePanel>
 
-      <SlidePanel
-        open={stackedEditClient !== null}
-        level={2}
-        size="fullscreen"
-        title="Editar cliente"
-        description="Atualize os dados principais mantendo os detalhes visíveis ao fundo."
-        onClose={() => setStackedEditClient(null)}
+      <SlidePanel 
+        open={stackedPanel !== null} 
+        level={2} size={stackedPanelSize} 
+        title={stackedPanelTitle} 
+        description={stackedPanelDescription} 
+        onClose={closeStackedPanel} 
+        closeOnBackdrop={false} 
+        headerAction={getStackedPanelHeaderAction()}
       >
-        {stackedEditClient && (
-          <ClientEditForm
-            client={stackedEditClient}
-            availableTags={clientTags}
-            onCancel={() => setStackedEditClient(null)}
-            onSave={handlePanelEditClient}
-          />
-        )}
-      </SlidePanel>
+        {stackedPanel?.type === "edit-client" && <ClientForm client={stackedPanel.client} availableTags={clientTags} onCancel={closeStackedPanel} onSave={handlePanelEditClient} />}
 
-      <SlidePanel
-        open={interactionClient !== null}
-        level={2}
-        size="normal"
-        title="Registrar interação"
-        description="Atualize rapidamente o histórico de contato deste cliente."
-        onClose={() => setInteractionClient(null)}
-      >
-        {interactionClient && (
-          <ClientInteractionForm
-            client={interactionClient}
-            onCancel={() => setInteractionClient(null)}
-            onSave={handleRegisterInteraction}
-          />
-        )}
+        {stackedPanel?.type === "register-interaction" && <ClientInteractionForm client={stackedPanel.client} onCancel={closeStackedPanel} onSave={handleRegisterInteraction} />}
+
+        {stackedPanel?.type === "create-address" && <AddressForm client={stackedPanel.client} onCancel={closeStackedPanel} onSave={handlePanelCreateAddress} />}
+
+        {stackedPanel?.type === "edit-address" && <AddressForm client={stackedPanel.client} address={stackedPanel.address} onCancel={closeStackedPanel} onSave={handlePanelEditAddress} />}
       </SlidePanel>
     </div>
   );

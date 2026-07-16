@@ -68,12 +68,12 @@ export function useTodayDashboard() {
       },
       {
         key: "week",
-        title: "Semana",
+        title: "Próximos 3 dias",
         orders: upcomingDeliveries.filter((order) =>
           weekKeys.includes(getDateKeyFromDateTime(order.deliveryDateTime))
         ),
       },
-    ].filter((card) => card.orders.length > 0);
+    ];
   }, [todayKey, upcomingDeliveries]);
 
   const productionByDate = useMemo(() => {

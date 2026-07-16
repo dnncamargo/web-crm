@@ -1,4 +1,4 @@
-import { Badge } from "../../../components/ui/Badge";
+﻿import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { formatCurrencyBR } from "../../../utils/money";
@@ -28,7 +28,7 @@ export function OrderCard({ order, onRequestEditOrder }: OrderCardProps) {
         </div>
       </div>
 
-      <div className="badge-row">
+      <div className="entity-badges">
         <Badge>{getOrderStatusLabel(order.orderStatus)}</Badge>
         <Badge>{getPaymentStatusLabel(paymentStatus)}</Badge>
         {order.addressSnapshot ? (
@@ -44,19 +44,19 @@ export function OrderCard({ order, onRequestEditOrder }: OrderCardProps) {
         <span>Restante: {formatCurrencyBR(remaining)}</span>
       </div>
 
-      <div className="subtle-list order-card-items">
+      <div className="panel-list order-card-items">
         <span>Itens</span>
 
         {order.items.map((item) => (
           <small key={item.id}>
-            {item.quantity} × {item.productName} ·{" "}
+            {item.quantity} Ã— {item.productName} Â·{" "}
             {formatCurrencyBR(item.total)}
           </small>
         ))}
       </div>
 
       {order.addressSnapshot && (
-        <div className="notes-preview">
+        <div className="panel-note">
           <span>Entrega</span>
           <p>
             {order.addressSnapshot.street}
@@ -64,18 +64,18 @@ export function OrderCard({ order, onRequestEditOrder }: OrderCardProps) {
               ? `, ${order.addressSnapshot.number}`
               : ""}
             {order.addressSnapshot.neighborhood
-              ? ` · ${order.addressSnapshot.neighborhood}`
+              ? ` Â· ${order.addressSnapshot.neighborhood}`
               : ""}
             {order.addressSnapshot.city
-              ? ` · ${order.addressSnapshot.city}`
+              ? ` Â· ${order.addressSnapshot.city}`
               : ""}
           </p>
         </div>
       )}
 
       {order.notes && (
-        <div className="notes-preview">
-          <span>Observações</span>
+        <div className="panel-note">
+          <span>ObservaÃ§Ãµes</span>
           <p>{order.notes}</p>
         </div>
       )}

@@ -113,96 +113,110 @@ export function AddressForm({ client, address, onCancel, onSave }: AddressFormPr
   }
 
   return (
-    <form className="address-create-form" onSubmit={handleSubmit}>
-      <div className="form-two-columns">
-        <section className="form-column">
-          <div className="form-section-title">
-            <span>Dados do endereço</span>
+    <form className="panel-form" onSubmit={handleSubmit}>
+      <div className="panel-columns panel-columns-2">
+        <section className="panel-column">
+          <div className="panel-column-scroll">
+            <section className="panel-section">
+              <div className="panel-section-title">
+                <span>Dados do endereço</span>
+                <small>{isEditing ? "Edite a identificação e localização principal." : "Cadastre a identificação e localização principal."}</small>
+              </div>
+
+              <div className="input-group single-column">
+                <label>
+                  Rótulo
+                  <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Casa, trabalho, entrega, festa..." />
+                </label>
+
+                <label>
+                  CEP
+                  <input
+                    value={cep}
+                    onChange={(event) => {
+                      setCep(event.target.value);
+                      setCepError("");
+                    }}
+                    onBlur={() => void tryLookupCepAndFocusNumber()}
+                    onKeyDown={handleCepKeyDown}
+                    placeholder="Ex: 28990-000"
+                  />
+                </label>
+
+                <label>
+                  Logradouro
+                  <input value={street} onChange={(event) => setStreet(event.target.value)} placeholder="Rua, avenida, estrada..." />
+                </label>
+
+                <label>
+                  Número
+                  <input ref={numberInputRef} value={number} onChange={(event) => setNumber(event.target.value)} placeholder="Número" />
+                </label>
+              </div>
+
+              {cepLoading && <p className="panel-muted">Consultando CEP...</p>}
+
+              {cepError && <p className="error-text">{cepError}</p>}
+            </section>
           </div>
-
-          <div className="input-group">
-            <label>
-              Rótulo
-              <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Casa, trabalho, entrega, festa..." />
-            </label>
-
-            <label>
-              CEP
-              <input
-                value={cep}
-                onChange={(event) => {
-                  setCep(event.target.value);
-                  setCepError("");
-                }}
-                onBlur={() => void tryLookupCepAndFocusNumber()}
-                onKeyDown={handleCepKeyDown}
-                placeholder="Ex: 28990-000"
-              />
-            </label>
-
-            <label>
-              Logradouro
-              <input value={street} onChange={(event) => setStreet(event.target.value)} placeholder="Rua, avenida, estrada..." />
-            </label>
-
-            <label>
-              Número
-              <input ref={numberInputRef} value={number} onChange={(event) => setNumber(event.target.value)} placeholder="Número" />
-            </label>
-
-            <label>
-              Complemento
-              <input value={complement} onChange={(event) => setComplement(event.target.value)} placeholder="Casa, bloco, apto, loja..." />
-            </label>
-
-            <label>
-              Bairro
-              <input value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)} placeholder="Bairro" />
-            </label>
-
-            <label>
-              Cidade
-              <input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Cidade" />
-            </label>
-
-            <label>
-              Estado
-              <input value={state} onChange={(event) => setState(event.target.value)} placeholder="UF" maxLength={2} />
-            </label>
-          </div>
-
-          {cepLoading && <p className="muted-text">Consultando CEP...</p>}
-          {cepError && <p className="error-text">{cepError}</p>}
         </section>
 
-        <section className="form-column">
-          <div className="form-section-title">
-            <span>Complementos</span>
-            <small>Referências e observações internas sobre a entrega.</small>
+        <section className="panel-column">
+          <div className="panel-column-scroll">
+            <section className="panel-section">
+              <div className="panel-section-title">
+                <span>Complemento e referência</span>
+                <small>Complete os dados de entrega e observações internas.</small>
+              </div>
+
+              <div className="input-group single-column">
+                <label>
+                  Complemento
+                  <input value={complement} onChange={(event) => setComplement(event.target.value)} placeholder="Casa, bloco, apto, loja..." />
+                </label>
+
+                <label>
+                  Bairro
+                  <input value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)} placeholder="Bairro" />
+                </label>
+
+                <label>
+                  Cidade
+                  <input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Cidade" />
+                </label>
+
+                <label>
+                  Estado
+                  <input value={state} onChange={(event) => setState(event.target.value)} placeholder="UF" maxLength={2} />
+                </label>
+              </div>
+            </section>
+
+            <section className="panel-section">
+              <label className="panel-field">
+                Referência
+                <textarea value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Perto de..., portão azul, entrada lateral..." rows={3} />
+              </label>
+
+              <label className="panel-field">
+                Observações
+                <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes internos sobre este endereço..." rows={3} />
+              </label>
+            </section>
           </div>
-
-          <label className="textarea-field">
-            Referência
-            <textarea value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Perto de..., portão azul, entrada lateral..." rows={5} />
-          </label>
-
-          <label className="textarea-field">
-            Observações
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Detalhes internos sobre este endereço..." rows={5} />
-          </label>
-
-          <Switch label="Usar como endereço principal deste cliente" checked={isPrimaryForClient} onChange={setIsPrimaryForClient} />
         </section>
       </div>
 
-      <div className="form-actions split-actions">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancelar
-        </Button>
+      <div className="panel-footer with-switch">
+        <div className="panel-switches">
+          <Switch label="Usar como endereço principal deste cliente" checked={isPrimaryForClient} onChange={setIsPrimaryForClient} />
+        </div>
 
-        <Button type="submit" disabled={saving || !label.trim() || !street.trim() || !city.trim()}>
-          {saving ? "Salvando..." : isEditing ? "Salvar endereço" : "Adicionar endereço"}
-        </Button>
+        <div className="panel-actions">
+          <Button type="submit" disabled={saving || !label.trim() || !street.trim() || !city.trim()}>
+            {saving ? "Salvando..." : isEditing ? "Salvar endereço" : "Adicionar endereço"}
+          </Button>
+        </div>
       </div>
     </form>
   );

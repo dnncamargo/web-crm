@@ -36,24 +36,13 @@ export function TaskForm({ task, clients, availableTags, onCancel, onSave }: Tas
         ],
   );
   const [saving, setSaving] = useState(false);
-  const [showTags, setShowTags] = useState(Boolean(task?.tagIds?.length));
-  const [showDescription, setShowDescription] = useState(Boolean(task?.description));
 
-  const activeClients = clients.filter((client) => client.active);
-  const selectedClient = clients.find((client) => client.id === clientId);
+  const selectableClients = clients.filter(
+    (client) => client.active || client.id === task?.clientId
+  );
 
   function toggleTag(tagId: string) {
     setSelectedTagIds((currentTagIds) => (currentTagIds.includes(tagId) ? currentTagIds.filter((currentTagId) => currentTagId !== tagId) : [...currentTagIds, tagId]));
-  }
-
-  function removeTagsField() {
-    setShowTags(false);
-    setSelectedTagIds([]);
-  }
-
-  function removeDescriptionField() {
-    setShowDescription(false);
-    setDescription("");
   }
 
   function updateSubtask(subtaskId: string, data: Partial<Subtask>) {
@@ -95,7 +84,11 @@ export function TaskForm({ task, clients, availableTags, onCancel, onSave }: Tas
       return;
     }
 
-    const cleanedSubtasks = subtasks
+    const selectedClient = selectableClients.find(
+      (client) => client.id === clientId
+    );
+
+    const parsedSubtasks = subtasks
       .map((subtask) => ({
         ...subtask,
         title: subtask.title.trim(),
@@ -106,174 +99,192 @@ export function TaskForm({ task, clients, availableTags, onCancel, onSave }: Tas
 
     await onSave({
       title: trimmedTitle,
-      description: showDescription ? description.trim() : "",
+      description: description.trim(),
       clientId: selectedClient?.id ?? null,
       clientName: selectedClient?.name ?? null,
       dueDate: dueDate || null,
       done,
-      subtasks: cleanedSubtasks,
-      tagIds: showTags ? selectedTagIds : [],
-      convertedToOrderId: task?.convertedToOrderId ?? null,
-      completedAt: done ? (task?.completedAt ?? new Date().toISOString()) : null,
+      subtasks: parsedSubtasks,
+      tagIds: selectedTagIds,
     });
 
     setSaving(false);
     onCancel();
   }
 
-  return (
-    <form className="task-form-v2" onSubmit={handleSubmit}>
-      <div className="task-form-v2-columns">
-        <section className="task-form-v2-column task-form-v2-left">
-          <div className="task-form-v2-column-scroll">
-            <div className="form-section-title">
-              <span>Dados da tarefa</span>
-              <small>Informe o essencial da tarefa. Etiquetas podem ser adicionadas se forem necessárias.</small>
-            </div>
+return (
+  <form className="panel-form" onSubmit={handleSubmit}>
+    <div className="panel-columns panel-columns-2">
+      <section className="panel-column panel-column-scroll">
+        <section className="panel-section">
+          <div className="panel-section-title">
+            <span>Dados da tarefa</span>
+            <small>Informações principais para acompanhamento.</small>
+          </div>
 
-            <div className="input-group">
-              <label>
-                Título
-                <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Ex: Confirmar detalhes do bolo da Maria" />
-              </label>
+          <div className="input-group single-column">
+            <label>
+              Título
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Ex: Confirmar detalhes do bolo da Maria"
+              />
+            </label>
 
-              <label>
-                Cliente vinculado
-                <select value={clientId} onChange={(event) => setClientId(event.target.value)}>
-                  <option value="">Sem cliente vinculado</option>
+            <label>
+              Cliente
+              <select
+                value={clientId}
+                onChange={(event) => setClientId(event.target.value)}
+              >
+                <option value="">Sem cliente vinculado</option>
 
-                  {activeClients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                {selectableClients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-              <label>
-                Prazo
-                <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
-              </label>
-            </div>
-
-            {!showTags && (
-              <div className="task-extra-actions">
-                <Button type="button" variant="ghost" onClick={() => setShowTags(true)}>
-                  + Adicionar etiqueta
-                </Button>
-              </div>
-            )}
-
-            {showTags && (
-              <div className="task-optional-field">
-                <header>
-                  <div>
-                    <strong>Etiquetas</strong>
-                    <span>Use para organizar lembretes, produção e orçamentos.</span>
-                  </div>
-
-                  <button type="button" className="text-link compact-link" onClick={removeTagsField}>
-                    Remover
-                  </button>
-                </header>
-
-                {availableTags.length ? (
-                  <div className="selectable-chip-grid task-tags-scroll">
-                    {availableTags.map((tag) => {
-                      const selected = selectedTagIds.includes(tag.id);
-
-                      return (
-                        <button key={tag.id} type="button" className={selected ? "selectable-chip selected" : "selectable-chip"} aria-pressed={selected} onClick={() => toggleTag(tag.id)}>
-                          #{tag.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="muted-text">Nenhuma etiqueta de tarefa cadastrada. Crie em Etiquetas usando entidade Tarefa ou Global.</p>
-                )}
-              </div>
-            )}
+            <label>
+              Prazo
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+              />
+            </label>
           </div>
         </section>
 
-        <section className="task-form-v2-column task-form-v2-right">
-          <div className="task-form-v2-column-scroll">
-            <div className="task-subtasks">
-              <div className="form-section-title">
-                <span>Subtarefas</span>
-                <small>Liste etapas menores, caso precise.</small>
-              </div>
+        <section className="panel-section">
+          <div className="panel-section-title">
+            <span>Anotações</span>
+            <small>Contexto, combinados ou observações da tarefa.</small>
+          </div>
 
-              {subtasks.map((subtask, index) => (
-                <div className="subtask-form-row" key={subtask.id}>
+          <label className="panel-field compact-textarea">
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Detalhes, combinados, observações ou contexto da tarefa..."
+              rows={4}
+            />
+          </label>
+        </section>
+
+        <section className="panel-section">
+          <div className="panel-section-title">
+            <span>Etiquetas</span>
+            <small>Use para organizar lembretes, produção e orçamentos.</small>
+          </div>
+
+          {availableTags.length ? (
+            <div className="panel-chip-grid compact-chips">
+              {availableTags.map((tag) => {
+                const selected = selectedTagIds.includes(tag.id);
+
+                return (
                   <button
+                    key={tag.id}
                     type="button"
-                    className={subtask.done ? "mini-check checked" : "mini-check"}
-                    onClick={() => toggleSubtaskDone(subtask)}
-                    aria-label={subtask.done ? "Marcar subtarefa como pendente" : "Marcar subtarefa como concluída"}
+                    className={selected ? "panel-chip selected" : "panel-chip"}
+                    aria-pressed={selected}
+                    onClick={() => toggleTag(tag.id)}
                   >
-                    ✓
+                    #{tag.label}
                   </button>
-
-                  <input value={subtask.title} onChange={(event) => updateSubtask(subtask.id, { title: event.target.value })} placeholder={`Subtarefa ${index + 1}`} />
-
-                  <button type="button" className="text-link compact-link" onClick={() => removeSubtask(subtask.id)} disabled={subtasks.length === 1}>
-                    Remover
-                  </button>
-                </div>
-              ))}
-
-              <Button type="button" variant="ghost" onClick={addSubtask}>
-                + Adicionar subtarefa
-              </Button>
+                );
+              })}
             </div>
+          ) : (
+            <p className="panel-muted">
+              Nenhuma etiqueta de tarefa cadastrada.
+            </p>
+          )}
+        </section>
+      </section>
 
-            {!showDescription && (
-              <div className="task-extra-actions">
-                <Button type="button" variant="ghost" onClick={() => setShowDescription(true)}>
-                  + Adicionar observações
-                </Button>
+      <section className="panel-column panel-column-scroll">
+        <section className="panel-section">
+          <div className="panel-section-title">
+            <span>Subtarefas</span>
+            <small>Etapas ou lembretes menores desta tarefa.</small>
+          </div>
+
+          <div className="panel-list compact-list">
+            {subtasks.map((subtask, index) => (
+              <div className="panel-check-row" key={subtask.id}>
+                <button
+                  type="button"
+                  className={
+                    subtask.done
+                      ? "panel-check-button checked"
+                      : "panel-check-button"
+                  }
+                  onClick={() => toggleSubtaskDone(subtask)}
+                  aria-label={
+                    subtask.done
+                      ? "Marcar subtarefa como pendente"
+                      : "Marcar subtarefa como concluída"
+                  }
+                >
+                  ✓
+                </button>
+
+                <input
+                  value={subtask.title}
+                  onChange={(event) =>
+                    updateSubtask(subtask.id, { title: event.target.value })
+                  }
+                  placeholder={`Subtarefa ${index + 1}`}
+                />
+
+                <button
+                  type="button"
+                  className="text-link compact-link"
+                  onClick={() => removeSubtask(subtask.id)}
+                  disabled={subtasks.length === 1}
+                >
+                  Remover
+                </button>
               </div>
-            )}
+            ))}
+          </div>
 
-            {showDescription && (
-              <div className="task-optional-field">
-                <header>
-                  <div>
-                    <strong>Observações</strong>
-                    <span>Use para contexto, combinados ou detalhes importantes.</span>
-                  </div>
-
-                  <button type="button" className="text-link compact-link" onClick={removeDescriptionField}>
-                    Remover
-                  </button>
-                </header>
-
-                <label className="textarea-field task-description-field">
-                  <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Detalhes, combinado, observações ou contexto da tarefa..." rows={5} />
-                </label>
-              </div>
-            )}
+          <div className="panel-inline-actions">
+            <Button type="button" variant="ghost" onClick={addSubtask}>
+              + Adicionar subtarefa
+            </Button>
           </div>
         </section>
+      </section>
+    </div>
+
+    <div className="panel-mobile-switch">
+      <Switch label="Tarefa concluída" checked={done} onChange={setDone} />
+    </div>
+
+    <div className="panel-footer inline-footer">
+      <div className="panel-switches panel-desktop-switch">
+        <Switch
+          label="Tarefa concluída"
+          checked={done}
+          onChange={setDone}
+        />
       </div>
 
-      <div className="task-form-v2-footer">
-        <div className="task-form-v2-switch-row">
-          <Switch label="Tarefa concluída" checked={done} onChange={setDone} />
-        </div>
-
-        <div className="form-actions split-actions task-form-v2-actions">
-          <Button type="button" variant="ghost" onClick={onCancel}>
-            Cancelar
-          </Button>
-
-          <Button type="submit" disabled={saving || !title.trim()}>
-            {saving ? "Salvando..." : "Salvar tarefa"}
-          </Button>
-        </div>
+      <div className="panel-actions">
+        <Button type="submit" disabled={saving || !title.trim()}>
+          {saving
+            ? "Salvando..."
+            : task
+              ? "Salvar alterações"
+              : "Salvar tarefa"}
+        </Button>
       </div>
-    </form>
-  );
-}
+    </div>
+  </form>
+);}

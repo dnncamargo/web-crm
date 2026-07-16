@@ -1,4 +1,4 @@
-import type { Client } from "../../clients/clientTypes";
+﻿import type { Client } from "../../clients/clientTypes";
 import {
   formatDateKeyBR,
   getClientLastInteractionDateKey,
@@ -13,39 +13,39 @@ export function TodayContactSuggestionsPanel({
   contactSuggestions,
 }: TodayContactSuggestionsPanelProps) {
   return (
-    <div className="today-panel">
+    <div className="entity-list-group">
       <header>
         <div>
-          <h2>Sugestões de contato</h2>
-          <p>Clientes com frequência de contato vencida</p>
+          <h2>SugestÃµes de contato</h2>
+          <p>Clientes com frequÃªncia de contato vencida</p>
         </div>
       </header>
 
       {contactSuggestions.length === 0 ? (
         <p className="muted-text">Nenhum contato sugerido agora.</p>
       ) : (
-        <div className="today-list">
+        <div className="entity-list-view">
           {contactSuggestions.map((client) => {
             const lastInteractionDateKey = getClientLastInteractionDateKey(client);
             const nextContactDateKey = getClientNextContactDateKey(client);
 
             return (
-              <article className="today-list-item" key={client.id}>
+              <article className="entity-row" key={client.id}>
                 <div>
                   <strong>{client.name}</strong>
                   <span>
                     {lastInteractionDateKey
-                      ? `Última interação: ${formatDateKeyBR(
+                      ? `Ãšltima interaÃ§Ã£o: ${formatDateKeyBR(
                           lastInteractionDateKey
                         )}`
-                      : "Sem interação registrada"}
+                      : "Sem interaÃ§Ã£o registrada"}
                   </span>
                 </div>
 
                 <small>
                   {nextContactDateKey
                     ? formatDateKeyBR(nextContactDateKey)
-                    : "Sem previsão"}
+                    : "Sem previsÃ£o"}
                 </small>
               </article>
             );

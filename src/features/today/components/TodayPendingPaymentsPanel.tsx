@@ -1,4 +1,4 @@
-import { formatCurrencyBR } from "../../../utils/money";
+﻿import { formatCurrencyBR } from "../../../utils/money";
 import type { Order } from "../../orders/orderTypes";
 import {
   getOrderBalanceInfo,
@@ -15,7 +15,7 @@ export function TodayPendingPaymentsPanel({
   pendingPayments,
 }: TodayPendingPaymentsPanelProps) {
   return (
-    <div className="today-panel">
+    <div className="entity-list-group">
       <header>
         <div>
           <h2>Pagamentos pendentes</h2>
@@ -26,7 +26,7 @@ export function TodayPendingPaymentsPanel({
       {pendingPayments.length === 0 ? (
         <p className="muted-text">Nenhum pagamento pendente.</p>
       ) : (
-        <div className="today-list">
+        <div className="entity-list-view">
           {pendingPayments.slice(0, 8).map((order) => {
             const paymentStatus = getPaymentStatus(order);
             const balanceInfo = getOrderBalanceInfo(order);
@@ -34,11 +34,11 @@ export function TodayPendingPaymentsPanel({
               balanceInfo.type === "remaining" ? balanceInfo.amount : 0;
 
             return (
-              <article className="today-list-item" key={order.id}>
+              <article className="entity-row" key={order.id}>
                 <div>
                   <strong>{order.clientName}</strong>
                   <span>
-                    {getPaymentStatusLabel(paymentStatus)} · Restante{" "}
+                    {getPaymentStatusLabel(paymentStatus)} Â· Restante{" "}
                     {formatCurrencyBR(remaining)}
                   </span>
                 </div>

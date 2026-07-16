@@ -1,4 +1,4 @@
-import { PageHeader } from "../../components/ui/PageHeader";
+﻿import { PageHeader } from "../../components/ui/PageHeader";
 import { TodayDeliveriesSection } from "./components/TodayDeliveriesSection";
 import { TodayOverviewGrid } from "./components/TodayOverviewGrid";
 import { TodayOtherInforms } from "./components/TodayOtherInforms";
@@ -25,20 +25,14 @@ export function TodayPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader
-        title="Hoje"
-        description="Resumo operacional de entregas, pagamentos, tarefas e contatos."
-      />
+      <PageHeader title="Hoje" description="Resumo operacional de entregas, pagamentos, tarefas e contatos." />
 
-      {loading && (
-        <p className="muted-text">Carregando informações de hoje...</p>
-      )}
+      {loading && <p className="muted-text">Carregando informaÃ§Ãµes de hoje...</p>}
 
       {ordersError && <p className="error-text">{ordersError}</p>}
       {clientsError && <p className="error-text">{clientsError}</p>}
       {tasksError && <p className="error-text">{tasksError}</p>}
 
-      {/* Visão geral das atividades de hoje */}
       <TodayOverviewGrid
         upcomingDeliveriesCount={upcomingDeliveries.length}
         pendingPaymentsCount={pendingPayments.length}
@@ -48,21 +42,12 @@ export function TodayPage() {
         finalUpcomingDateKey={upcomingDateKeys[4]}
       />
 
-      {/* Seção de produção do dia */}
-      <TodayProductionSection
-        todayKey={todayKey}
-        productionByDate={productionByDate}
-      />
+      <TodayProductionSection todayKey={todayKey} productionByDate={productionByDate} />
 
-      {/* Seção de entregas do dia até os próximos 5 dias */}
       <TodayDeliveriesSection deliverySummaryCards={deliverySummaryCards} />
 
-      {/* Outras informações pendentes */}
-      <TodayOtherInforms
-        pendingPayments={pendingPayments}
-        contactSuggestions={contactSuggestions}
-        openTasks={openTasks}
-      />
+      <TodayOtherInforms pendingPayments={pendingPayments} contactSuggestions={contactSuggestions} openTasks={openTasks} />
     </div>
   );
 }
+

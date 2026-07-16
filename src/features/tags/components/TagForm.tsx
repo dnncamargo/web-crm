@@ -1,15 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 
 import { Button } from "../../../components/ui/Button";
 import { Switch } from "../../../components/ui/Switch";
 import type { NewTagData, Tag, TagEntity } from "../tagTypes";
 import { createSlug } from "../useTags";
-import {
-  entityLabels,
-  getDefaultTagGroup,
-  getTagGroupOptions,
-} from "../tagConfig";
+import { entityLabels, getDefaultTagGroup } from "../tagConfig";
 
 interface TagFormProps {
   tag?: Tag;
@@ -23,46 +19,15 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
   const [label, setLabel] = useState(tag?.label ?? "");
   const [entity, setEntity] = useState<TagEntity>(tag?.entity ?? "product");
   const [group, setGroup] = useState(tag?.group ?? getDefaultTagGroup(tag?.entity ?? "product"));
-  const [customGroup, setCustomGroup] = useState("");
+  const [customGroup] = useState("");
   const [active, setActive] = useState(tag?.active ?? true);
   const [saving, setSaving] = useState(false);
-
-  const groupOptions = useMemo(() => getTagGroupOptions(entity), [entity]);
-
-  const groupIsCustom = Boolean(group) && !groupOptions.includes(group);
-
-  useEffect(() => {
-    if (tag) {
-      return;
-    }
-
-    setGroup(getDefaultTagGroup(entity));
-    setCustomGroup("");
-  }, [entity, tag]);
-
-  function handleEntityChange(nextEntity: TagEntity) {
-    setEntity(nextEntity);
-
-    if (!tag) {
-      setGroup(getDefaultTagGroup(nextEntity));
-      setCustomGroup("");
-      return;
-    }
-
-    const nextOptions = getTagGroupOptions(nextEntity);
-
-    if (!nextOptions.includes(group)) {
-      setGroup(getDefaultTagGroup(nextEntity));
-      setCustomGroup("");
-    }
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
     const trimmedLabel = label.trim();
-    const finalGroup =
-      group === customGroupValue ? customGroup.trim() : group.trim();
+    const finalGroup = group === customGroupValue ? customGroup.trim() : group.trim();
 
     if (!trimmedLabel) {
       return;
@@ -83,93 +48,80 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
   }
 
   return (
-    <form className="form-stack tag-form" onSubmit={handleSubmit}>
-      <div className="form-section-title">
-        <span>Dados da etiqueta</span>
-        <small>
-          Escolha onde esta etiqueta será usada e em qual grupo ela aparecerá.
-        </small>
+    <form className="panel-form" onSubmit={handleSubmit}>
+      <div className="panel-columns panel-columns-1">
+        <section className="panel-column">
+          <div className="panel-column-scroll">
+            <section className="panel-section">
+              <div className="panel-section-title">
+                <span>Informações principais</span>
+                <small>Use etiquetas para categorizar, pesquisar e personalizar informações.</small>
+              </div>
+
+              <div className="panel-field-group">
+                <label>
+                  Nome da etiqueta
+                  <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Ex: Doce, Salgado, Sem lactose..." />
+                </label>
+
+                <label>
+                  Entidade
+                  <select
+                    value={entity}
+                    onChange={(event) => {
+                      const nextEntity = event.target.value as TagEntity;
+                      setEntity(nextEntity);
+
+                      if (!tag) {
+                        setGroup(getDefaultTagGroup(nextEntity));
+                      }
+                    }}
+                  >
+                    {Object.entries(entityLabels).map(([value, text]) => (
+                      <option key={value} value={value}>
+                        {text}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Grupo
+                  <input value={group} onChange={(event) => setGroup(event.target.value)} placeholder="Ex: Categoria, Restrição, Preferência..." />
+                </label>
+              </div>
+            </section>
+
+            <section className="panel-section">
+              <div className="panel-section-title">
+                <span>Informações de status</span>
+              </div>
+
+              <div className="panel-block-grid">
+                <div className="panel-block">
+                  <span>Slug gerado</span>
+                  <strong>{label.trim() ? createSlug(label.trim()) : "Será gerado ao salvar"}</strong>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
       </div>
 
-      <div className="input-group">
-        <label>
-          Nome da etiqueta
-          <input
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder="Ex: Contém lactose, Bolo, Urgente..."
-          />
-        </label>
-
-        <label>
-          Entidade
-          <select
-            value={entity}
-            onChange={(event) =>
-              handleEntityChange(event.target.value as TagEntity)
-            }
-          >
-            {Object.entries(entityLabels).map(([value, text]) => (
-              <option key={value} value={value}>
-                {text}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Grupo
-          <select
-            value={groupIsCustom ? customGroupValue : group}
-            onChange={(event) => {
-              const nextValue = event.target.value;
-
-              setGroup(nextValue);
-
-              if (nextValue !== customGroupValue) {
-                setCustomGroup("");
-              }
-            }}
-          >
-            {groupOptions.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-
-            <option value={customGroupValue}>Outro grupo...</option>
-          </select>
-        </label>
-
-        {(group === customGroupValue || groupIsCustom) && (
-          <label>
-            Novo grupo
-            <input
-              value={groupIsCustom ? group : customGroup}
-              onChange={(event) => {
-                if (groupIsCustom) {
-                  setGroup(event.target.value);
-                  return;
-                }
-
-                setCustomGroup(event.target.value);
-              }}
-              placeholder="Ex: Sazonal, Conservação, Evento..."
-            />
-          </label>
-        )}
+      <div className="panel-mobile-switch">
+        <Switch label="Etiqueta ativa" checked={active} onChange={setActive} />
       </div>
 
-      <Switch label="Etiqueta ativa" checked={active} onChange={setActive} />
+      <div className="panel-footer inline-footer">
+        <div className="panel-switches panel-desktop-switch">
+          <Switch label="Etiqueta ativa" checked={active} onChange={setActive} />
+        </div>
 
-      <div className="form-actions split-actions">
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          Cancelar
-        </Button>
-
-        <Button type="submit" disabled={saving || !label.trim()}>
-          {saving ? "Salvando..." : "Salvar etiqueta"}
-        </Button>
+        <div className="panel-actions">
+          <Button type="submit" disabled={saving || !label.trim()}>
+            {saving ? "Salvando..." : "Salvar etiqueta"}
+          </Button>
+        </div>
       </div>
     </form>
   );

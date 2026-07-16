@@ -9,6 +9,7 @@ interface SlidePanelProps {
   level?: 1 | 2 | 3;
   size?: "normal" | "wide" | "fullscreen";
   closeOnBackdrop?: boolean;
+  headerAction?: ReactNode;
 }
 
 export function SlidePanel({
@@ -20,6 +21,7 @@ export function SlidePanel({
   level = 1,
   size = "normal",
   closeOnBackdrop = true,
+  headerAction
 }: SlidePanelProps) {
   if (!open) {
     return null;
@@ -60,14 +62,18 @@ export function SlidePanel({
             {description && <p>{description}</p>}
           </div>
 
-          <button
-            type="button"
-            className="slide-panel-close"
-            aria-label="Fechar"
-            onClick={onClose}
-          >
-            ×
-          </button>
+          <div className="slide-panel-header-actions">
+            {headerAction}
+
+            <button
+              type="button"
+              className="slide-panel-close"
+              aria-label="Fechar"
+              onClick={onClose}
+            >
+              ×
+            </button>
+          </div>
         </header>
 
         <div className="slide-panel-content">{children}</div>
