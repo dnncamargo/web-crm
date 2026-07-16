@@ -22,7 +22,7 @@ export function TodayOverviewGrid({
   return (
     <section className="dashboard-grid dashboard-grid-4">
       <Card className="dashboard-card">
-        <article className="entity-row entity-row-with-side-action">
+        <article className="entity-row-with-side-action">
           <div className="entity-row-clickable">
             <div className="entity-row-main">
               <strong className="entity-title">Próximas entregas</strong>
@@ -41,7 +41,7 @@ export function TodayOverviewGrid({
       </Card>
 
       <Card className="dashboard-card">
-        <article className="entity-row entity-row-with-side-action">
+        <article className="entity-row-with-side-action">
           <div className="entity-row-clickable">
             <div className="entity-row-main">
               <strong className="entity-title">Pagamentos pendentes</strong>
@@ -58,7 +58,7 @@ export function TodayOverviewGrid({
       </Card>
 
       <Card className="dashboard-card">
-        <article className="entity-row entity-row-with-side-action">
+        <article className="entity-row-with-side-action">
           <div className="entity-row-clickable">
             <div className="entity-row-main">
               <strong className="entity-title">Tarefas abertas</strong>
@@ -73,7 +73,7 @@ export function TodayOverviewGrid({
       </Card>
 
       <Card className="dashboard-card">
-        <article className="entity-row entity-row-with-side-action">
+        <article className="entity-row-with-side-action">
           <div className="entity-row-clickable">
             <div className="entity-row-main">
               <strong className="entity-title">Sugestões de contato</strong>

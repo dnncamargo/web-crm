@@ -547,7 +547,7 @@ textarea:focus {
   display: grid;
   gap: 8px;
   padding: 14px;
-  border: 0;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: inherit;
@@ -628,6 +628,7 @@ textarea:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-left: 8px;
 }
 
 .entity-subtitle {
@@ -638,6 +639,7 @@ textarea:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-left: 8px;
 }
 
 .entity-value {
@@ -674,7 +676,7 @@ textarea:focus {
 }
 
 /* Utility */
-
+/* 
 @media (max-width: 640px) {
   .header-actions {
     flex-wrap: wrap;
@@ -706,5 +708,5 @@ textarea:focus {
   .entity-subtitle {
     white-space: normal;
   }
-}
+} */
 

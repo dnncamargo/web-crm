@@ -40,7 +40,7 @@ export function TodayOtherInforms({ pendingPayments, contactSuggestions, openTas
                   const remaining = Math.max(order.total - order.amountPaid, 0);
 
                   return (
-                    <article className="entity-row entity-row-with-side-action" key={order.id}>
+                    <article className="entity-row-with-side-action" key={order.id}>
                       <div className="entity-row-clickable">
                         <div className="entity-row-main">
                           <strong className="entity-title">{order.clientName}</strong>
@@ -81,7 +81,7 @@ export function TodayOtherInforms({ pendingPayments, contactSuggestions, openTas
                   const nextContactDateKey = getClientNextContactDateKey(client);
 
                   return (
-                    <article className="entity-row entity-row-with-side-action" key={client.id}>
+                    <article className="entity-row-with-side-action" key={client.id}>
                       <div className="entity-row-clickable">
                         <div className="entity-row-main">
                           <strong className="entity-title">{client.name}</strong>
@@ -121,7 +121,7 @@ export function TodayOtherInforms({ pendingPayments, contactSuggestions, openTas
                   const dueStatus = getTaskDueStatus(task);
 
                   return (
-                    <article className="entity-row entity-row-with-side-action" key={task.id}>
+                    <article className="entity-row-with-side-action" key={task.id}>
                       <div className="entity-row-clickable">
                         <div className="entity-row-main">
                           <strong className="entity-title">{task.title}</strong>

@@ -924,7 +924,6 @@
 .dashboard-card .entity-row {
   padding: 9px 4px;
   border-radius: 0;
-  border-bottom: 1px solid var(--border);
 }
 
 .dashboard-card .entity-row:last-child {
