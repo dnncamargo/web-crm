@@ -8,26 +8,80 @@
     "Segoe UI",
     sans-serif;
 
-  color: #27211d;
-  background: #f7f4ef;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 
-  --bg: #f7f4ef;
-  --surface: #ffffff;
-  --surface-soft: #fbfaf8;
-  --border: #e8e1d8;
-  --border-strong: #d8cfc4;
-  --text: #27211d;
-  --muted: #7f756b;
-  --muted-soft: #a4988d;
-  --accent: #b87945;
-  --accent-soft: #f1dfcf;
-  --danger: #a94442;
-  --shadow: 0 18px 40px rgba(70, 52, 36, 0.06);
+  --accent: #c52028;
+  --white: #ffffff;
+  --black: #000000;
+  --transparent-color: transparent;
+
+  /* Backgrounds and surfaces: very close to white, softly tinted by --accent. */
+  --bg: color-mix(in srgb, var(--accent) 5%, var(--white));
+  --bg-soft: color-mix(in srgb, var(--accent) 3%, rgba(255, 255, 255, 0.68));
+  --bg-transparent: color-mix(in srgb, var(--accent) 5%, rgba(255, 255, 255, 0.84));
+  --surface: var(--white);
+  --surface-soft: color-mix(in srgb, var(--accent) 3%, var(--white));
+  --surface-card: color-mix(in srgb, var(--accent) 3%, rgba(255, 255, 255, 0.86));
+  --surface-popover: color-mix(in srgb, var(--accent) 1.5%, rgba(255, 255, 255, 0.98));
+  --surface-floating: color-mix(in srgb, var(--accent) 2%, rgba(255, 255, 255, 0.94));
+
+  /* Text remains readable and calm, but follows the accent hue subtly. */
+  --text: color-mix(in srgb, var(--accent) 18%, #161311);
+  --text-inverse: var(--white);
+  --text-inverse-muted: rgba(255, 255, 255, 0.72);
+  --text-inverse-subtle: rgba(255, 255, 255, 0.76);
+  --muted: color-mix(in srgb, var(--accent) 26%, #68615b);
+  --muted-soft: color-mix(in srgb, var(--accent) 18%, #a8a09a);
+  --placeholder-color: color-mix(in srgb, var(--muted) 68%, transparent);
+
+  /* Accent family. Change only --accent to rebalance the whole interface. */
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, var(--white));
+  --accent-deep: color-mix(in srgb, var(--accent) 30%, var(--black));
+  --accent-surface: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  --accent-surface-soft: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  --accent-surface-medium: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  --accent-header: color-mix(in srgb, var(--accent) 72%, var(--accent-deep));
+
+  --danger: color-mix(in srgb, #9b2c2c 88%, var(--accent));
+
+  /* Borders: low-contrast, accent-tinted, and centralized. */
+  --border: color-mix(in srgb, var(--accent) 15%, var(--white));
+  --border-strong: color-mix(in srgb, var(--accent) 26%, var(--white));
+  --border-dark: color-mix(in srgb, var(--accent) 38%, transparent);
+  --border-hover: color-mix(in srgb, var(--accent) 34%, transparent);
+  --border-selected: color-mix(in srgb, var(--accent) 38%, transparent);
+  --border-accent: color-mix(in srgb, var(--accent) 42%, transparent);
+  --border-focus: color-mix(in srgb, var(--accent) 46%, transparent);
+  --border-base: 1px solid var(--border);
+  --border-transparent: 1px solid var(--transparent-color);
+  --border-none: 0;
+  --divider: 1px solid var(--border);
+
+  /* Shadows: mostly dark/neutral, with a very soft accent hue. */
+  --shadow-tint: color-mix(in srgb, var(--accent) 18%, var(--black));
+  --shadow: 0 18px 40px color-mix(in srgb, var(--shadow-tint) 11%, transparent);
+  --shadow-panel: 0 24px 80px color-mix(in srgb, var(--shadow-tint) 15%, transparent);
+  --shadow-expanded: 0 18px 48px color-mix(in srgb, var(--shadow-tint) 13%, transparent);
+  --shadow-control: 0 2px 8px color-mix(in srgb, var(--black) 16%, transparent);
+  --shadow-soft: 0 2px 4px color-mix(in srgb, var(--black) 8%, transparent);
+  --shadow-none: none;
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+  --focus-ring-strong: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+
+  /* Backdrops: transparent and close to dark, gently tinted by accent. */
+  --backdrop: color-mix(in srgb, var(--accent-deep) 24%, transparent);
+  --backdrop-soft: color-mix(in srgb, var(--accent-deep) 17%, transparent);
+  --backdrop-light: color-mix(in srgb, var(--accent-deep) 12%, transparent);
+
+  /* Switches: neutral by default, accent on active. */
+  --switch-track: color-mix(in srgb, var(--accent) 14%, var(--white));
+  --switch-thumb: var(--white);
+
+  --radius-none: 0;
   --radius-sm: 10px;
+  --radius-md: 16px;
   --radius-xxl: 999px;
 
   --breakpoint-mobile: 720px;
@@ -66,7 +120,7 @@ textarea {
 textarea {
   width: 100%;
   min-height: 96px;
-  border: 1px solid var(--border);
+  border: var(--border-base);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   background: var(--surface);
@@ -79,12 +133,12 @@ textarea {
 }
 
 textarea::placeholder {
-  color: color-mix(in srgb, var(--muted) 70%, transparent);
+  color: var(--placeholder-color);
 }
 
 textarea:focus {
-  border-color: rgba(120, 82, 63, 0.42);
-  box-shadow: 0 0 0 3px rgba(120, 82, 63, 0.08);
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
 }
 
 .app-shell {
@@ -98,8 +152,8 @@ textarea:focus {
   top: 0;
   height: 100vh;
   padding: 24px 18px;
-  border-right: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.62);
+  border-right: var(--divider);
+  background: var(--bg-soft);
   backdrop-filter: blur(18px);
 }
 
@@ -127,8 +181,8 @@ textarea:focus {
 
 .nav-link.active {
   color: var(--text);
-  background: transparent;
-  box-shadow: none;
+  background: var(--transparent-color);
+  box-shadow: var(--shadow-none);
 }
 
 .nav-link.active::before {
@@ -166,11 +220,11 @@ textarea:focus {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
     padding: 6px;
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.92);
+    border: var(--border-base);
+    border-radius: var(--radius-xxl);
+    background: var(--transparent);
     backdrop-filter: blur(18px);
-    box-shadow: 0 18px 40px rgba(70, 52, 36, 0.16);
+    box-shadow: var(--shadow);
   }
 
   .mobile-nav-link {
@@ -180,7 +234,7 @@ textarea:focus {
     place-items: center;
     align-content: center;
     gap: 2px;
-    border-radius: 999px;
+    border-radius: var(--radius-xxl);
     color: var(--muted);
     text-decoration: none;
     font-size: 0.72rem;
@@ -208,8 +262,8 @@ textarea:focus {
   align-items: center;
   gap: 14px;
   padding: 16px 28px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(247, 244, 239, 0.82);
+  border-bottom: var(--divider);
+  background: var(--bg-transparent);
   backdrop-filter: blur(18px);
 }
 
@@ -220,7 +274,7 @@ textarea:focus {
 
 .global-search {
   width: 100%;
-  border: 1px solid var(--border);
+  border: var(--border-base);
   border-radius: var(--radius-xxl);
   background: var(--surface);
   outline: none;
@@ -244,10 +298,10 @@ textarea:focus {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   padding: 14px;
-  border: 1px solid var(--border);
+  border: var(--border-base);
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 22px 60px rgba(70, 52, 36, 0.18);
+  background: var(--surface-popover);
+  box-shadow: var(--shadow);
 }
 
 .global-search-status {
@@ -280,8 +334,8 @@ textarea:focus {
   min-height: 24px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border: var(--border-base);
+  border-radius: var(--radius-xxl);
   color: var(--muted);
   font-size: 0.76rem;
 }
@@ -303,7 +357,7 @@ textarea:focus {
   display: grid;
   gap: 3px;
   padding: 10px;
-  border: 1px solid var(--border);
+  border: var(--border-base);
   border-radius: var(--radius-sm);
   background: var(--surface-soft);
   color: var(--text);
@@ -391,7 +445,7 @@ textarea:focus {
 }
 
 .error-text {
-  color: #9b2c2c;
+  color: var(--danger);
   font-size: 0.86rem;
   line-height: 1.4;
 }
@@ -409,19 +463,13 @@ textarea:focus {
   height: 36px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--border);
+  border: var(--border-base);
   padding: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-xxl);
   background: var(--surface);
   color: var(--muted);
   font-size: 0.82rem;
   cursor: pointer;
-}
-
-.round-filter-button.active {
-  border-color: rgba(120, 82, 63, 0.34);
-  background: var(--surface-soft);
-  color: var(--text);
 }
 
 /* Toolbar */
@@ -435,8 +483,8 @@ textarea:focus {
 
 .filter-pill,
 .segmented-control button {
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border: var(--border-base);
+  border-radius: var(--radius-xxl);
   padding: 7px 11px;
   background: var(--surface);
   color: var(--muted);
@@ -445,8 +493,9 @@ textarea:focus {
 }
 
 .filter-pill.active,
+.round-filter-button.active,
 .segmented-control button.active {
-  border-color: rgba(120, 82, 63, 0.34);
+  border-color: var(--border-dark);
   background: var(--surface-soft);
   color: var(--text);
 }
@@ -459,8 +508,8 @@ textarea:focus {
 
 .toolbar-select {
   min-height: 34px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border: var(--border-base);
+  border-radius: var(--radius-xxl);
   padding: 0 11px;
   background: var(--surface);
   color: var(--text);
@@ -547,10 +596,11 @@ textarea:focus {
   display: grid;
   gap: 8px;
   padding: 14px;
-  border: 1px solid var(--border);
+  border: var(--border-base);
   border-radius: var(--radius-sm);
   background: var(--surface);
   color: inherit;
+  box-shadow: var(--shadow-soft);
   text-align: left;
   cursor: pointer;
   transition:
@@ -573,8 +623,8 @@ textarea:focus {
   min-width: 0;
   display: grid;
   gap: 8px;
-  border: 0;
-  background: transparent;
+  border: var(--border-none);
+  background: var(--transparent-color);
   color: inherit;
   text-align: left;
 }
@@ -610,8 +660,8 @@ textarea:focus {
 }
 
 .entity-row.selected {
-  border-color: rgba(120, 82, 63, 0.36);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border-color: var(--border-selected);
+  background: var(--accent-surface);
 }
 
 .entity-row.selected .entity-value {
