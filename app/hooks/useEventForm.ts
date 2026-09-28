@@ -1,32 +1,83 @@
 // hooks/useEventForm.ts
+import { Event } from '../utils/interfaces'
 import { useState, useEffect } from 'react';
-import { useAuth } from '../components/AuthProvider';
 import { db } from '../utils/firebaseConfig';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
+import useEventDate from './useEventDate';
+import { useOptionalFields } from './useOptionalFields';
+import { useAssociatePerson } from './useAssociatePerson';
+import { useEventCategories } from './useEventCategories';
 
-export function useEventForm(initialPersonId?: string) {
-    const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
+interface UseEventFormProps {
+    uid: string;
+    event?: Event;
+    initialPersonId?: string;
+    dateControl: ReturnType<typeof useEventDate>;
+    optionalFieldsControl: ReturnType<typeof useOptionalFields>;
+    associatePersonControl: ReturnType<typeof useAssociatePerson>;
+    eventCategoriesControl: ReturnType<typeof useEventCategories>;
+}
 
-    const today = new Date().toISOString().split('T')[0]; // "2025-04-25"
-    const defaultTime = new Date().toTimeString().slice(0, 5); // "14:00"
+export function useEventForm({ uid, event, dateControl, optionalFieldsControl, associatePersonControl, eventCategoriesControl }: UseEventFormProps) {
 
     const [title, setTitle] = useState(''); /** @state {string} title - Título do evento. */
-    const [allDay, setAllDay] = useState(false); /** @state {boolean} allDay - Indica se o evento é de dia inteiro (sem hora específica). */
-    const [startDate, setStartDate] = useState(today); /** @state {string} startDate - Data de início do evento no formato 'YYYY-MM-DD'. */
-    const [endDate, setEndDate] = useState(today); /** @state {string} endDate - Data de término do evento no formato 'YYYY-MM-DD'. */
-    const [startTime, setStartTime] = useState(defaultTime); /** @state {string} startTime - Hora de início do evento no formato 'HH:MM'. */
-    const [endTime, setEndTime] = useState(defaultTime); /** @state {string} endTime - Hora de término do evento no formato 'HH:MM'. */
-    const [useAddressAPI, setUseAddressAPI] = useState(false); /** @state {boolean} useAddressAPI - Controla se a busca de endereço via CEP está habilitada. */
-    const [zipcode, setZipcode] = useState('');  /** @state {string} zipcode - Código postal do local do evento. */
-    const [address, setAddress] = useState(''); /** @state {string} address - Endereço do local do evento. */
-    const [number, setNumber] = useState(''); /** @state {string} number - Número do local do evento. */
-    const [district, setDistrict] = useState(''); /** @state {string} district - Bairro do local do evento. */
-    const [city, setCity] = useState(''); /** @state {string} city - Cidade do local do evento. */
-    const [state, setState] = useState(''); /** @state {string} state - Estado (UF) do local do evento. */
-    const [associatePerson, setAssociatePerson] = useState(false); /** @state {boolean} associatePerson - Controla a seção de associação de uma pessoa ao evento. */
-    const [selectedPersonId, setSelectedPersonId] = useState(initialPersonId || ''); /** @state {string} selectedPersonId - ID da pessoa selecionada para associar ao evento. */
-    //const [optionalFields, setOptionalFields] = useState<OptionalField[]>([]);
-    const [error, setError] = useState('');
+    const [location, setLocation] = useState(''); /** @state {string} location - Localidade do evento. */
+
+    const [error, setError] = useState<string | null>(null); /** @state {string | null} error - Mensagem de erro, se houver. */
+
+    const {
+        allDay,
+        startDate,
+        endDate,
+        startTime,
+        endTime,
+        getNextDay,
+        timeZone,
+    } = dateControl;
+
+    const {
+        optionalFields,
+        resetOptionalFields,
+    } = optionalFieldsControl
+
+    const {
+        associatedPersonIds,
+    } = associatePersonControl
+
+    const {
+        selectedCategories,
+    } = eventCategoriesControl;
+
+    useEffect(() => {
+        if (title.trim()) {
+            setError('');
+        }
+    }, [title]);
+
+    useEffect(() => {
+        if (event) {
+            setTitle(event.title || '');
+            setLocation(event.location || '');
+
+            dateControl.setAllDay(event.allDay || false);
+            dateControl.setStartDate(event.startDate);
+            dateControl.setEndDate(event.endDate);
+            dateControl.setStartTime(event.startTime ?? '');
+            dateControl.setEndTime(event.endTime ?? '');
+
+            eventCategoriesControl.setSelectedCategories(event.categories || []);
+
+            associatePersonControl.resetAssociatedPeople();
+            associatePersonControl.setAssociatedPersonIds(event.personIds || []);
+            optionalFieldsControl.resetOptionalFields(
+                Array.isArray(event.optionalFields) ? event.optionalFields : []
+            );
+
+            dateControl.setStartDate(event.startDate); // ✅ hidratar start
+            dateControl.setEndDate(event.endDate);     // ✅ hidratar end
+        }
+    }, [event]);
+
 
     /**
      * @function validateEvent
@@ -36,67 +87,24 @@ export function useEventForm(initialPersonId?: string) {
     function validateEvent(): string | null {
         if (!title.trim()) return 'O título do evento é obrigatório';
         if (!startDate || !endDate) return 'Informe as datas de início e término';
-
-        if (!allDay) {
-            if (!startTime || !endTime) return 'Informe os horários de início e término';
-
-            const start = new Date(`${startDate}T${startTime}`);
-            const end = new Date(`${endDate}T${endTime}`);
-            if (start >= end) return 'O horário de término deve ser após o horário de início';
-        }
+        if (!allDay && (!startTime || !endTime)) return 'Informe os horários de início e término';
         return null;
     }
 
     function formatEvent(): any {
         const base = {
             title: title.trim(),
-            allDay,
-            startDate,
-            endDate,
-            startTime,
-            endTime,
-            zipcode,
-            address,
-            number,
-            district,
-            city,
-            state,
-            useAddressAPI,
-            location: [address, number, city, state].filter(Boolean).join(', ') || "",
-            //category: selectedCategories,
-            //optionalFields: [...optionalFields],
-            createdAt: new Date(),
+            location,
+            allDay, timeZone,
+            startDate, endDate,
+            startTime, endTime,
+            optionalFields,
+            personIds: associatedPersonIds,
+            categories: selectedCategories.length > 0 ? selectedCategories : null,
+            createdAt: event?.createdAt || new Date(),
         }
 
-        if (associatePerson && selectedPersonId) {
-            (base as any).personId = selectedPersonId
-        }
-
-        if (allDay) {
-            return {
-                ...base,
-                start: { date: startDate },
-                end: { date: getNextDay(endDate) }, // precisa somar um dia inteiro para eventos allDay
-            }
-        } else {
-            return {
-                ...base,
-                start: {
-                    dateTime: `${startDate}T${startTime.padEnd(5, '0')}`,
-                    timeZone: 'America/Sao_Paulo',
-                },
-                end: {
-                    dateTime: `${endDate}T${endTime.padEnd(5, '0')}`,
-                    timeZone: 'America/Sao_Paulo',
-                },
-            }
-        }
-    }
-
-    function getNextDay(dateStr: string): string {
-        const date = new Date(dateStr);
-        date.setDate(date.getDate() + 1);
-        return date.toISOString().split('T')[0];
+        return base
     }
 
     async function createEvent() {
@@ -106,30 +114,45 @@ export function useEventForm(initialPersonId?: string) {
             return false;
         }
 
-        const formatted = formatEvent();
-        await addDoc(collection(db, `users/${uid}/event-history`), formatted);
-        return true;
+        try {
+            const eventRef = formatEvent();
+            await addDoc(collection(db, `users/${uid}/events-history`), eventRef);
+
+            resetOptionalFields();
+            return true;
+
+        } catch (e) {
+            console.error('Erro ao salvar no Firestore:', e);
+            setError('Erro ao salvar o evento. Verifique sua conexão.');
+            return false;
+        }
+    }
+
+    async function updateEvent() {
+        const error = validateEvent();
+        if (error) {
+            setError(error);
+            return false;
+        }
+
+        try {
+            const eventRef = formatEvent();
+            await updateDoc(doc(db, `users/${uid}/events-history/${event?.id}`), { ...eventRef });
+            resetOptionalFields();
+            return true;
+
+        } catch (e) {
+            console.error('Erro ao atualizar no Firestore:', e);
+            setError('Erro ao atualizar o evento. Verifique sua conexão.');
+            return false;
+        }
     }
 
     return {
-        // estados
         title, setTitle,
-        allDay, setAllDay,
-        startDate, setStartDate,
-        endDate, setEndDate,
-        startTime, setStartTime,
-        endTime, setEndTime,
-        useAddressAPI, setUseAddressAPI,
-        zipcode, setZipcode,
-        address, setAddress,
-        number, setNumber,
-        district, setDistrict,
-        city, setCity,
-        state, setState,
-        associatePerson, setAssociatePerson,
-        selectedPersonId, setSelectedPersonId,
+        location, setLocation,
         error, setError,
         createEvent,
-        validateEvent,
+        updateEvent,
     };
 }

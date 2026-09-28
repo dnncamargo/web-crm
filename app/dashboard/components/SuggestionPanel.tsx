@@ -3,12 +3,12 @@
 
 import { useEffect, useState } from 'react'
 import { addDoc, getDocs, collection } from 'firebase/firestore';
-import { db } from '../utils/firebaseConfig';
-import { useAuth } from '../components/AuthProvider';
+import { db } from '../../utils/firebaseConfig'
+import { useAuth } from '../../components/auth/AuthProvider';
 import { motion } from 'framer-motion';
 import { differenceInDays, isAfter, parseISO, add } from 'date-fns'
 import { XMarkIcon } from '@heroicons/react/24/outline'
-import { Person, Event, EventSuggestion } from '../utils/interfaces'
+import { Person, Event, EventSuggestion } from '../../utils/interfaces'
 import SuggestionCard from './SuggestionCard';
 
 interface SuggestionPanelProps {

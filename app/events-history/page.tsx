@@ -3,19 +3,20 @@
 import { useState, useEffect, JSX } from 'react';
 import { getDocs, query, orderBy, collection, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
-import { useAuth } from '../components/AuthProvider';
+import { useAuth } from '../components/auth/AuthProvider';
 import { Event } from '../utils/interfaces';
-import ProtectedRoute from '../components/ProtectedRoute';
-import MainMenu from '../components/MainMenu';
-import EventCard from '../components/EventCard';
-import AddEventModal from '../components/AddEventModal';
-import EditEventModal from '../components/EditEventModal';
+import ProtectedRoute from '../components/auth/ProtectedRoute';
+import MainMenu from '../components/ui/MainMenu';
+import EventCard from './components/EventCard';
+import AddEventModal from './components/AddEventModal';
+import EditEventModal from './components/EditEventModal';
 import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { PlusIcon } from '@heroicons/react/16/solid';
 import { ListFilterIcon, SearchIcon } from 'lucide-react';
-import EventFilterModal from '../components/EventFilterModal';
-import type { EventFilter } from '../components/EventFilterModal'
+import EventFilterModal from './components/FilterEventModal';
+import type { EventFilter } from './components/FilterEventModal'
 import Masonry from 'react-masonry-css'
+import { useEventCategories } from '../hooks/useEventCategories';
 
 const defaultFilters: EventFilter = {
   enabled: true,
@@ -46,10 +47,11 @@ const EventsHistory = (): JSX.Element => {
     ...defaultFilters,
     selectedCategories: [],
   });
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+
+  const {availableCategories, setAvailableCategories} = useEventCategories(); /** @const {string[]} availableCategories - Categorias de eventos disponíveis. */
 
   useEffect(() => {
     // Buscar os eventos do Firestore
@@ -164,13 +166,13 @@ const EventsHistory = (): JSX.Element => {
 
 
       // Filtro por tarefas opcionais
-      const hasTasks =
+/*       const hasTasks =
         Array.isArray(event.optionalFields) &&
         event.optionalFields.some(
           (field) => field.type === 'tasks' && Array.isArray(field.value) && field.value.length > 0
         );
 
-      const matchesTasks = !filters.hasTasks || hasTasks;
+      const matchesTasks = !filters.hasTasks || hasTasks; */
 
       // Filtro por anotações
       const hasNotes =
@@ -182,22 +184,22 @@ const EventsHistory = (): JSX.Element => {
       const matchesNotes = !filters.hasNotes || hasNotes;
 
       // Filtro por endereço com CEP
-      const hasAddressByCEP =
+/*       const hasAddressByCEP =
         typeof event.zipcode === 'string' &&
-        event.zipcode.trim() !== ''
+        event.zipcode.trim() !== '' */
 
-      const matchesAddress = !filters.hasAddressByCEP || hasAddressByCEP;
-
+/*       const matchesAddress = !filters.hasAddressByCEP || hasAddressByCEP; */
+ 
       const matchesCategory =
         (filters.selectedCategories?.length ?? 0) === 0 ||
-        (event.category ?? []).some((cat) => filters.selectedCategories.includes(cat));
+        (event.categories ?? []).some((cat) => filters.selectedCategories.includes(cat));
 
       return (
         matchesDate &&
         matchesRating &&
-        matchesTasks &&
+        //matchesTasks &&
         matchesNotes &&
-        matchesAddress &&
+        //matchesAddress &&
         matchesCategory
       );
     }
@@ -355,9 +357,6 @@ const EventsHistory = (): JSX.Element => {
             isOpen={isAddEventModalOpen}
             onClose={() => setIsAddEventModalOpen(false)}
             onAdded={fetchEvents}
-            availableCategories={availableCategories}
-            setAvailableCategories={setAvailableCategories}
-            onAddCategory={handleAddCategory}
           />
         )}
 
@@ -368,9 +367,6 @@ const EventsHistory = (): JSX.Element => {
             isOpen={isEditModalOpen}
             onClose={() => setIsEditModalOpen(false)}
             onUpdated={fetchEvents}
-            availableCategories={availableCategories}
-            setAvailableCategories={setAvailableCategories}
-            onAddCategory={handleAddCategory}
           />
         )}
 

@@ -13,8 +13,8 @@ import {
   PlayCircleIcon
 } from '@heroicons/react/24/outline'
 import { GripVerticalIcon } from 'lucide-react'
-import { Task } from '../utils/interfaces'
-import { useAuth } from './AuthProvider'
+import { Task } from '../../utils/interfaces'
+import { useAuth } from '../../components/auth/AuthProvider'
 
 interface TaskCardProps {
   task: Task

@@ -2,14 +2,14 @@
 import { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
-import { Person, People } from '../utils/interfaces';
+import { Person } from '../utils/interfaces';
 
 /**
  * Hook que busca todas as pessoas do Firestore.
  * @param uid ID do usuário logado.
  * @returns { people } Lista de pessoas.
  */
-export function useFetchPeople(uid: string | null): People {
+export function useFetchPeople(uid: string | null): Person[] {
   const [people, setPeople] = useState<Person[]>([]);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function useFetchPeople(uid: string | null): People {
     fetchPeople();
   }, [uid]);
 
-  return { people };
+  return people;
 }
 
 {/* Associação de pessoa ao Evento */ }

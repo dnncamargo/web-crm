@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { updateDoc, doc, addDoc, deleteDoc, collection } from 'firebase/firestore'
-import { db } from '../utils/firebaseConfig'
-import { useAuth } from '../components/AuthProvider'
-import { Task } from '../utils/interfaces'
-import CalendarEventCreator from './CalendarEventCreator'
+import { db } from '../../utils/firebaseConfig'
+import { useAuth } from '../../components/auth/AuthProvider'
+import { Task } from '../../utils/interfaces'
+import CalendarEventCreator from '../../components/ui/CalendarEventCreator'
 
 type TaskItem = {
   id: string;

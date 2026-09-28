@@ -4,15 +4,15 @@
 import { useEffect, useState } from "react"
 import { collection, doc, getDocs, orderBy, query } from "firebase/firestore"
 import { db } from "../utils/firebaseConfig"
-import { useAuth } from "../components/AuthProvider"
+import { useAuth } from "../components/auth/AuthProvider"
 import { Task } from "../utils/interfaces"
 import { DocumentCheckIcon } from "@heroicons/react/24/outline"
 import { PlusIcon } from "lucide-react"
-import ProtectedRoute from '../components/ProtectedRoute'
-import MainMenu from "../components/MainMenu"
-import AddTaskModal from "../components/AddTaskModal"
-import TaskSection from "../components/TaskSection"
-import EditTaskModal from "../components/EditTaskModal"
+import ProtectedRoute from '../components/auth/ProtectedRoute'
+import MainMenu from "../components/ui/MainMenu"
+import AddTaskModal from "./components/AddTaskModal"
+import TaskSection from "./components/TaskSection"
+import EditTaskModal from "./components/EditTaskModal"
 import Masonry from 'react-masonry-css'
 
 export default function TasksList() {
@@ -76,16 +76,7 @@ export default function TasksList() {
                         <p className="text-gray-500">Nenhuma tarefa.</p>
                     ) : (
                                 <div className="flex flex-col gap-4 md:flex-row md:gap-6">
-                                    <div className="flex-1">
-                                        <TaskSection
-                                            section="Não Iniciadas"
-                                            status={0}
-                                            tasks={tasks.filter(t => t.status === 0)}
-                                            onEditTask={openEditTaskModal}
-                                            refreshTasks={fetchTasks}
-                                            updateTasksLocally={(updatedTasks) => handleUpdateSectionTasks(0, updatedTasks)}
-                                        />
-                                    </div>
+
                                     <div className="flex-1">
                                         <TaskSection
                                             section="Em Andamento"
@@ -96,6 +87,18 @@ export default function TasksList() {
                                             updateTasksLocally={(updatedTasks) => handleUpdateSectionTasks(1, updatedTasks)}
                                         />
                                     </div>
+
+                                    <div className="flex-1">
+                                        <TaskSection
+                                            section="Não Iniciadas"
+                                            status={0}
+                                            tasks={tasks.filter(t => t.status === 0)}
+                                            onEditTask={openEditTaskModal}
+                                            refreshTasks={fetchTasks}
+                                            updateTasksLocally={(updatedTasks) => handleUpdateSectionTasks(0, updatedTasks)}
+                                        />
+                                    </div>
+
                                     <div className="flex-1">
                                         <TaskSection
                                             section="Concluídas"

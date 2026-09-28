@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { addDoc, collection, getDocs, query, where } from 'firebase/firestore'
-import { db } from '../utils/firebaseConfig'
-import { useAuth } from '../components/AuthProvider'
+import { db } from '../../utils/firebaseConfig'
+import { useAuth } from '../../components/auth/AuthProvider'
 
 interface AddTaskModalProps {
   isOpen: boolean

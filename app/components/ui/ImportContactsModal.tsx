@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useAuth } from '../components/AuthProvider'
-import { Contact, fetchAllContacts, parseGoogleContact } from '../utils/googleContacts'
+import { useAuth } from '../auth/AuthProvider';
+import { Contact, fetchAllContacts, parseGoogleContact } from '../../utils/googleContacts'
 import { useRouter } from 'next/navigation'
-import { db } from '../utils/firebaseConfig'
+import { db } from '../../utils/firebaseConfig'
 import { addDoc, collection } from 'firebase/firestore'
 import { motion } from 'framer-motion'
 import { Timestamp } from 'firebase/firestore'

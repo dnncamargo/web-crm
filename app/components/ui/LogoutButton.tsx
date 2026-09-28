@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../components/AuthProvider';
+import { useAuth } from '../auth/AuthProvider';
 import { ArrowRightEndOnRectangleIcon } from '@heroicons/react/24/outline'
 
 export default function LogoutButton() {

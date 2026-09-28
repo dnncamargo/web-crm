@@ -1,12 +1,12 @@
 'use client'
 
-import { useAuth } from "../components/AuthProvider"
+import { useAuth } from "../../components/auth/AuthProvider"
 import { updateDoc, doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore'
-import { db } from '../utils/firebaseConfig'
+import { db } from '../../utils/firebaseConfig'
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
-import { Task } from '../utils/interfaces'
+import { Task } from '../../utils/interfaces'
 import TaskCard from './TaskCard'
 
 interface TaskSectionProps {

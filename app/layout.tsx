@@ -1,4 +1,4 @@
-import { AuthProvider } from './components/AuthProvider';
+import { AuthProvider } from './components/auth/AuthProvider';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import type { Metadata } from "next";
 import "./globals.css";

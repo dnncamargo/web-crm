@@ -3,17 +3,17 @@
 import { useState, useEffect, JSX } from 'react';
 import { doc, getDocs, updateDoc, collection, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../utils/firebaseConfig';
-import { useAuth } from '../components/AuthProvider';
+import { useAuth } from '../components/auth/AuthProvider';
 import { Person } from '../utils/interfaces';
-import ProtectedRoute from '../components/ProtectedRoute';
-import MainMenu from '../components/MainMenu';
-import PersonCard from '../components/PersonCard';
-import AddPersonModal from '../components/AddPersonModal';
-import EditPersonModal from '../components/EditPersonModal';
+import ProtectedRoute from '../components/auth/ProtectedRoute';
+import MainMenu from '../components/ui/MainMenu';
+import PersonCard from './components/PersonCard';
+import AddPersonModal from './components/AddPersonModal';
+import EditPersonModal from './components/EditPersonModal';
 import { UserPlusIcon } from '@heroicons/react/24/outline';
 import { ListFilterIcon, SearchIcon } from 'lucide-react';
-import PersonFilterModal from '../components/PersonFilterModal';
-import type { PersonFilter } from '../components/PersonFilterModal';
+import FilterPersonModal from './components/FilterPersonModal';
+import type { PersonFilter } from './components/FilterPersonModal';
 import Masonry from 'react-masonry-css'
 
 const defaultFilters: PersonFilter = {
@@ -197,7 +197,7 @@ const PeopleDirectory = (): JSX.Element => {
       const matchesFrequency = !filters.hasContactFrequency || !!person.contactFrequency;
 
       // Filtro: possui endereço com CEP via API nos optionalFields
-      const hasAddressByCep =
+/*       const hasAddressByCep =
         Array.isArray(optionalFields) &&
         optionalFields.some(
           (field) =>
@@ -206,10 +206,10 @@ const PeopleDirectory = (): JSX.Element => {
             typeof field.value.zipcode === 'string' &&
             field.value.zipcode.trim() !== ''
         );
-      const matchesAddress = !filters.hasAddressByCep || hasAddressByCep;
+      const matchesAddress = !filters.hasAddressByCep || hasAddressByCep; */
 
       // Filtro: possui nota (anotação)
-      const hasNote =
+/*       const hasNote =
         Array.isArray(optionalFields) &&
         optionalFields.some(
           (field) =>
@@ -217,14 +217,14 @@ const PeopleDirectory = (): JSX.Element => {
             typeof field.value === 'string' &&
             field.value.trim() !== ''
         );
-      const matchesNote = !filters.hasNote || hasNote;
+      const matchesNote = !filters.hasNote || hasNote; */
 
       // Filtro: possui pelo menos um dos tipos de relacionamento definidos
 
       const matchesRelationship =
         (filters.selectedRelationships?.length ?? 0) === 0 ||
-        (Array.isArray(person.relationship)
-          ? person.relationship
+        (Array.isArray(person.relationships)
+          ? person.relationships
           : []
         ).some((rel) => filters.selectedRelationships.includes(rel));
 
@@ -234,8 +234,8 @@ const PeopleDirectory = (): JSX.Element => {
         matchesBirthday &&
         matchesFavorite &&
         matchesFrequency &&
-        matchesAddress &&
-        matchesNote &&
+/*         matchesAddress &&
+        matchesNote && */
         matchesRelationship
       );
     });
@@ -343,7 +343,7 @@ const PeopleDirectory = (): JSX.Element => {
         </div>
 
         {/* Filtro */}
-        <PersonFilterModal
+        <FilterPersonModal
           isOpen={showFilterModal}
           onClose={() => setShowFilterModal(false)}
           filters={filters}
@@ -397,9 +397,6 @@ const PeopleDirectory = (): JSX.Element => {
             onClose={() => setIsAddPersonModalOpen(false)}
             onAdded={fetchPeople}
             isOpen={isAddPersonModalOpen}
-            availableRelationships={availableRelationships}
-            setAvailableRelationships={setAvailableRelationships}
-            onAddRelationship={handleAddRelationship}
           />
         )}
 

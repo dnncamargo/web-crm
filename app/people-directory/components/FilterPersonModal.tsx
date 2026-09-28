@@ -12,21 +12,21 @@ export interface PersonFilter {
   selectedRelationships: string[];
 }
 
-interface PersonFilterModalProps {
+interface FilterPersonModalProps {
   isOpen: boolean;
   onClose: () => void;
   filters: PersonFilter;
   setFilters: (filters: PersonFilter) => void;
-  availableRelationships: string[]; 
+  availableRelationships: string[];
 }
 
-export default function PersonFilterModal({
+export default function FilterPersonModal({
   isOpen,
   onClose,
   filters,
   setFilters,
   availableRelationships,
-}: PersonFilterModalProps) {
+}: FilterPersonModalProps) {
   if (!isOpen) return null;
 
   const toggleEnabled = () => {

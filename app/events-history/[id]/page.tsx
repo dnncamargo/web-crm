@@ -1,30 +1,18 @@
 'use client';
 
-import { useState, useEffect, MouseEventHandler } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebaseConfig';
-import { useAuth } from '@/app/components/AuthProvider';
+import { useAuth } from '@/app/components/auth/AuthProvider';
 import { Event, Person } from '@/app/utils/interfaces';
+import { OptionalField } from '@/app/types/optionalFields';
 import { createGoogleCalendarEvent } from '@/app/utils/googleCalendar';
-import ProtectedRoute from '@/app/components/ProtectedRoute';
-import MainMenu from '@/app/components/MainMenu';
+import ProtectedRoute from '../../components/auth/ProtectedRoute';
+import MainMenu from '../../components/ui/MainMenu';
 import { StarIcon as StarOutline } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
-import { v4 as uuidv4 } from 'uuid';
-
-type TaskItem = {
-  id: string;
-  text: string;
-  done: boolean;
-};
-
-type OptionalField = {
-  id: string;                 // UUID para controle único
-  type: 'text' | 'textarea' | 'url' | 'location' | 'person' | 'tasks';
-  label: string;             // Ex: "Descrição", "URL", "Endereço Alternativo"
-  value: string | TaskItem[]; // string para os outros tipos, array para tasks
-};
+import { CheckCircle, Circle } from 'lucide-react';
 
 /**
  * @component
@@ -38,7 +26,7 @@ const EventDetails = () => {
   const router = useRouter(); /** @const {object} router - O objeto de roteamento do Next.js. */
 
   const [event, setEvent] = useState<Event | null>(null); /** @state {Event | null} event - Os detalhes do evento buscado do Firestore. Inicialmente null. */
-  const [person, setPerson] = useState<Person | null>(null); /** @state {Person | null} person - Os detalhes da pessoa associada ao evento, buscados do Firestore. Inicialmente null. */
+  const [person, setPerson] = useState<Person[] | null>(null); /** @state {Person[] | null} person - Os detalhes das pessoas associadas ao evento, buscados do Firestore. Inicialmente null. */
   const [currentRating, setCurrentRating] = useState(0);
 
   useEffect(() => {
@@ -69,16 +57,19 @@ const EventDetails = () => {
         } as Event;
         setEvent(eventData);
 
-        // Se evento tiver personId, buscar pessoa associada
-        if (eventData.personId) {
-          const personRef = doc(db, `users/${uid}/people-directory`, eventData.personId);
-          const personSnap = await getDoc(personRef);
-          if (personSnap.exists()) {
-            setPerson({
-              id: personSnap.id, ...personSnap.data()
-
-            } as Person);
-          }
+        // Se evento tiver personIds, buscar pessoas associadas
+        if (eventData.personIds && eventData.personIds.length > 0) {
+          const personPromises = eventData.personIds.map(async (personId) => {
+            const personRef = doc(db, `users/${uid}/people-directory`, personId);
+            const personSnap = await getDoc(personRef);
+            if (personSnap.exists()) {
+              return { id: personSnap.id, ...personSnap.data() } as Person;
+            }
+          });
+          const people = await Promise.all(personPromises);
+          // Filtra pessoas válidas (não undefined)
+          const validPeople = people.filter((p): p is Person => p !== undefined);
+          setPerson(validPeople);
         }
       }
     } catch (error) {
@@ -88,144 +79,6 @@ const EventDetails = () => {
 
   if (!event) return <div className="animate-pulse text-gray-500 m-6">Carregando as informações do evento...</div>;
 
-
-  const updateOptionalFieldTasks = async (fieldId: string, updatedTasks: TaskItem[]) => {
-    if (!event || !uid) return;
-
-    const updatedFields = event.optionalFields.map((field: { id: string; type: string; }) => {
-      if (field.id === fieldId && field.type === 'tasks') {
-        return { ...field, value: updatedTasks };
-      }
-      return field;
-    });
-
-    setEvent({ ...event, optionalFields: updatedFields });
-
-    await updateDoc(doc(db, `users/${uid}/events-history/${event.id}`), {
-      optionalFields: updatedFields
-    });
-  };
-
-  const addTask = (fieldId: string) => {
-    const newTask: TaskItem = {
-      id: uuidv4(),
-      text: '',
-      done: false
-    };
-
-    const targetField = event?.optionalFields.find((f: { id: string; }) => f.id === fieldId);
-    if (!targetField || targetField.type !== 'tasks') return;
-
-    const currentTasks = targetField.value as TaskItem[];
-    updateOptionalFieldTasks(fieldId, [...currentTasks, newTask]);
-  };
-
-  const updateTaskText = (fieldId: string, taskId: string, newText: string) => {
-    const field = event?.optionalFields.find((f: { id: string; type: string; }) => f.id === fieldId && f.type === 'tasks');
-    if (!field) return;
-
-    const updatedTasks = (field.value as TaskItem[]).map(task =>
-      task.id === taskId ? { ...task, text: newText } : task
-    );
-
-    updateOptionalFieldTasks(fieldId, updatedTasks);
-  };
-
-  const toggleTaskDone = (fieldId: string, taskId: string) => {
-    const field = event?.optionalFields.find((f: { id: string; type: string; }) => f.id === fieldId && f.type === 'tasks');
-    if (!field) return;
-
-    const updatedTasks = (field.value as TaskItem[]).map(task =>
-      task.id === taskId ? { ...task, done: !task.done } : task
-    );
-
-    updateOptionalFieldTasks(fieldId, updatedTasks);
-  };
-
-  const deleteTask = (fieldId: string, taskId: string) => {
-    const field = event?.optionalFields.find((f: { id: string; type: string; }) => f.id === fieldId && f.type === 'tasks');
-    if (!field) return;
-
-    const updatedTasks = (field.value as TaskItem[]).filter(task => task.id !== taskId);
-    updateOptionalFieldTasks(fieldId, updatedTasks);
-  };
-
-
-  function renderOptionalFieldValue(field: OptionalField) {
-    switch (field.type) {
-      case 'url':
-        return (
-          <a
-            href={field.value as string}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 underline"
-          >
-            {typeof field.value === 'string'
-              ? field.value
-              : '[Tipo de campo não suportado para exibição direta]'}
-          </a>
-        );
-
-      case 'tasks':
-        const tasks = Array.isArray(field.value) ? field.value as TaskItem[] : [];
-        return (
-          <div className="space-y-2">
-            <ul className="space-y-1">
-              {tasks.map(task => (
-                <li key={task.id} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={task.done}
-                    onChange={() => toggleTaskDone(field.id, task.id)}
-                    className="h-4 w-4 text-green-600"
-                  />
-                  <input
-                    type="text"
-                    value={task.text}
-                    onChange={(e) => updateTaskText(field.id, task.id, e.target.value)}
-                    className="flex-1 text-sm border border-gray-300 rounded px-2 py-1"
-                    placeholder="Descrição da tarefa"
-                  />
-                  <button
-                    onClick={() => deleteTask(field.id, task.id)}
-                    className="text-red-500 text-xs"
-                  >
-                    Excluir
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button
-              onClick={() => addTask(field.id)}
-              className="text-blue-600 text-sm underline mt-2"
-            >
-              + Nova tarefa
-            </button>
-          </div>
-        );
-
-
-      case 'textarea':
-        return (
-          <div className="whitespace-pre-wrap text-sm leading-relaxed">
-            {typeof field.value === 'string'
-              ? field.value
-              : '[Tipo de campo não suportado para exibição direta]'}
-          </div>
-        );
-
-      default:
-        return (
-          <span
-            className="italic text-gray-400">
-            {typeof field.value === 'string'
-              ? field.value
-              : `Campo não suportado: {field.label}`}
-          </span>);
-    }
-  }
-
   const handleRatingChange = async (value: number) => {
     const newRating = currentRating === value ? 0 : value;
     setCurrentRating(newRating);
@@ -234,6 +87,54 @@ const EventDetails = () => {
       rating: newRating,
     });
   };
+
+  const renderOptionalFieldValue = (field: OptionalField) => {
+    switch (field.type) {
+      case 'text':
+      case 'additionalEmail':
+      case 'additionalPhone':
+      case 'url':
+        return field.value as string;
+
+      case 'address':
+        const { address, number, district, city, state, zipcode } = field.value;
+        const parts = [
+          address && `Endereço: ${address}`,
+          number && `Número: ${number}`,
+          district && `Bairro: ${district}`,
+          city && `Cidade: ${city}`,
+          state && `Estado: ${state}`,
+          zipcode && `CEP: ${zipcode}`,
+        ].filter(Boolean);
+        return parts.join(', ');
+
+      case 'tasks':
+        return (
+          <ul className="space-y-1">
+            {(field.value as { id: string; text: string; done?: boolean }[]).map((task) => (
+              <li key={task.id} className="flex items-start gap-2">
+                <span className="text-lg">
+                  {task.done ? (
+                    <CheckCircle className="text-green-500 w-4 h-4 mt-0.5" />
+                  ) : (
+                    <Circle className="text-gray-400 w-4 h-4 mt-0.5" />
+                  )}
+
+                </span>
+                <span className={task.done ? 'line-through text-gray-500' : ''}>
+                  {task.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        );
+
+
+      default:
+        return 'Valor não suportado';
+    }
+  };
+
 
   return (
 
@@ -251,40 +152,39 @@ const EventDetails = () => {
           <p><strong>Hora:</strong> {event.startTime || 'Dia inteiro'}</p>
 
           {/* Endereço */}
-          {event.zipcode && <p><strong>CEP:</strong> {event.zipcode}</p>}
-          {event.address && <p><strong>Endereço:</strong> {event.address}</p>}
-          {event.number && <p><strong>Número:</strong> {event.number}</p>}
-          {event.complement && <p><strong>Complemento:</strong> {event.complement}</p>}
-          {event.district && <p><strong>Bairro:</strong> {event.district}</p>}
-          {event.city && <p><strong>Cidade:</strong> {event.city}</p>}
-          {event.state && <p><strong>Estado:</strong> {event.state}</p>}
+          {event.location && (
+            <div className="mt-2">
+              <p><strong>Local:</strong> {event.location}</p>
+            </div>
+          )}
+
         </div>
 
-        {/* Outras informações */}
-        {(event.optionalFields.length > 0 || person) &&
-        <div className="bg-white p-4 rounded-lg shadow space-y-2">
-          {event.optionalFields.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-base font-semibold text-gray-700">Outras informações</h3>
-              {event.optionalFields.map((field: OptionalField) => (
-                <div key={field.id} className="bg-gray-50 p-3 rounded border">
-                  <p className="text-sm font-medium text-gray-600">{field.label}</p>
-                  <div className="mt-1 text-gray-800 text-sm break-words">
-                    {renderOptionalFieldValue(field)}
+        {/* Outras informações (OptionalFields) */}
+        {(event.optionalFields && event.optionalFields.length > 0 || person) &&
+          <div className="bg-white p-4 rounded-lg shadow space-y-2">
+            {event.optionalFields && event.optionalFields.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-base font-semibold text-gray-700">Outras informações</h3>
+                {event.optionalFields.map((field) => (
+                  <div key={field.id} className="bg-gray-50 p-3 rounded border">
+                    <p className="text-sm font-medium text-gray-600">{field.label}</p>
+                    <div className="mt-1 text-gray-800 text-sm break-words">
+                      {renderOptionalFieldValue(field)}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
 
-          {/* Pessoa associada */}
-          {person && (
-            <div className="bg-gray-50 rounded border pl-2">
-              <p><strong>{person.name}</strong></p>
-              <p className="text-sm text-gray-500">{person.phone}</p>
-            </div>
-          )}
-        </div>}
+            {/* Pessoa associada */}
+            {person && person.length > 0 && person.map((p) => (
+              <div key={p.id} className="bg-gray-50 rounded border pl-2">
+                <p><strong>{p.name}</strong></p>
+                <p className="text-sm text-gray-500">{p.phone}</p>
+              </div>
+            ))}
+          </div>}
 
         {/* Avaliação do Evento */}
         <div className="bg-white flex items-center p-4 rounded-lg shadow space-y-2">

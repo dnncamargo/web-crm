@@ -1,4 +1,4 @@
-import { EventSuggestion } from "../utils/interfaces";
+import { EventSuggestion } from "../../utils/interfaces";
 
 interface SuggestionCardProps {
     suggestion: EventSuggestion;

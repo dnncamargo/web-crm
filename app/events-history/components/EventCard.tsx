@@ -2,9 +2,9 @@
 
 import { JSX } from 'react';
 import { useRouter } from 'next/navigation';
-import { Event } from '../utils/interfaces';
+import { Event } from '../../utils/interfaces';
 import { ClockIcon, MapPinIcon, LinkIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
-import { formatDate } from '../utils/services';
+import { formatDate } from '../../utils/services';
 
 type OptionalField = {
   id: string;                 // UUID para controle único
@@ -58,18 +58,18 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
             <div>{event.startTime}</div>
           </div>
         )}
-        {/* Endereço */}
-        {event.address && (
+        {/* Localidade */}
+        {event.location && (
           <div className="card-content-info-large text-gray-500 mb-2">
             <div className="w-4 h-4 mr-2 mt-1 flex-shrink-0">
-              {event.address.startsWith('http') ? (
+              {event.location.startsWith('http') ? (
                 <LinkIcon className="w-full h-full" />
               ) : (
                 <MapPinIcon className="w-full h-full" />
               )}
             </div>
             <div className="text-pretty truncate overflow-x-auto">
-              {event.address}
+              {event.location}
             </div>
           </div>
         )}
@@ -99,9 +99,9 @@ const EventCard = ({ event, onEditEvent }: EventCardProps): JSX.Element => {
 
       {/* Categorias */}
       <div className='mt-2 ml-2'>
-        {event.category && event.category.length > 0 && (
+        {event.categories && event.categories.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-4">
-            {event.category.map((cat: string, index: number) => (
+            {event.categories.map((cat: string, index: number) => (
               <span
                 key={index}
                 className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full"

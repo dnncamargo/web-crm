@@ -2,7 +2,7 @@
 
 import { JSX } from 'react';
 import { useRouter } from 'next/navigation';
-import { Person } from '../utils/interfaces';
+import { Person } from '../../utils/interfaces';
 import { HeartIcon as HeartSolid } from '@heroicons/react/24/solid';
 import { HeartIcon as HeartOutline, CalendarDaysIcon as CalendarIcon, PhoneIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 
@@ -71,9 +71,9 @@ const PersonCard = ({ person, onEditPerson, onToggleFavorite }: PersonCardProps)
 
         {/* Relacionamentos */}
         <div className='mt-2 ml-2'>
-          {person.relationship && person.relationship.length > 0 && (
+          {person.relationships && person.relationships.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-4">
-              {person.relationship.map((rel: string, index: number) => (
+              {person.relationships.map((rel: string, index: number) => (
                 <span
                   key={index}
                   className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded-full"

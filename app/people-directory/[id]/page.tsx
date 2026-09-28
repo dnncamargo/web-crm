@@ -2,13 +2,13 @@
 
 import { useState, useEffect, JSX } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, getDoc, getDocs, query, where, collection, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocs, query, where, collection, setDoc } from 'firebase/firestore';
 import { db } from '../../utils/firebaseConfig';
-import { useAuth } from '@/app/components/AuthProvider';
+import { useAuth } from '@/app/components/auth/AuthProvider';
 import { Event, Person } from '@/app/utils/interfaces';
-import ProtectedRoute from '@/app/components/ProtectedRoute';
-import MainMenu from '@/app/components/MainMenu';
-import AddEventModal from '@/app/components/AddEventModal'; // certifique-se do caminho correto
+import ProtectedRoute from '@/app/components/auth/ProtectedRoute';
+import MainMenu from '@/app/components/ui/MainMenu';
+import AddEventModal from '../../events-history/components/AddEventModal'; // certifique-se do caminho correto
 
 /**
  * @component
@@ -112,7 +112,7 @@ const PersonDetails = (): JSX.Element => {
           {/* Outras informações */}
           {person.birthday && <p><strong>Aniversário:</strong> {person.birthday}</p>}
           {person.note && <p><strong>Notas:</strong> {person.note}</p>}
-          {person.relationship && <p><strong>Relacionamento:</strong> {person.relationship}</p>}
+          {person.relationships && <p><strong>Relacionamento:</strong> {person.relationships.join(', ')}</p>}
         </div>
 
         {/* Campos Opcionais */}
@@ -124,7 +124,7 @@ const PersonDetails = (): JSX.Element => {
 
                 <p className="font-semibold">{field.label}</p>
 
-                {field.type === 'note' && (
+                {field.type === 'text' && (
                   <p className="text-gray-700 whitespace-pre-wrap">{field.value}</p>
                 )}
 
@@ -134,11 +134,11 @@ const PersonDetails = (): JSX.Element => {
                   </a>
                 )}
 
-                {field.type === 'phone' && (
+                {field.type === 'additionalPhone' && (
                   <p className="text-gray-700">{field.value}</p>
                 )}
 
-                {field.type === 'email' && (
+                {field.type === 'additionalEmail' && (
                   <a href={`mailto:${field.value}`} className="text-blue-600 underline">
                     {field.value}
                   </a>
@@ -225,11 +225,8 @@ const PersonDetails = (): JSX.Element => {
               };
               fetchEvents();
             }}
-            initialPersonId={person.id}
-            availableCategories={availableCategories}
-            setAvailableCategories={setAvailableCategories}
-            onAddCategory={handleAddCategory}
           />
+          // associar pessoa ao abrir o modal
         )}
       </div>
     </ProtectedRoute>

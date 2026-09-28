@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../utils/firebaseConfig';
-import { useAuth } from '../components/AuthProvider';
+import { useAuth } from '../components/auth/AuthProvider';
 
 export function useEventCategories() {
   const { uid } = useAuth(); /** @const {uid | null} uid - O usuário do Firebase autenticado. */
@@ -16,7 +16,6 @@ export function useEventCategories() {
       const data = docSnap.data();
       const availableCategories = data?.category || [];
       setAvailableCategories(availableCategories);
-
     }
   };
 
@@ -41,13 +40,31 @@ export function useEventCategories() {
     }
   };
 
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories((prev) => {
+      const updated = prev.includes(cat)
+        ? prev.filter((c) => c !== cat)
+        : [...prev, cat];
+      console.log('Toggle category:', cat, 'Result:', updated);
+      return updated;
+    });
+  };
+
+  const clearSelectedCategories = () => {
+    setSelectedCategories([]);
+  };
+
   useEffect(() => {
     fetchCategories()
   }, [uid])
 
   return {
     availableCategories,
+    selectedCategories,
     setAvailableCategories,
+    setSelectedCategories,
+    toggleCategory,
+    clearSelectedCategories,
     handleAddCategory,
   }
 }

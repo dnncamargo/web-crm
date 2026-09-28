@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
+import { OptionalField as OptionalFieldType } from '../types/optionalFields';
 
 export interface Person {
   id: string;
@@ -8,48 +9,26 @@ export interface Person {
   birthday?: string;
   note?: string;
   favorite?: boolean;
-  relationship?: string[];
+  relationships?: string[];
   contactFrequency?: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | null;
-  optionalFields?: OptionalField[];
+  optionalFields?: OptionalFieldType[];
   createdAt?: Date | Timestamp;
-}
-
-export interface People {
-  people: Person[]
 }
 
 export interface Event {
   id: string;
   title: string;
-  allDay: boolean;
-  start: {
-    date?: string; // usado para all-day
-    dateTime?: string; // usado para eventos cronometrados
-    timeZone?: string;
-  };
-  end: {
-    date?: string;
-    dateTime?: string;
-    timeZone?: string;
-  };
-  startDate: string;  // para formulário
-  endDate: string;    // para formulário
-  startTime?: string; // para formulário (não usado se allDay = true)
-  endTime?: string;
-  zipcode?: string;
-  address?: string;
-  number?: string;
-  complement?: string;
-  district?: string;
-  city?: string;
-  state?: string;
-  useAddressAPI: boolean;
   location?: string;
-  personId?: string;
+  allDay: boolean;
+  startDate: string;
+  endDate: string; 
+  startTime?: string; 
+  endTime?: string;
+  personIds?: string[];
   rating?: number;
-  category?: string[];
+  categories?: string[];
   status: 0 | 1;
-  optionalFields?: any;
+  optionalFields?: OptionalFieldType[];
   createdAt?: Date;
 }
 
@@ -70,29 +49,11 @@ export interface EventSuggestion {
   message?: string;
 }
 
-export type OptionalFieldType = 'address' | 'note' | 'url' | 'phone' | 'email';
+//export type OptionalFieldType = 'address' | 'note' | 'url' | 'phone' | 'email';
 
-export interface AddressField {
+export interface OptionalField {
   id: string;
-  type: 'address';
+  type: 'address' | 'tasks' | 'note' | 'url' | 'phone' | 'email';
   label: string;
-  value: {
-    useAddressAPI: boolean;
-    location: string;
-    zipcode: string;
-    address: string;
-    number: string;
-    district: string;
-    city: string;
-    state: string;
-  };
+  value: any;
 }
-
-export interface TextField {
-  id: string;
-  type: 'note' | 'url' | 'phone' | 'email';
-  label: string;
-  value: string;
-}
-
-export type OptionalField = AddressField | TextField;
