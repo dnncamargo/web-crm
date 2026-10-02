@@ -4,6 +4,73 @@ Este documento é enviado ao agente e deve ser tratado como contrato operacional
 
 A conclusão de uma tarefa não termina no commit, no push ou no merge. **Depois do merge, o repositório local deve retornar à `main`, atualizada e limpa.**
 
+## 0. Preâmbulo obrigatório de handoff
+
+Toda solicitação de edição/implementação enviada a GPT ou OpenCode em uma nova sessão deve começar com o preâmbulo abaixo.
+
+Substituir apenas:
+
+- `scope=what to do` pelo escopo concreto;
+- cada ocorrência de `SHA` pelo SHA exato esperado de `origin/main`;
+- `feature/new-branch` pelo nome da branch específica da tarefa.
+
+Não remover as verificações, o `STOP + REPORT` nem as proibições de reparo automático do estado Git.
+
+~~~text
+GPT / OpenCode — NEW SESSION
+
+PSAP/1  
+mode=implement  
+scope=what to do
+validate=focused-tests,storage-rules-emulator,typecheck,diff-check  
+rules=report-conflicts  
+base=SHA
+
+## PRECHECK
+
+Repository:
+
+`dnncamargo/web-crm`
+
+Expected base:
+
+`SHA`
+
+Create a new branch from that exact commit:
+
+`feature/new-branch`
+
+Before changing anything, verify:
+~~~
+
+~~~bash
+git status --short
+git branch --show-current
+git rev-parse HEAD
+git rev-parse origin/main
+~~~
+
+~~~text
+Requirements:
+
+- expected base SHA must match;
+- worktree must be clean;
+- `origin/main` must still be the expected base;
+- branch must start from that exact base.
+
+Mismatch:
+
+STOP + REPORT.
+
+Do not reset, rebase, stash, clean, force or otherwise repair an unexpected Git state.
+
+## OBJECTIVE
+~~~
+
+Esse bloco é o contrato de entrada da sessão. O conteúdo do objetivo vem depois de `## OBJECTIVE`.
+
+O preâmbulo é deliberadamente mais restritivo do que um fluxo Git genérico: **o agente deve primeiro verificar o estado recebido e nunca tentar normalizá-lo silenciosamente**.
+
 ## 1. Ordem obrigatória
 
 Trabalhar sempre nesta sequência:
@@ -14,28 +81,33 @@ Não começar alterando código antes de entender o estado atual.
 
 ## 2. PRECHECK
 
-No início da sessão:
+O primeiro PRECHECK da sessão é o do preâmbulo obrigatório. Antes de qualquer alteração, executar exatamente as verificações recebidas:
 
 ```bash
-git fetch --prune
-git switch main
-git pull --ff-only
-
 git status --short
 git branch --show-current
 git rev-parse HEAD
 git rev-parse origin/main
-git rev-list --left-right --count HEAD...origin/main
 ```
 
-Esperado:
+Validar:
 
-- branch `main`;
 - worktree limpa;
-- `HEAD == origin/main`;
-- ahead/behind `0 0`.
+- `HEAD` no SHA esperado;
+- `origin/main` ainda no mesmo SHA esperado;
+- nenhuma divergência em relação à base declarada no handoff.
 
-Se houver alterações locais inesperadas, não sobrescrever, não limpar e não fazer reset destrutivo. Auditar e relatar antes de decidir o próximo passo.
+Se qualquer condição falhar: **STOP + REPORT**.
+
+Não executar `reset`, `rebase`, `stash`, `clean`, force push ou qualquer operação destinada a reparar automaticamente um estado Git inesperado.
+
+Somente depois do PRECHECK aprovado:
+
+1. criar a branch declarada no handoff a partir do SHA exato esperado;
+2. confirmar que a branch nasceu desse SHA;
+3. iniciar AUDIT/EVIDENCE antes da implementação.
+
+Não usar `git pull` para transformar uma base divergente na base esperada. Se `origin/main` não corresponder ao SHA recebido, o contrato da sessão está inválido e deve ser reportado.
 
 ## 3. Documentos obrigatórios
 
@@ -95,7 +167,7 @@ Ao escolher NEW, manter a abstração pequena e explicar por que composição ou
 
 ## 7. Branch
 
-Criar branch a partir da `main` atualizada.
+Criar a branch **declarada no preâmbulo do handoff** a partir do SHA exato validado no PRECHECK.
 
 Padrões recomendados:
 
@@ -104,7 +176,7 @@ Padrões recomendados:
 - `refactor/<descricao-curta>`
 - `docs/<descricao-curta>`
 
-Evitar desenvolver diretamente em `main`.
+A branch deve nascer exatamente de `base=SHA`. Não desenvolver diretamente em `main` e não mudar silenciosamente a base recebida.
 
 ## 8. Implementação
 
