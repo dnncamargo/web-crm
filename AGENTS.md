@@ -10,9 +10,9 @@ O código atual em `main` é a fonte da verdade. Se a documentação divergir do
 
 ## Handoff obrigatório
 
-Sessões novas de edição/implementação devem ser recebidas com o preâmbulo **`GPT / OpenCode — NEW SESSION` + `PSAP/1`** definido em `docs/WORKFLOW.md`.
+Solicitações de implementação, patch ou revisão devem usar o preâmbulo **`GPT / OpenCode — NEW SESSION`** ou **`GPT / OpenCode — REUSE CURRENT SESSION`**, sempre com `PSAP/1`, conforme `docs/WORKFLOW.md`.
 
-Esse preâmbulo declara o escopo, validações, SHA base e branch esperada. O PRECHECK deve acontecer antes de qualquer alteração.
+`mode=` aceita `implement`, `patch` ou `review`. O preâmbulo declara o tipo de sessão, modo, escopo, validações, SHA base e branch esperada. O PRECHECK deve acontecer antes de qualquer alteração.
 
 Se o SHA esperado, a worktree ou `origin/main` divergirem do contrato recebido: **STOP + REPORT**.
 

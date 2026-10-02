@@ -6,24 +6,50 @@ A conclusão de uma tarefa não termina no commit, no push ou no merge. **Depois
 
 ## 0. Preâmbulo obrigatório de handoff
 
-Toda solicitação de edição/implementação enviada a GPT ou OpenCode em uma nova sessão deve começar com o preâmbulo abaixo.
+Toda solicitação enviada a GPT ou OpenCode para implementação, patch ou revisão deve começar com um preâmbulo PSAP/1.
 
-Substituir apenas:
+### Tipo de sessão
 
+A primeira linha aceita exatamente uma destas formas:
+
+- `GPT / OpenCode — NEW SESSION`
+- `GPT / OpenCode — REUSE CURRENT SESSION`
+
+Semântica:
+
+- **NEW SESSION**: inicia um novo contexto de execução. A branch declarada no handoff deve ser criada a partir do SHA exato validado no PRECHECK.
+- **REUSE CURRENT SESSION**: continua o contexto e a branch já declarados na sessão atual. Não recriar nem trocar de branch silenciosamente; verificar que a branch atual corresponde ao handoff e que sua base continua coerente.
+
+### Mode
+
+`mode=` aceita exatamente:
+
+- `implement`: implementação funcional ou estrutural dentro do escopo declarado;
+- `patch`: correção localizada, com diff mínimo e sem expansão oportunista de escopo;
+- `review`: auditoria/revisão. Não modificar arquivos, criar commits ou fazer merge salvo se o OBJECTIVE autorizar explicitamente uma etapa posterior de correção.
+
+O modo define a intenção do trabalho; não relaxa PRECHECK, `report-conflicts` nem as regras de preservação do estado Git.
+
+### Template
+
+Substituir:
+
+- `SESSION_TYPE` por `NEW SESSION` ou `REUSE CURRENT SESSION`;
+- `MODE` por `implement`, `patch` ou `review`;
 - `scope=what to do` pelo escopo concreto;
 - cada ocorrência de `SHA` pelo SHA exato esperado de `origin/main`;
-- `feature/new-branch` pelo nome da branch específica da tarefa.
+- `feature/new-branch` pela branch específica da tarefa ou da sessão reutilizada.
 
 Não remover as verificações, o `STOP + REPORT` nem as proibições de reparo automático do estado Git.
 
 ~~~text
-GPT / OpenCode — NEW SESSION
+GPT / OpenCode — SESSION_TYPE
 
-PSAP/1  
-mode=implement  
+PSAP/1
+mode=MODE
 scope=what to do
-validate=focused-tests,storage-rules-emulator,typecheck,diff-check  
-rules=report-conflicts  
+validate=focused-tests,storage-rules-emulator,typecheck,diff-check
+rules=report-conflicts
 base=SHA
 
 ## PRECHECK
@@ -36,9 +62,14 @@ Expected base:
 
 `SHA`
 
-Create a new branch from that exact commit:
+Branch:
 
 `feature/new-branch`
+
+Session rule:
+
+- NEW SESSION: create that branch from the exact base.
+- REUSE CURRENT SESSION: continue that exact branch; do not recreate or silently switch it.
 
 Before changing anything, verify:
 ~~~
@@ -54,9 +85,10 @@ git rev-parse origin/main
 Requirements:
 
 - expected base SHA must match;
-- worktree must be clean;
 - `origin/main` must still be the expected base;
-- branch must start from that exact base.
+- NEW SESSION: worktree must be clean and the new branch must start from that exact base;
+- REUSE CURRENT SESSION: current branch must be the declared branch and its history/state must match the ongoing session;
+- any unexpected worktree change or branch/base mismatch must be reported instead of repaired.
 
 Mismatch:
 
@@ -67,7 +99,7 @@ Do not reset, rebase, stash, clean, force or otherwise repair an unexpected Git 
 ## OBJECTIVE
 ~~~
 
-Esse bloco é o contrato de entrada da sessão. O conteúdo do objetivo vem depois de `## OBJECTIVE`.
+Esse bloco é o contrato de entrada ou continuidade da sessão. O conteúdo do objetivo vem depois de `## OBJECTIVE`.
 
 O preâmbulo é deliberadamente mais restritivo do que um fluxo Git genérico: **o agente deve primeiro verificar o estado recebido e nunca tentar normalizá-lo silenciosamente**.
 
@@ -81,7 +113,9 @@ Não começar alterando código antes de entender o estado atual.
 
 ## 2. PRECHECK
 
-O primeiro PRECHECK da sessão é o do preâmbulo obrigatório. Antes de qualquer alteração, executar exatamente as verificações recebidas:
+O PRECHECK do preâmbulo é obrigatório tanto em `NEW SESSION` quanto em `REUSE CURRENT SESSION`.
+
+Antes de qualquer alteração, executar:
 
 ```bash
 git status --short
@@ -90,22 +124,29 @@ git rev-parse HEAD
 git rev-parse origin/main
 ```
 
-Validar:
+Validar em todos os modos:
 
-- worktree limpa;
-- `HEAD` no SHA esperado;
-- `origin/main` ainda no mesmo SHA esperado;
-- nenhuma divergência em relação à base declarada no handoff.
+- `origin/main` ainda corresponde a `base=SHA`;
+- a branch observada é compatível com o tipo de sessão e com a branch declarada;
+- não existe divergência inesperada de Git ou worktree.
 
-Se qualquer condição falhar: **STOP + REPORT**.
+Para **NEW SESSION**:
+
+- a worktree deve estar limpa;
+- `HEAD` deve estar no SHA esperado antes da criação da branch;
+- criar a branch declarada exatamente a partir desse SHA;
+- confirmar que a branch nasceu dessa base.
+
+Para **REUSE CURRENT SESSION**:
+
+- não recriar a branch;
+- a branch atual deve ser exatamente a branch declarada;
+- preservar alterações e commits já pertencentes à sessão atual;
+- qualquer alteração, commit ou divergência que não pertença claramente à sessão é conflito e exige **STOP + REPORT**.
+
+Se qualquer condição esperada falhar: **STOP + REPORT**.
 
 Não executar `reset`, `rebase`, `stash`, `clean`, force push ou qualquer operação destinada a reparar automaticamente um estado Git inesperado.
-
-Somente depois do PRECHECK aprovado:
-
-1. criar a branch declarada no handoff a partir do SHA exato esperado;
-2. confirmar que a branch nasceu desse SHA;
-3. iniciar AUDIT/EVIDENCE antes da implementação.
 
 Não usar `git pull` para transformar uma base divergente na base esperada. Se `origin/main` não corresponder ao SHA recebido, o contrato da sessão está inválido e deve ser reportado.
 
@@ -167,16 +208,19 @@ Ao escolher NEW, manter a abstração pequena e explicar por que composição ou
 
 ## 7. Branch
 
-Criar a branch **declarada no preâmbulo do handoff** a partir do SHA exato validado no PRECHECK.
+A regra de branch depende do tipo de sessão:
 
-Padrões recomendados:
+- **NEW SESSION**: criar a branch declarada no handoff a partir do SHA exato validado no PRECHECK;
+- **REUSE CURRENT SESSION**: continuar a branch declarada; não recriá-la nem trocar silenciosamente para outra branch.
+
+Padrões recomendados para branches novas:
 
 - `feature/<descricao-curta>`
 - `fix/<descricao-curta>`
 - `refactor/<descricao-curta>`
 - `docs/<descricao-curta>`
 
-A branch deve nascer exatamente de `base=SHA`. Não desenvolver diretamente em `main` e não mudar silenciosamente a base recebida.
+Não desenvolver diretamente em `main` quando o modo autorizar alterações. Não mudar silenciosamente a base recebida.
 
 ## 8. Implementação
 
