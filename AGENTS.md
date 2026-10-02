@@ -8,6 +8,16 @@ Antes de qualquer implementação, leia e siga:
 
 O código atual em `main` é a fonte da verdade. Se a documentação divergir do código, audite a divergência antes de alterar comportamento.
 
+## Handoff obrigatório
+
+Sessões novas de edição/implementação devem ser recebidas com o preâmbulo **`GPT / OpenCode — NEW SESSION` + `PSAP/1`** definido em `docs/WORKFLOW.md`.
+
+Esse preâmbulo declara o escopo, validações, SHA base e branch esperada. O PRECHECK deve acontecer antes de qualquer alteração.
+
+Se o SHA esperado, a worktree ou `origin/main` divergirem do contrato recebido: **STOP + REPORT**.
+
+Não usar reset, rebase, stash, clean, force ou outra operação para reparar silenciosamente um estado Git inesperado.
+
 Ignore completamente:
 
 - `node_modules/`
