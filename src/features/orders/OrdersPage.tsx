@@ -15,7 +15,7 @@ import { OrderCalendarView } from "./components/OrderCalendarView";
 import { OrderForm } from "./components/OrderForm";
 import { OrderListView } from "./components/OrderListView";
 import type { NewOrderData, Order } from "./orderTypes";
-import { getPaymentStatus } from "./orderUtils";
+import { compareOrderCreationDesc, getPaymentStatus } from "./orderUtils";
 import { useOrders } from "./useOrders";
 import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent";
 
@@ -25,7 +25,7 @@ type OrderViewMode = "list" | "calendar";
 
 type OrderPaymentFilter = "all" | "unpaid" | "partial" | "paid";
 
-type OrderSortMode = "deliveryDateTime" | "clientName" | "total";
+type OrderSortMode = "createdAt" | "deliveryDateTime" | "clientName" | "total";
 
 export function OrdersPage() {
   const { filteredClients, loading: loadingClients, error: clientsError, editClient } = useClients();
@@ -40,7 +40,7 @@ export function OrdersPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<OrderViewMode>("list");
   const [paymentFilter, setPaymentFilter] = useState<OrderPaymentFilter>("all");
-  const [sortBy, setSortBy] = useState<OrderSortMode>("deliveryDateTime");
+  const [sortBy, setSortBy] = useState<OrderSortMode>("createdAt");
   const [stackedEditOrder, setStackedEditOrder] = useState<Order | null>(null);
   const [orderFormIsDirty, setOrderFormIsDirty] = useState(false);
   const [stackedOrderFormIsDirty, setStackedOrderFormIsDirty] = useState(false);
@@ -67,15 +67,19 @@ export function OrdersPage() {
     });
 
     return [...filteredByPayment].sort((firstOrder, secondOrder) => {
+      if (sortBy === "createdAt") {
+        return compareOrderCreationDesc(firstOrder, secondOrder);
+      }
+
       if (sortBy === "clientName") {
-        return firstOrder.clientName.localeCompare(secondOrder.clientName);
+        return firstOrder.clientName.localeCompare(secondOrder.clientName) || compareOrderCreationDesc(firstOrder, secondOrder);
       }
 
       if (sortBy === "total") {
-        return secondOrder.total - firstOrder.total;
+        return secondOrder.total - firstOrder.total || compareOrderCreationDesc(firstOrder, secondOrder);
       }
 
-      return firstOrder.deliveryDateTime.localeCompare(secondOrder.deliveryDateTime);
+      return firstOrder.deliveryDateTime.localeCompare(secondOrder.deliveryDateTime) || compareOrderCreationDesc(firstOrder, secondOrder);
     });
   }, [filteredOrders, paymentFilter, sortBy]);
 
@@ -236,6 +240,7 @@ export function OrdersPage() {
 
             {viewMode !== "calendar" && (
               <select className="toolbar-select" value={sortBy} onChange={(event) => setSortBy(event.target.value as OrderSortMode)}>
+                <option value="createdAt">Criação do pedido</option>
                 <option value="deliveryDateTime">Ordenar por entrega</option>
                 <option value="clientName">Ordenar por cliente</option>
                 <option value="total">Ordenar por valor</option>
