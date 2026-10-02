@@ -135,7 +135,9 @@ O sistema é estruturado em torno de:
 * Cadastro completo de pedidos
 * Produtos negociáveis
 * Pagamentos parciais
-* Crédito automático do cliente
+* Crédito automático e acumulável do cliente
+* Aplicação de crédito anterior com possibilidade de gerar novo crédito no mesmo pedido
+* Endereço sugerido a partir do cadastro do cliente, sem restringir o uso de outros endereços
 * Histórico
 * Visualização em lista
 * Visualização em calendário
@@ -158,8 +160,10 @@ O sistema é estruturado em torno de:
 
 * Cadastro reutilizável
 * Busca automática por CEP
-* Endereço principal
-* Compartilhamento entre clientes e pedidos
+* Associação fraca com o cliente em cujo contexto o endereço foi cadastrado
+* Endereço principal como preferência do cliente
+* Sugestão automática do endereço principal ou do único endereço associado ao criar pedido
+* Compartilhamento entre clientes e pedidos sem vínculo exclusivo
 
 ---
 
