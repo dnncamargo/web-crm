@@ -6,9 +6,11 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { SlidePanel } from "../../components/ui/SlidePanel";
 import { useAddresses } from "../addresses/useAddresses";
+import type { NewAddressData } from "../addresses/addressTypes";
 import { useClients } from "../clients/useClients";
 import { useProducts } from "../products/useProducts";
 import { useTags } from "../tags/useTags";
+import { isProductStructuralGroup } from "../tags/tagConfig";
 import { OrderCalendarView } from "./components/OrderCalendarView";
 import { OrderForm } from "./components/OrderForm";
 import { OrderListView } from "./components/OrderListView";
@@ -30,7 +32,7 @@ export function OrdersPage() {
 
   const { filteredClients, loading: loadingClients, error: clientsError, editClient } = useClients();
 
-  const { activeAddresses, addressesError, addAddress } = useAddresses();
+  const { addresses, addressesError, addAddress } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
   const { activeTags } = useTags();
@@ -44,16 +46,15 @@ export function OrdersPage() {
   const [orderFormIsDirty, setOrderFormIsDirty] = useState(false);
   const [stackedOrderFormIsDirty, setStackedOrderFormIsDirty] = useState(false);
 
-  const activeProducts = useMemo(() => products.filter((product) => product.active), [products]);
-
   const orderItemTags = useMemo(
     () =>
       activeTags.filter((tag) => {
         const isAvailableForOrderItem = tag.entity === "product" || tag.entity === "order" || tag.entity === "global";
 
-        const isProductCategory = tag.entity === "product" && tag.group === "Categoria";
+        const isStructuralProductTag =
+          tag.entity === "product" && isProductStructuralGroup(tag.group);
 
-        return isAvailableForOrderItem && !isProductCategory;
+        return isAvailableForOrderItem && !isStructuralProductTag;
       }),
     [activeTags],
   );
@@ -139,6 +140,18 @@ export function OrdersPage() {
     await addOrder(data);
     await registerOrderInteraction(data);
     closePanel();
+  }
+
+  async function handleCreateAddressForOrder(data: NewAddressData) {
+    const createdAddress = await addAddress(data);
+
+    if (data.isPrimaryForClient && data.clientId) {
+      await editClient(data.clientId, {
+        primaryAddressId: createdAddress.id,
+      });
+    }
+
+    return createdAddress;
   }
 
   async function handleEditOrder(data: NewOrderData) {
@@ -289,12 +302,12 @@ export function OrdersPage() {
           <OrderForm
             orders={orders}
             clients={filteredClients}
-            addresses={activeAddresses}
-            products={activeProducts}
+            addresses={addresses}
+            products={products}
             itemTags={orderItemTags}
             onCancel={requestCloseOrderFormPanel}
             onSave={handleCreateOrder}
-            onCreateAddress={addAddress}
+            onCreateAddress={handleCreateAddressForOrder}
             onDirtyChange={setOrderFormIsDirty}
           />
         )}
@@ -303,12 +316,12 @@ export function OrdersPage() {
             order={panel.order}
             orders={orders}
             clients={filteredClients}
-            addresses={activeAddresses}
-            products={activeProducts}
+            addresses={addresses}
+            products={products}
             itemTags={orderItemTags}
             onCancel={requestCloseOrderFormPanel}
             onSave={handleEditOrder}
-            onCreateAddress={addAddress}
+            onCreateAddress={handleCreateAddressForOrder}
             onDirtyChange={setOrderFormIsDirty}
           />
         )}
@@ -327,12 +340,12 @@ export function OrdersPage() {
             order={stackedEditOrder}
             orders={orders}
             clients={filteredClients}
-            addresses={activeAddresses}
-            products={activeProducts}
+            addresses={addresses}
+            products={products}
             itemTags={orderItemTags}
             onCancel={requestCloseStackedOrderFormPanel}
             onSave={handleStackedEditOrder}
-            onCreateAddress={addAddress}
+            onCreateAddress={handleCreateAddressForOrder}
             onDirtyChange={setStackedOrderFormIsDirty}
           />
         )}
