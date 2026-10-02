@@ -5,6 +5,7 @@ import { useClients } from "../../features/clients/useClients";
 import { useOrders } from "../../features/orders/useOrders";
 import { formatDateTimeBR } from "../../features/orders/orderUtils";
 import { useProducts } from "../../features/products/useProducts";
+import { getOrderItemProductName } from "../../features/orders/orderUtils";
 import { useTags } from "../../features/tags/useTags";
 import { formatCurrencyBR } from "../../utils/money";
 
@@ -33,8 +34,8 @@ function includesSearch(searchableValue: string, query: string) {
 export function AppShell() {
   const [globalSearch, setGlobalSearch] = useState("");
   const { clients, loading: loadingClients } = useClients();
-  const { orders, loadingOrders } = useOrders();
   const { products, loadingProducts } = useProducts();
+  const { orders, loadingOrders } = useOrders(products);
   const { tags, loadingTags } = useTags();
 
   const normalizedGlobalSearch = normalizeSearchValue(globalSearch);
@@ -75,7 +76,7 @@ export function AppShell() {
           order.addressSnapshot?.neighborhood,
           order.addressSnapshot?.city,
           order.notes,
-          ...order.items.map((item) => item.productName),
+          ...order.items.map((item) => getOrderItemProductName(item, products)),
           ...(order.tagIds ?? []),
         ].some((value) => value && includesSearch(value, normalizedGlobalSearch)),
       )

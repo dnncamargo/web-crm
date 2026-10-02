@@ -2,7 +2,8 @@ import { useMemo } from "react";
 
 import { useClients } from "../clients/useClients";
 import { useOrders } from "../orders/useOrders";
-import { getOrderBalanceInfo, getPaymentStatus } from "../orders/orderUtils";
+import { getOrderBalanceInfo, getOrderItemProductName, getPaymentStatus } from "../orders/orderUtils";
+import { useProducts } from "../products/useProducts";
 import { useTasks } from "../tasks/useTasks";
 import {
   addDaysToDateKey,
@@ -14,7 +15,8 @@ import {
 } from "./todayUtils";
 
 export function useTodayDashboard() {
-  const { orders, loadingOrders, ordersError } = useOrders();
+  const { products, loadingProducts, productsError } = useProducts();
+  const { orders, loadingOrders, ordersError } = useOrders(products);
   const {
     filteredClients,
     loading: loadingClients,
@@ -87,8 +89,8 @@ export function useTodayDashboard() {
         .forEach((order) => {
           order.items.forEach((item) => {
             totalsByProduct.set(
-              item.productName,
-              (totalsByProduct.get(item.productName) ?? 0) + item.quantity
+              getOrderItemProductName(item, products),
+              (totalsByProduct.get(getOrderItemProductName(item, products)) ?? 0) + item.quantity
             );
           });
         });
@@ -105,7 +107,7 @@ export function useTodayDashboard() {
           ),
       };
     });
-  }, [deliveryDateKeysWithOrders, upcomingDeliveries]);
+  }, [deliveryDateKeysWithOrders, products, upcomingDeliveries]);
 
   const pendingPayments = useMemo(() => {
     return orders
@@ -165,7 +167,7 @@ export function useTodayDashboard() {
       .slice(0, 8);
   }, [filteredClients, todayKey]);
 
-  const loading = loadingOrders || loadingClients || loadingTasks;
+  const loading = loadingOrders || loadingClients || loadingTasks || loadingProducts;
 
   return {
     todayKey,
@@ -182,5 +184,7 @@ export function useTodayDashboard() {
     ordersError,
     clientsError,
     tasksError,
+    products,
+    productsError,
   };
 }

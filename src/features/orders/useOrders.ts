@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 
+import type { Product } from "../products/productTypes";
 import type { NewOrderData, Order, UpdateOrderData } from "./orderTypes";
+import { getOrderItemProductName } from "./orderUtils";
 import { createOrder, listenOrders, updateOrder } from "./ordersService";
 
-export function useOrders() {
+export function useOrders(products: Product[] = []) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [search, setSearch] = useState("");
   const [showOnlyActive, setShowOnlyActive] = useState(true);
@@ -43,7 +45,7 @@ export function useOrders() {
         order.addressSnapshot?.neighborhood,
         order.addressSnapshot?.city,
         order.notes,
-        ...order.items.map((item) => item.productName),
+        ...order.items.map((item) => getOrderItemProductName(item, products)),
         ...(order.tagIds ?? []),
       ]
         .filter(Boolean)
@@ -52,7 +54,7 @@ export function useOrders() {
 
       return searchableText.includes(normalizedSearch);
     });
-  }, [orders, search, showOnlyActive]);
+  }, [orders, products, search, showOnlyActive]);
 
   async function addOrder(data: NewOrderData) {
     await createOrder(data);

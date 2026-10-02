@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { NewTaskData, Task, UpdateTaskData } from "./taskTypes";
+import { getTaskCompletedAt } from "./taskUtils";
 import {
   createTask,
   listenTasks,
@@ -92,7 +93,7 @@ export function useTasks(tagLabelsById: Record<string, string> = {}) {
   }
 
   async function setTaskDone(task: Task, done: boolean) {
-    await toggleTaskDone(task.id, done, done ? new Date().toISOString() : null);
+    await toggleTaskDone(task.id, done, getTaskCompletedAt(done, task.completedAt));
   }
 
   return {

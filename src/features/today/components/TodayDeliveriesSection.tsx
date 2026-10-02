@@ -1,7 +1,9 @@
 import { Badge } from "../../../components/ui/Badge";
 import { Card } from "../../../components/ui/Card";
 import { formatCurrencyBR } from "../../../utils/money";
+import type { Product } from "../../products/productTypes";
 import type { Order } from "../../orders/orderTypes";
+import { getOrderItemProductName } from "../../orders/orderUtils";
 import { formatDateKeyShort, getDateKeyFromDateTime, getTimeFromDateTime } from "../todayUtils";
 
 interface DeliverySummaryCard {
@@ -12,9 +14,10 @@ interface DeliverySummaryCard {
 
 interface TodayDeliveriesSectionProps {
   deliverySummaryCards: DeliverySummaryCard[];
+  products: Product[];
 }
 
-export function TodayDeliveriesSection({ deliverySummaryCards }: TodayDeliveriesSectionProps) {
+export function TodayDeliveriesSection({ deliverySummaryCards, products }: TodayDeliveriesSectionProps) {
   return (
     <section className="entity-list-group">
       <header>
@@ -48,7 +51,7 @@ export function TodayDeliveriesSection({ deliverySummaryCards }: TodayDeliveries
                           </strong>
 
                           <span className="entity-subtitle">
-                            {order.items.map((item) => `${item.quantity}× ${item.productName}`).join(" · ")}
+                            {order.items.map((item) => `${item.quantity}× ${getOrderItemProductName(item, products)}`).join(" · ")}
                           </span>
 
                           {deliveryCard.key === "week" && (

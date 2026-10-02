@@ -2,7 +2,7 @@ import { Card } from "../../../components/ui/Card";
 import { formatCurrencyBR } from "../../../utils/money";
 import type { Client } from "../../clients/clientTypes";
 import type { Order } from "../../orders/orderTypes";
-import { getPaymentStatus, getPaymentStatusLabel } from "../../orders/orderUtils";
+import { getOrderBalanceInfo, getPaymentStatus, getPaymentStatusLabel } from "../../orders/orderUtils";
 import type { Task } from "../../tasks/taskTypes";
 import { formatTaskDateBR, getTaskDueStatus, getTaskDueStatusLabel } from "../../tasks/taskUtils";
 import { formatDateKeyBR, getClientLastInteractionDateKey, getClientNextContactDateKey, getDateKeyFromDateTime } from "../todayUtils";
@@ -37,7 +37,7 @@ export function TodayOtherInforms({ pendingPayments, contactSuggestions, openTas
               <div className="entity-list-view dashboard-card-list">
                 {pendingPayments.slice(0, 8).map((order) => {
                   const paymentStatus = getPaymentStatus(order);
-                  const remaining = Math.max(order.total - order.amountPaid, 0);
+                  const remaining = getOrderBalanceInfo(order).amount;
 
                   return (
                     <article className="entity-row-with-side-action" key={order.id}>

@@ -5,6 +5,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   updateDoc,
   type Unsubscribe,
@@ -62,6 +63,67 @@ export async function createAddress(data: NewAddressData) {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+}
+
+export async function saveAddressForClient(
+  clientId: string,
+  addressId: string | null,
+  data: NewAddressData,
+) {
+  const addressRef = addressId
+    ? doc(db, "addresses", addressId)
+    : doc(addressesCollection);
+  const clientRef = doc(db, "clients", clientId);
+  const shouldBePrimary = data.isPrimaryForClient === true;
+  const cleanedData = removeUndefinedFields(data);
+
+  await runTransaction(db, async (transaction) => {
+    const clientSnapshot = await transaction.get(clientRef);
+    const previousPrimaryId = clientSnapshot.data()?.primaryAddressId as string | null | undefined;
+    const previousPrimaryRef = previousPrimaryId && previousPrimaryId !== addressRef.id
+      ? doc(db, "addresses", previousPrimaryId)
+      : null;
+    const previousPrimarySnapshot = previousPrimaryRef
+      ? await transaction.get(previousPrimaryRef)
+      : null;
+
+    if (addressId) {
+      transaction.update(addressRef, {
+        ...cleanedData,
+        isPrimaryForClient: shouldBePrimary,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      transaction.set(addressRef, {
+        ...cleanedData,
+        clientId,
+        isPrimaryForClient: shouldBePrimary,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    if (shouldBePrimary) {
+      if (previousPrimaryRef && previousPrimarySnapshot?.exists()) {
+        transaction.update(previousPrimaryRef, {
+          isPrimaryForClient: false,
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      transaction.update(clientRef, {
+        primaryAddressId: addressRef.id,
+        updatedAt: serverTimestamp(),
+      });
+    } else if (previousPrimaryId === addressRef.id) {
+      transaction.update(clientRef, {
+        primaryAddressId: null,
+        updatedAt: serverTimestamp(),
+      });
+    }
+  });
+
+  return addressRef;
 }
 
 export async function updateAddress(

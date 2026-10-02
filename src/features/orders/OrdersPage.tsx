@@ -6,14 +6,16 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { SlidePanel } from "../../components/ui/SlidePanel";
 import { useAddresses } from "../addresses/useAddresses";
+import type { NewAddressData } from "../addresses/addressTypes";
 import { useClients } from "../clients/useClients";
 import { useProducts } from "../products/useProducts";
 import { useTags } from "../tags/useTags";
+import { isProductStructuralGroup } from "../tags/tagConfig";
 import { OrderCalendarView } from "./components/OrderCalendarView";
 import { OrderForm } from "./components/OrderForm";
 import { OrderListView } from "./components/OrderListView";
 import type { NewOrderData, Order } from "./orderTypes";
-import { getPaymentStatus } from "./orderUtils";
+import { compareOrderCreationDesc, getPaymentStatus } from "./orderUtils";
 import { useOrders } from "./useOrders";
 import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent";
 
@@ -23,37 +25,34 @@ type OrderViewMode = "list" | "calendar";
 
 type OrderPaymentFilter = "all" | "unpaid" | "partial" | "paid";
 
-type OrderSortMode = "deliveryDateTime" | "clientName" | "total";
+type OrderSortMode = "createdAt" | "deliveryDateTime" | "clientName" | "total";
 
 export function OrdersPage() {
-  const { orders, filteredOrders, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders();
-
   const { filteredClients, loading: loadingClients, error: clientsError, editClient } = useClients();
 
-  const { activeAddresses, addressesError, addAddress } = useAddresses();
+  const { addresses, addressesError, saveAddressForClient } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
+  const { orders, filteredOrders, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders(products);
   const { activeTags } = useTags();
 
   const [panel, setPanel] = useState<OrderPanelState>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<OrderViewMode>("list");
   const [paymentFilter, setPaymentFilter] = useState<OrderPaymentFilter>("all");
-  const [sortBy, setSortBy] = useState<OrderSortMode>("deliveryDateTime");
+  const [sortBy, setSortBy] = useState<OrderSortMode>("createdAt");
   const [stackedEditOrder, setStackedEditOrder] = useState<Order | null>(null);
   const [orderFormIsDirty, setOrderFormIsDirty] = useState(false);
   const [stackedOrderFormIsDirty, setStackedOrderFormIsDirty] = useState(false);
-
-  const activeProducts = useMemo(() => products.filter((product) => product.active), [products]);
 
   const orderItemTags = useMemo(
     () =>
       activeTags.filter((tag) => {
         const isAvailableForOrderItem = tag.entity === "product" || tag.entity === "order" || tag.entity === "global";
 
-        const isProductCategory = tag.entity === "product" && tag.group === "Categoria";
+        const isStructuralProductTag = tag.entity === "product" && isProductStructuralGroup(tag.group);
 
-        return isAvailableForOrderItem && !isProductCategory;
+        return isAvailableForOrderItem && !isStructuralProductTag;
       }),
     [activeTags],
   );
@@ -68,15 +67,19 @@ export function OrdersPage() {
     });
 
     return [...filteredByPayment].sort((firstOrder, secondOrder) => {
+      if (sortBy === "createdAt") {
+        return compareOrderCreationDesc(firstOrder, secondOrder);
+      }
+
       if (sortBy === "clientName") {
-        return firstOrder.clientName.localeCompare(secondOrder.clientName);
+        return firstOrder.clientName.localeCompare(secondOrder.clientName) || compareOrderCreationDesc(firstOrder, secondOrder);
       }
 
       if (sortBy === "total") {
-        return secondOrder.total - firstOrder.total;
+        return secondOrder.total - firstOrder.total || compareOrderCreationDesc(firstOrder, secondOrder);
       }
 
-      return firstOrder.deliveryDateTime.localeCompare(secondOrder.deliveryDateTime);
+      return firstOrder.deliveryDateTime.localeCompare(secondOrder.deliveryDateTime) || compareOrderCreationDesc(firstOrder, secondOrder);
     });
   }, [filteredOrders, paymentFilter, sortBy]);
 
@@ -139,6 +142,14 @@ export function OrdersPage() {
     await addOrder(data);
     await registerOrderInteraction(data);
     closePanel();
+  }
+
+  async function handleCreateAddressForOrder(data: NewAddressData) {
+    if (!data.clientId) {
+      throw new Error("Não é possível criar um endereço de pedido sem cliente.");
+    }
+
+    return saveAddressForClient(data.clientId, null, data);
   }
 
   async function handleEditOrder(data: NewOrderData) {
@@ -229,6 +240,7 @@ export function OrdersPage() {
 
             {viewMode !== "calendar" && (
               <select className="toolbar-select" value={sortBy} onChange={(event) => setSortBy(event.target.value as OrderSortMode)}>
+                <option value="createdAt">Criação do pedido</option>
                 <option value="deliveryDateTime">Ordenar por entrega</option>
                 <option value="clientName">Ordenar por cliente</option>
                 <option value="total">Ordenar por valor</option>
@@ -265,6 +277,7 @@ export function OrdersPage() {
       {viewMode === "calendar" && (
         <OrderCalendarView
           orders={calendarOrders}
+          products={products}
           onRequestEditOrder={openViewOrder}
         />
       )}
@@ -284,17 +297,17 @@ export function OrdersPage() {
         onClose={panel?.type === "view-order" ? closePanel : requestCloseOrderFormPanel}
       >
         {" "}
-        {panel?.type === "view-order" && <OrderDetailsPanelContent order={panel.order} onEdit={() => openStackedEditOrder(panel.order)} />}
+        {panel?.type === "view-order" && <OrderDetailsPanelContent order={panel.order} products={products} onEdit={() => openStackedEditOrder(panel.order)} />}
         {panel?.type === "create-order" && (
           <OrderForm
             orders={orders}
             clients={filteredClients}
-            addresses={activeAddresses}
-            products={activeProducts}
+            addresses={addresses}
+            products={products}
             itemTags={orderItemTags}
             onCancel={requestCloseOrderFormPanel}
             onSave={handleCreateOrder}
-            onCreateAddress={addAddress}
+            onCreateAddress={handleCreateAddressForOrder}
             onDirtyChange={setOrderFormIsDirty}
           />
         )}
@@ -303,12 +316,12 @@ export function OrdersPage() {
             order={panel.order}
             orders={orders}
             clients={filteredClients}
-            addresses={activeAddresses}
-            products={activeProducts}
+            addresses={addresses}
+            products={products}
             itemTags={orderItemTags}
             onCancel={requestCloseOrderFormPanel}
             onSave={handleEditOrder}
-            onCreateAddress={addAddress}
+            onCreateAddress={handleCreateAddressForOrder}
             onDirtyChange={setOrderFormIsDirty}
           />
         )}
@@ -327,12 +340,12 @@ export function OrdersPage() {
             order={stackedEditOrder}
             orders={orders}
             clients={filteredClients}
-            addresses={activeAddresses}
-            products={activeProducts}
+            addresses={addresses}
+            products={products}
             itemTags={orderItemTags}
             onCancel={requestCloseStackedOrderFormPanel}
             onSave={handleStackedEditOrder}
-            onCreateAddress={addAddress}
+            onCreateAddress={handleCreateAddressForOrder}
             onDirtyChange={setStackedOrderFormIsDirty}
           />
         )}

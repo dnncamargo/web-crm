@@ -1,9 +1,76 @@
+import type { Product } from "../products/productTypes";
 import type { Order, OrderItem, OrderStatus, PaymentStatus } from "./orderTypes";
 
 export type OrderBalanceType = "remaining" | "credit" | "settled";
 
+interface FirestoreTimestampLike {
+  seconds?: unknown;
+  nanoseconds?: unknown;
+  toMillis?: () => unknown;
+}
+
+function getTimestampMillis(value: unknown) {
+  if (value === null || typeof value !== "object") {
+    return null;
+  }
+
+  const timestamp = value as FirestoreTimestampLike;
+
+  if (typeof timestamp.toMillis === "function") {
+    try {
+      const millis = timestamp.toMillis();
+
+      if (typeof millis === "number" && Number.isFinite(millis)) {
+        return millis;
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof timestamp.seconds !== "number" || !Number.isFinite(timestamp.seconds)) {
+    return null;
+  }
+
+  const nanoseconds = typeof timestamp.nanoseconds === "number" && Number.isFinite(timestamp.nanoseconds)
+    ? timestamp.nanoseconds
+    : 0;
+  const millis = timestamp.seconds * 1000 + nanoseconds / 1_000_000;
+
+  return Number.isFinite(millis) ? millis : null;
+}
+
+export function compareOrderCreationDesc(
+  firstOrder: Pick<Order, "id" | "createdAt">,
+  secondOrder: Pick<Order, "id" | "createdAt">,
+) {
+  const firstCreatedAt = getTimestampMillis(firstOrder.createdAt);
+  const secondCreatedAt = getTimestampMillis(secondOrder.createdAt);
+
+  if (firstCreatedAt === null && secondCreatedAt !== null) {
+    return 1;
+  }
+
+  if (firstCreatedAt !== null && secondCreatedAt === null) {
+    return -1;
+  }
+
+  if (firstCreatedAt !== null && secondCreatedAt !== null && firstCreatedAt !== secondCreatedAt) {
+    return secondCreatedAt - firstCreatedAt;
+  }
+
+  return secondOrder.id.localeCompare(firstOrder.id);
+}
+
 export function calculateOrderSubtotal(items: OrderItem[]) {
   return items.reduce((sum, item) => sum + item.total, 0);
+}
+
+export function getOrderItemProductName(
+  item: Pick<OrderItem, "productId" | "productName">,
+  products: Array<Pick<Product, "id" | "name">>,
+) {
+  return products.find((product) => product.id === item.productId)?.name ?? item.productName;
 }
 
 export function calculateOrderTotal(items: OrderItem[], deliveryFee: number) {

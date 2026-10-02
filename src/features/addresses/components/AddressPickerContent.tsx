@@ -6,25 +6,26 @@ import type { Address } from "../addressTypes";
 interface AddressPickerContentProps {
   addresses: Address[];
   selectedAddressId: string;
+  unresolvedAddressLabel?: string;
   onCancel: () => void;
   onConfirm: (addressId: string) => void;
   onRequestCreateAddress?: () => void;
 }
 
 function formatAddressSubtitle(address: Address) {
-  const owner = address.clientName ? `${address.clientName} · ` : "";
   const number = address.number ? `, ${address.number}` : "";
   const complement = address.complement ? ` · ${address.complement}` : "";
   const neighborhood = address.neighborhood ? ` · ${address.neighborhood}` : "";
   const city = address.city ? ` · ${address.city}` : "";
   const state = address.state ? `/${address.state}` : "";
 
-  return `${owner}${address.street}${number}${complement}${neighborhood}${city}${state}`;
+  return `${address.street}${number}${complement}${neighborhood}${city}${state}`;
 }
 
 export function AddressPickerContent({
   addresses,
   selectedAddressId,
+  unresolvedAddressLabel,
   onConfirm,
   onRequestCreateAddress,
 }: AddressPickerContentProps) {
@@ -51,7 +52,7 @@ export function AddressPickerContent({
                 >
                   <div className="entity-row-line">
                     <strong className="entity-title">
-                      Sem endereço definido
+                      Retirada pelo cliente
                     </strong>
 
                     {!draftAddressId && (
@@ -60,9 +61,23 @@ export function AddressPickerContent({
                   </div>
 
                   <span className="entity-subtitle">
-                    O pedido será salvo sem endereço de entrega.
+                    O cliente retirará o pedido; nenhum endereço será salvo.
                   </span>
                 </button>
+
+                {selectedAddressId && unresolvedAddressLabel && !addresses.some((address) => address.id === selectedAddressId) && (
+                  <button
+                    type="button"
+                    className={draftAddressId === selectedAddressId ? "entity-row selected" : "entity-row"}
+                    onClick={() => setDraftAddressId(selectedAddressId)}
+                  >
+                    <div className="entity-row-line">
+                      <strong className="entity-title">Endereço original não localizado</strong>
+                      {draftAddressId === selectedAddressId && <small className="entity-value">Selecionado</small>}
+                    </div>
+                    <span className="entity-subtitle">{unresolvedAddressLabel}</span>
+                  </button>
+                )}
 
                 {addresses.map((address) => {
                   const selected = address.id === draftAddressId;
