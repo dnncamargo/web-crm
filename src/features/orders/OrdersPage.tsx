@@ -32,7 +32,7 @@ export function OrdersPage() {
 
   const { filteredClients, loading: loadingClients, error: clientsError, editClient } = useClients();
 
-  const { addresses, addressesError, addAddress } = useAddresses();
+  const { addresses, addressesError, addAddress, editAddress } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
   const { activeTags } = useTags();
@@ -146,6 +146,19 @@ export function OrdersPage() {
     const createdAddress = await addAddress(data);
 
     if (data.isPrimaryForClient && data.clientId) {
+      const client = filteredClients.find(
+        (currentClient) => currentClient.id === data.clientId,
+      );
+
+      if (
+        client?.primaryAddressId &&
+        client.primaryAddressId !== createdAddress.id
+      ) {
+        await editAddress(client.primaryAddressId, {
+          isPrimaryForClient: false,
+        });
+      }
+
       await editClient(data.clientId, {
         primaryAddressId: createdAddress.id,
       });
