@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { getAutomaticCreditApplied, getClientAvailableCredit, getOrderBalanceInfo } from "../orderUtils";
+import { getAutomaticCreditApplied, getClientAvailableCredit, getOrderBalanceInfo, getOrderGeneratedCreditAmount, getPaymentStatus } from "../orderUtils";
 import { Button } from "../../../components/ui/Button";
 import { SlidePanel } from "../../../components/ui/SlidePanel";
 import { formatCurrencyBR, parseCurrencyInput } from "../../../utils/money";
@@ -15,6 +15,7 @@ import type { Tag } from "../../tags/tagTypes";
 interface OrderFormItem {
   id: string;
   productId: string;
+  productName: string;
   quantity: string;
   unit: string;
   unitPrice: string;
@@ -50,12 +51,44 @@ function parseMoneyOrZero(value: string) {
 }
 
 function formatAddressLabel(address: Address) {
-  const owner = address.clientName ? `${address.clientName} · ` : "";
   const number = address.number ? `, ${address.number}` : "";
   const neighborhood = address.neighborhood ? ` · ${address.neighborhood}` : "";
   const city = address.city ? ` · ${address.city}` : "";
 
-  return `${owner}${address.label}: ${address.street}${number}${neighborhood}${city}`;
+  return `${address.label}: ${address.street}${number}${neighborhood}${city}`;
+}
+
+function getAddressSnapshot(address: Address) {
+  return {
+    label: address.label,
+    cep: address.cep,
+    street: address.street,
+    number: address.number,
+    complement: address.complement,
+    neighborhood: address.neighborhood,
+    city: address.city,
+    state: address.state,
+    reference: address.reference,
+  };
+}
+
+function getFinancialSignature(
+  clientId: string,
+  items: OrderFormItem[],
+  deliveryFee: string,
+  amountPaid: string,
+) {
+  return JSON.stringify({
+    clientId,
+    deliveryFee,
+    amountPaid,
+    items: items.map(({ productId, quantity, unit, unitPrice }) => ({
+      productId,
+      quantity,
+      unit,
+      unitPrice,
+    })),
+  });
 }
 
 const DEFAULT_ITEM_UNIT = "unidade";
@@ -89,6 +122,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
         return {
           id: item.id,
           productId: item.productId,
+          productName: product?.name ?? item.productName,
           quantity: String(item.quantity),
           unit: savedItem.unit ?? getProductUnit(product),
           unitPrice: currencyToInput(item.unitPrice),
@@ -102,6 +136,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
         {
           id: crypto.randomUUID(),
           productId: "",
+          productName: "",
           quantity: "1",
           unit: DEFAULT_ITEM_UNIT,
           unitPrice: "",
@@ -138,15 +173,68 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     items,
   });
 
+  const [initialFinancialSignature] = useState(() =>
+    getFinancialSignature(
+      order?.clientId ?? "",
+      initialItems,
+      currencyToInput(order?.deliveryFee ?? 0),
+      currencyToInput(order?.amountPaid ?? 0),
+    ),
+  );
+
+  const currentFinancialSignature = getFinancialSignature(
+    clientId,
+    items,
+    deliveryFee,
+    amountPaid,
+  );
+
+  const financialChanged = currentFinancialSignature !== initialFinancialSignature;
+
   useEffect(() => {
     onDirtyChange?.(currentFormSignature !== initialFormSignature);
   }, [currentFormSignature, initialFormSignature, onDirtyChange]);
 
-  const activeClients = useMemo(() => clients.filter((client) => client.active), [clients]);
+  const selectableClients = useMemo(
+    () => clients.filter((client) => client.active || client.id === order?.clientId),
+    [clients, order?.clientId],
+  );
 
-  const activeAddresses = useMemo(() => addresses.filter((address) => address.active), [addresses]);
+  const selectedClient = clients.find((client) => client.id === clientId);
+  const selectedAddress = addresses.find((address) => address.id === addressId);
 
-  const selectableAddresses = activeAddresses;
+  const activeAddresses = useMemo(
+    () => addresses.filter((address) => address.active),
+    [addresses],
+  );
+
+  const selectableAddresses = useMemo(() => {
+    const currentAddress =
+      order?.addressId && !activeAddresses.some((address) => address.id === order.addressId)
+        ? addresses.find((address) => address.id === order.addressId)
+        : undefined;
+
+    const availableAddresses = currentAddress
+      ? [...activeAddresses, currentAddress]
+      : activeAddresses;
+
+    function addressRank(address: Address) {
+      if (address.id === selectedClient?.primaryAddressId) {
+        return 0;
+      }
+
+      if (address.clientId === clientId) {
+        return 1;
+      }
+
+      return 2;
+    }
+
+    return [...availableAddresses].sort(
+      (firstAddress, secondAddress) =>
+        addressRank(firstAddress) - addressRank(secondAddress),
+    );
+  }, [activeAddresses, addresses, clientId, order?.addressId, selectedClient?.primaryAddressId]);
 
   const activeProducts = useMemo(() => products.filter((product) => product.active), [products]);
 
@@ -158,9 +246,6 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     return Array.from(new Set([DEFAULT_ITEM_UNIT, ...productUnits]));
   }, [activeProducts]);
 
-  const selectedClient = clients.find((client) => client.id === clientId);
-  const selectedAddress = addresses.find((address) => address.id === addressId);
-
   const parsedItems: OrderItem[] = items
     .map((item) => {
       const product = products.find((currentProduct) => currentProduct.id === item.productId);
@@ -170,7 +255,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
       return {
         id: item.id,
         productId: item.productId,
-        productName: product?.name ?? "",
+        productName: product?.name ?? item.productName,
         quantity: Number.isFinite(quantity) ? quantity : 0,
         unit: item.unit.trim() || getProductUnit(product),
         unitPrice,
@@ -196,19 +281,26 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
   const automaticCreditApplied = getAutomaticCreditApplied(availableClientCredit, total);
 
+  const preserveSettledCredit =
+    Boolean(order) && getPaymentStatus(order!) === "paid" && !financialChanged;
+
+  const creditApplied =
+    order && preserveSettledCredit
+      ? (order.creditApplied ?? 0)
+      : automaticCreditApplied;
+
   const balanceInfo = getOrderBalanceInfo({
     total,
     amountPaid: parsedAmountPaid,
-    creditApplied: automaticCreditApplied,
+    creditApplied,
   });
 
-  const creditGenerated = balanceInfo.type === "credit" ? balanceInfo.amount : 0;
-
-  const effectivePaid = parsedAmountPaid + automaticCreditApplied;
-
-  const statusLabel = balanceInfo.type === "credit" ? "Crédito gerado" : balanceInfo.type === "settled" ? "Quitado" : "Restante";
-
-  const statusAmount = balanceInfo.type === "credit" ? balanceInfo.amount : balanceInfo.type === "settled" ? total : balanceInfo.amount;
+  const creditGenerated =
+    order && preserveSettledCredit
+      ? getOrderGeneratedCreditAmount(order)
+      : balanceInfo.type === "credit"
+        ? balanceInfo.amount
+        : 0;
 
   function updateItem(itemId: string, data: Partial<OrderFormItem>) {
     setItems((currentItems) => currentItems.map((item) => (item.id === itemId ? { ...item, ...data } : item)));
@@ -219,6 +311,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
     updateItem(itemId, {
       productId,
+      productName: selectedProduct?.name ?? "",
       unit: getProductUnit(selectedProduct),
       unitPrice:
         selectedProduct?.suggestedPrice !== undefined &&
@@ -271,6 +364,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     const newItem: OrderFormItem = {
       id: crypto.randomUUID(),
       productId: "",
+      productName: "",
       quantity: "1",
       unit: DEFAULT_ITEM_UNIT,
       unitPrice: "",
@@ -303,8 +397,8 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
     const creditFields: Partial<NewOrderData> = {};
 
-    if (automaticCreditApplied > 0) {
-      creditFields.creditApplied = automaticCreditApplied;
+    if (creditApplied > 0) {
+      creditFields.creditApplied = creditApplied;
     } else if (order?.creditApplied) {
       creditFields.creditApplied = null;
     }
@@ -317,24 +411,23 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
     setSaving(true);
 
+    const addressSelectionChanged =
+      (order?.addressId ?? "") !== addressId;
+
+    const addressSnapshot =
+      order && !addressSelectionChanged
+        ? (order.addressSnapshot ??
+          (selectedAddress ? getAddressSnapshot(selectedAddress) : null))
+        : selectedAddress
+          ? getAddressSnapshot(selectedAddress)
+          : null;
+
     await onSave({
       clientId: selectedClient.id,
       clientName: selectedClient.name,
 
       addressId: selectedAddress?.id ?? null,
-      addressSnapshot: selectedAddress
-        ? {
-            label: selectedAddress.label,
-            cep: selectedAddress.cep,
-            street: selectedAddress.street,
-            number: selectedAddress.number,
-            complement: selectedAddress.complement,
-            neighborhood: selectedAddress.neighborhood,
-            city: selectedAddress.city,
-            state: selectedAddress.state,
-            reference: selectedAddress.reference,
-          }
-        : null,
+      addressSnapshot,
 
       deliveryDateTime,
       items: parsedItems,
@@ -357,7 +450,11 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   }
 
   function getProductName(productId: string) {
-    return products.find((product) => product.id === productId)?.name ?? "";
+    return (
+      products.find((product) => product.id === productId)?.name ??
+      items.find((item) => item.productId === productId)?.productName ??
+      ""
+    );
   }
 
   function getItemTotal(item: OrderFormItem) {
@@ -396,14 +493,25 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
     const nextClient = clients.find((client) => client.id === nextClientId);
 
-    if (!nextClient?.primaryAddressId) {
-      setAddressId("");
+    const primaryAddress = nextClient?.primaryAddressId
+      ? addresses.find(
+          (address) =>
+            address.id === nextClient.primaryAddressId && address.active,
+        )
+      : undefined;
+
+    if (primaryAddress) {
+      setAddressId(primaryAddress.id);
       return;
     }
 
-    const primaryAddressExists = addresses.some((address) => address.id === nextClient.primaryAddressId && address.active);
+    const associatedAddresses = addresses.filter(
+      (address) => address.active && address.clientId === nextClientId,
+    );
 
-    setAddressId(primaryAddressExists ? nextClient.primaryAddressId : "");
+    setAddressId(
+      associatedAddresses.length === 1 ? associatedAddresses[0].id : "",
+    );
   }
 
   async function handleCreateAddress(data: NewAddressData) {
@@ -433,7 +541,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
                 <select value={clientId} onChange={(event) => handleClientChange(event.target.value)}>
                   <option value="">Selecione um cliente</option>
 
-                  {activeClients.map((client) => (
+                  {selectableClients.map((client) => (
                     <option key={client.id} value={client.id}>
                       {client.name}
                     </option>
@@ -444,7 +552,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
               <label>
                 Endereço de entrega
                 <select value={addressId} onChange={(event) => setAddressId(event.target.value)}>
-                  <option value="">Sem endereço definido</option>
+                  <option value="">Retirada pelo cliente</option>
 
                   {selectableAddresses.map((address) => (
                     <option key={address.id} value={address.id}>
@@ -571,6 +679,17 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
                           }
                         >
                           <option value="">Selecione um produto</option>
+
+                          {expandedItem.productId &&
+                            !activeProducts.some(
+                              (product) => product.id === expandedItem.productId,
+                            ) && (
+                              <option value={expandedItem.productId}>
+                                {getProductName(expandedItem.productId) ||
+                                  "Produto indisponível"}{" "}
+                                · indisponível
+                              </option>
+                            )}
 
                           {activeProducts.map((product) => (
                             <option key={product.id} value={product.id}>
@@ -765,7 +884,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
                   <label className="panel-field-card">
                     Valor pago
-                    <input value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} placeholder={automaticCreditApplied > 0 ? "Opcional" : "Ex: 50,00"} />
+                    <input value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} placeholder={creditApplied > 0 ? "Opcional" : "Ex: 50,00"} />
                   </label>
                 </div>
               </section>
@@ -776,11 +895,27 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
                   <span>Entrega: {formatCurrencyBR(parsedDeliveryFee)}</span>
 
-                  <span>Pago: {formatCurrencyBR(effectivePaid)}</span>
+                  <span>Pago: {formatCurrencyBR(parsedAmountPaid)}</span>
 
-                  <span className="summary-status">
-                    {statusLabel}: {formatCurrencyBR(statusAmount)}
-                  </span>
+                  {creditApplied > 0 && (
+                    <span>Crédito usado: {formatCurrencyBR(creditApplied)}</span>
+                  )}
+
+                  {balanceInfo.type === "remaining" && (
+                    <span className="summary-status">
+                      Restante: {formatCurrencyBR(balanceInfo.amount)}
+                    </span>
+                  )}
+
+                  {balanceInfo.type === "credit" && (
+                    <span className="summary-status">
+                      Crédito gerado: {formatCurrencyBR(creditGenerated)}
+                    </span>
+                  )}
+
+                  {balanceInfo.type === "settled" && (
+                    <span className="summary-status">Quitado</span>
+                  )}
 
                   <strong className="summary-total">Total: {formatCurrencyBR(total)}</strong>
                 </div>
