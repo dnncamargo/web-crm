@@ -45,11 +45,11 @@ Não remover as verificações, o `STOP + REPORT` nem as proibições de reparo 
 ~~~text
 GPT / OpenCode — SESSION_TYPE
 
-PSAP/1  
-mode=MODE  
+PSAP/1
+mode=MODE
 scope=what to do
-validate=focused-tests,storage-rules-emulator,typecheck,diff-check  
-rules=report-conflicts  
+validate=focused-tests,storage-rules-emulator,typecheck,diff-check
+rules=report-conflicts
 base=SHA
 
 ## PRECHECK
