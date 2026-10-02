@@ -104,6 +104,9 @@ export function TaskForm({ task, clients, availableTags, onCancel, onSave }: Tas
       clientName: selectedClient?.name ?? null,
       dueDate: dueDate || null,
       done,
+      completedAt: done
+        ? (task?.done ? task.completedAt ?? new Date().toISOString() : new Date().toISOString())
+        : null,
       subtasks: parsedSubtasks,
       tagIds: selectedTagIds,
     });
