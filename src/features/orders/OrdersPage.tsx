@@ -30,7 +30,7 @@ type OrderSortMode = "deliveryDateTime" | "clientName" | "total";
 export function OrdersPage() {
   const { filteredClients, loading: loadingClients, error: clientsError, editClient } = useClients();
 
-  const { addresses, addressesError, addAddress, editAddress } = useAddresses();
+  const { addresses, addressesError, saveAddressForClient } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
   const { orders, filteredOrders, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders(products);
@@ -141,19 +141,11 @@ export function OrdersPage() {
   }
 
   async function handleCreateAddressForOrder(data: NewAddressData) {
-    const createdAddress = await addAddress(data);
-
-    if (data.isPrimaryForClient && data.clientId) {
-      const client = filteredClients.find((currentClient) => currentClient.id === data.clientId);
-
-      if (client?.primaryAddressId && client.primaryAddressId !== createdAddress.id) {
-        await editAddress(client.primaryAddressId, { isPrimaryForClient: false });
-      }
-
-      await editClient(data.clientId, { primaryAddressId: createdAddress.id });
+    if (!data.clientId) {
+      throw new Error("Não é possível criar um endereço de pedido sem cliente.");
     }
 
-    return createdAddress;
+    return saveAddressForClient(data.clientId, null, data);
   }
 
   async function handleEditOrder(data: NewOrderData) {

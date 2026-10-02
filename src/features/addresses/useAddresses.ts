@@ -4,6 +4,7 @@ import type { Address, NewAddressData, UpdateAddressData } from "./addressTypes"
 import {
   createAddress,
   listenAddresses,
+  saveAddressForClient as saveAddressForClientService,
   updateAddress,
 } from "./addressesService";
 
@@ -40,6 +41,14 @@ export function useAddresses() {
     return createAddress(data);
   }
 
+  async function saveAddressForClient(
+    clientId: string,
+    addressId: string | null,
+    data: NewAddressData,
+  ) {
+    return saveAddressForClientService(clientId, addressId, data);
+  }
+
   async function editAddress(addressId: string, data: UpdateAddressData) {
     return updateAddress(addressId, data);
   }
@@ -51,6 +60,7 @@ export function useAddresses() {
     addressesError,
     getAddressesByClient,
     addAddress,
+    saveAddressForClient,
     editAddress,
   };
 }

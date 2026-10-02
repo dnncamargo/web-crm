@@ -37,7 +37,7 @@ export function ClientsPage() {
 
   const { clients, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
 
-  const { getAddressesByClient, addAddress, editAddress } = useAddresses();
+  const { getAddressesByClient, saveAddressForClient } = useAddresses();
 
   const [panel, setPanel] = useState<ClientMainPanelState>(null);
   const [stackedPanel, setStackedPanel] = useState<ClientStackedPanelState>(null);
@@ -220,18 +220,13 @@ export function ClientsPage() {
       return;
     }
 
-    const createdAddress = await addAddress(data);
+    const createdAddress = await saveAddressForClient(addressPanel.client.id, null, data);
 
     if (data.isPrimaryForClient) {
-      if (addressPanel.client.primaryAddressId && addressPanel.client.primaryAddressId !== createdAddress.id) {
-        await editAddress(addressPanel.client.primaryAddressId, { isPrimaryForClient: false });
-      }
-
       const clientUpdate = {
         primaryAddressId: createdAddress.id,
       };
 
-      await editClient(addressPanel.client.id, clientUpdate);
       updateViewedClient(addressPanel.client.id, clientUpdate);
     }
 
@@ -245,28 +240,16 @@ export function ClientsPage() {
       return;
     }
 
-    await editAddress(addressPanel.address.id, data);
+    await saveAddressForClient(addressPanel.client.id, addressPanel.address.id, data);
 
-    if (data.isPrimaryForClient) {
-      if (addressPanel.client.primaryAddressId && addressPanel.client.primaryAddressId !== addressPanel.address.id) {
-        await editAddress(addressPanel.client.primaryAddressId, { isPrimaryForClient: false });
-      }
+    const nextPrimaryAddressId = data.isPrimaryForClient
+      ? addressPanel.address.id
+      : addressPanel.client.primaryAddressId === addressPanel.address.id
+        ? null
+        : addressPanel.client.primaryAddressId ?? null;
 
-      const clientUpdate = {
-        primaryAddressId: addressPanel.address.id,
-      };
-
-      await editClient(addressPanel.client.id, clientUpdate);
-      updateViewedClient(addressPanel.client.id, clientUpdate);
-    }
-
-    if (!data.isPrimaryForClient && addressPanel.client.primaryAddressId === addressPanel.address.id) {
-      const clientUpdate = {
-        primaryAddressId: null,
-      };
-
-      await editClient(addressPanel.client.id, clientUpdate);
-      updateViewedClient(addressPanel.client.id, clientUpdate);
+    if (nextPrimaryAddressId !== (addressPanel.client.primaryAddressId ?? null)) {
+      updateViewedClient(addressPanel.client.id, { primaryAddressId: nextPrimaryAddressId });
     }
 
     closeStackedPanel();

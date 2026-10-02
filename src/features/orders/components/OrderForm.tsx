@@ -88,13 +88,13 @@ function getFinancialSignature(
 ) {
   return JSON.stringify({
     clientId,
-    deliveryFee,
-    amountPaid,
+    deliveryFee: parseMoneyOrZero(deliveryFee),
+    amountPaid: parseMoneyOrZero(amountPaid),
     items: items.map(({ productId, quantity, unit, unitPrice }) => ({
       productId,
-      quantity,
-      unit,
-      unitPrice,
+      quantity: Number(quantity.replace(",", ".")),
+      unit: unit.trim(),
+      unitPrice: parseMoneyOrZero(unitPrice),
     })),
   });
 }
