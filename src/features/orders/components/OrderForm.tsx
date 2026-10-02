@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { getAutomaticCreditApplied, getClientAvailableCredit, getOrderBalanceInfo, getOrderGeneratedCreditAmount, getPaymentStatus } from "../orderUtils";
+import { getAutomaticCreditApplied, getClientAvailableCredit, getOrderBalanceInfo, getOrderGeneratedCreditAmount, getOrderItemProductName, getPaymentStatus } from "../orderUtils";
 import { Button } from "../../../components/ui/Button";
 import { SlidePanel } from "../../../components/ui/SlidePanel";
 import { formatCurrencyBR, parseCurrencyInput } from "../../../utils/money";
@@ -122,7 +122,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
         return {
           id: item.id,
           productId: item.productId,
-          productName: product?.name ?? item.productName,
+          productName: getOrderItemProductName(item, products),
           quantity: String(item.quantity),
           unit: savedItem.unit ?? getProductUnit(product),
           unitPrice: currencyToInput(item.unitPrice),
@@ -255,7 +255,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
       return {
         id: item.id,
         productId: item.productId,
-        productName: product?.name ?? item.productName,
+        productName: getOrderItemProductName(item, products),
         quantity: Number.isFinite(quantity) ? quantity : 0,
         unit: item.unit.trim() || getProductUnit(product),
         unitPrice,
@@ -282,7 +282,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   const automaticCreditApplied = getAutomaticCreditApplied(availableClientCredit, total);
 
   const preserveSettledCredit =
-    Boolean(order) && getPaymentStatus(order!) === "paid" && !financialChanged;
+    order ? getPaymentStatus(order) === "paid" && !financialChanged : false;
 
   const creditApplied =
     order && preserveSettledCredit
@@ -422,11 +422,16 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
           ? getAddressSnapshot(selectedAddress)
           : null;
 
+    const persistedAddressId =
+      order && !addressSelectionChanged
+        ? (order.addressId ?? null)
+        : (selectedAddress?.id ?? null);
+
     await onSave({
       clientId: selectedClient.id,
       clientName: selectedClient.name,
 
-      addressId: selectedAddress?.id ?? null,
+      addressId: persistedAddressId,
       addressSnapshot,
 
       deliveryDateTime,
@@ -450,11 +455,9 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   }
 
   function getProductName(productId: string) {
-    return (
-      products.find((product) => product.id === productId)?.name ??
-      items.find((item) => item.productId === productId)?.productName ??
-      ""
-    );
+    const item = items.find((currentItem) => currentItem.productId === productId);
+
+    return item ? getOrderItemProductName(item, products) : "";
   }
 
   function getItemTotal(item: OrderFormItem) {
@@ -553,6 +556,12 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
                 Endereço de entrega
                 <select value={addressId} onChange={(event) => setAddressId(event.target.value)}>
                   <option value="">Retirada pelo cliente</option>
+
+                  {addressId && !selectedAddress && (
+                    <option value={addressId}>
+                      {order?.addressSnapshot?.label ?? "Endereço do pedido"} · indisponível
+                    </option>
+                  )}
 
                   {selectableAddresses.map((address) => (
                     <option key={address.id} value={address.id}>
