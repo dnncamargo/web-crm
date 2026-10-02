@@ -121,6 +121,8 @@ Alguns campos combinam referência e label para leitura rápida, como:
 
 Esses pares não representam duas fontes independentes. Ao escrever ambos, a implementação deve definir qual é a referência canônica e quando o label é atualizado.
 
+No caso de Endereço, `clientId` + `clientName` representam uma **associação fraca de origem cadastral**: indicam o Cliente no contexto do qual o Endereço foi criado, mas não estabelecem propriedade exclusiva nem restringem seu uso por outros Clientes em Pedidos.
+
 ## 5. Cliente
 
 Arquivo: `src/features/clients/clientTypes.ts`
@@ -174,15 +176,41 @@ Campos principais:
 - identificação humana: `label`;
 - localização: CEP, rua, número, complemento, bairro, cidade, estado;
 - contexto: referência e notas;
-- vínculo opcional: `clientId`, `clientName`;
+- associação fraca de origem: `clientId`, `clientName`;
 - `isPrimaryForClient?`;
 - `active`.
 
-O Cliente também pode apontar para `primaryAddressId`.
+### Associação fraca com Cliente
 
-Como o modelo atual mantém informações de primariedade nos dois lados, qualquer fluxo que altere endereço principal deve manter os campos coerentes. Não adicionar um terceiro indicador de primariedade.
+Quando um Endereço é criado no contexto de um Cliente, inclusive durante a criação de um Pedido para esse Cliente, preencher `clientId` e `clientName` com esse contexto cadastral.
 
-Pedidos preservam um `addressSnapshot` separado do endereço vivo.
+Essa associação significa **"endereço cadastrado a partir deste Cliente"**, não propriedade exclusiva:
+
+- qualquer Endereço ativo pode ser usado em um Pedido de qualquer Cliente;
+- selecionar para o Pedido um Endereço associado a outro Cliente não deve alterar `Address.clientId`/`clientName`;
+- essa seleção também não deve alterar `Client.primaryAddressId`;
+- não criar validação que exija `Order.clientId === Address.clientId`;
+- não filtrar o seletor de Endereços do Pedido apenas pelos Endereços associados ao Cliente selecionado.
+
+A associação fraca pode orientar defaults e ordenação, mas não autorização de uso.
+
+### Endereço principal e default em Pedido
+
+`Client.primaryAddressId` representa a preferência de Endereço daquele Cliente.
+
+Ao selecionar um Cliente em um novo Pedido, o default deve seguir esta ordem:
+
+1. se `primaryAddressId` apontar para um Endereço ativo, selecioná-lo automaticamente;
+2. caso contrário, se existir **exatamente um** Endereço ativo com `Address.clientId === Client.id`, selecioná-lo automaticamente;
+3. caso existam zero ou vários Endereços associados sem um principal válido, não escolher arbitrariamente: deixar a seleção para o usuário.
+
+Mesmo quando um default for escolhido, todos os demais Endereços ativos continuam disponíveis para seleção.
+
+No seletor de Endereço do Pedido, não exibir o nome do Cliente associado ao Endereço. Mostrar apenas a identificação e os dados úteis de localização. A associação fraca pode afetar a ordem dos resultados, mas não deve aparecer como se o Endereço pertencesse exclusivamente àquela pessoa.
+
+O modelo atual também possui `Address.isPrimaryForClient?`. Enquanto esse campo existir, fluxos que definem ou removem primariedade devem mantê-lo coerente com `Client.primaryAddressId`; não adicionar um terceiro indicador de primariedade.
+
+Pedidos preservam um `addressSnapshot` separado do Endereço vivo.
 
 ## 7. Produto
 
@@ -251,10 +279,14 @@ Pedido é o principal registro histórico transacional.
 
 ### Endereço
 
-- `addressId?`: referência ao endereço reutilizável;
-- `addressSnapshot?`: endereço efetivamente usado no pedido.
+- `addressId?`: referência ao Endereço reutilizável efetivamente escolhido para a entrega;
+- `addressSnapshot?`: snapshot dos dados físicos efetivamente usados no Pedido.
 
-Um pedido antigo não deve mudar de endereço porque o cadastro do Cliente foi editado.
+O Endereço escolhido não precisa estar associado ao mesmo Cliente do Pedido. A associação fraca de `Address.clientId` serve para origem cadastral/defaults e não limita o uso.
+
+O `addressSnapshot` deve conter os dados necessários para identificar a entrega e **não deve incorporar `Address.clientName` nem o nome do Cliente associado ao cadastro do Endereço**.
+
+Um Pedido antigo não deve mudar de endereço porque o cadastro do Cliente ou do Endereço foi editado. Alterações não relacionadas à entrega não devem rematerializar silenciosamente o snapshot a partir do estado vivo atual.
 
 ### Itens
 
@@ -299,13 +331,44 @@ Preservar essa distinção: **status de pedido é persistido; status de pagament
 
 ## 10. Crédito do cliente
 
-A lógica atual deriva crédito a partir de pedidos elegíveis e de `creditApplied` / `creditGenerated`.
+O crédito é um **saldo acumulado derivado dos Pedidos**, sem documento de saldo independente.
 
-Regras de evolução:
+Cada Pedido pode registrar duas movimentações diferentes:
+
+- `creditApplied`: crédito anterior consumido para quitar total ou parcialmente o Pedido;
+- `creditGenerated`: novo crédito produzido quando o valor efetivamente disponível para o Pedido excede seu total.
+
+Para Pedidos elegíveis, o saldo disponível do Cliente é derivado conceitualmente por:
+
+`crédito disponível = soma(creditGenerated) - soma(creditApplied)`
+
+Pedidos cancelados não participam desse saldo conforme a regra atual.
+
+### Aplicação e nova geração no mesmo Pedido
+
+`creditApplied` e `creditGenerated` **podem coexistir no mesmo Pedido**.
+
+Exemplo:
+
+- o Cliente possui R$ 30 de crédito anterior;
+- faz um novo Pedido de R$ 30;
+- os R$ 30 de crédito são aplicados e quitam o Pedido;
+- ainda assim o Cliente paga mais R$ 10;
+- o Pedido registra `creditApplied = 30` e `creditGenerated = 10`;
+- o saldo disponível posterior passa a ser R$ 10.
+
+Portanto, não tratar geração de crédito como mutuamente exclusiva com aplicação de crédito.
+
+### Regras de cálculo e histórico
 
 - manter cálculo em utilitário de domínio, não na UI;
-- ignorar pedido atual quando necessário para evitar auto-consumo;
-- pedidos cancelados não devem participar do crédito disponível;
+- aplicar crédito disponível até o limite necessário para cobrir o Pedido;
+- qualquer pagamento que exceda o valor ainda necessário, considerando crédito aplicado, pode gerar novo crédito;
+- cálculos de saldo restante e status de pagamento devem considerar `amountPaid + creditApplied`;
+- não duplicar fórmulas de saldo em componentes;
+- Pedidos posteriores não devem reescrever retrospectivamente `creditApplied` ou `creditGenerated` de Pedidos anteriores;
+- editar campos não financeiros de um Pedido não deve recalcular ou redistribuir silenciosamente suas movimentações históricas de crédito;
+- uma edição financeira que altere pagamento/crédito deve preservar consistência do saldo derivado e exigir regra explícita de reconciliação quando afetar movimentações posteriores;
 - não persistir um "saldo do cliente" separado sem uma decisão explícita de fonte da verdade e reconciliação.
 
 ## 11. Tarefa
@@ -454,6 +517,8 @@ Antes de concluir uma mudança de domínio:
 - timestamps técnicos continuam no service?
 - regras de cálculo estão fora do componente?
 - preservei histórico de pedidos?
+- associações fracas estão sendo usadas como defaults, sem virarem restrições indevidas?
+- crédito aplicado e gerado continuam historicamente estáveis e podem coexistir quando necessário?
 - uma nova coleção é realmente necessária?
 - relações bidirecionais têm estratégia de consistência?
 - os tipos `Entity`, `NewEntityData` e `UpdateEntityData` continuam coerentes?
