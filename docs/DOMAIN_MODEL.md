@@ -105,11 +105,12 @@ Exemplos atuais em pedido:
 
 - `clientName`
 - `addressSnapshot`
-- `OrderItem.productName`
 - `OrderItem.unitPrice`
 - `OrderItem.unit`
 
-Alterar um Cliente, Endereço ou Produto não deve reescrever automaticamente a história de pedidos antigos.
+`OrderItem.productName` é diferente: `productId` é a referência canônica para resolver o nome atual do Produto, enquanto `productName` funciona como fallback denormalizado quando a referência não puder ser resolvida. Renomear um Produto pode atualizar sua descrição exibida em Pedidos sem alterar quantidade, unidade ou preço negociado.
+
+Alterar um Cliente, Endereço ou Produto não deve reescrever automaticamente dados comerciais negociados ou snapshots físicos de pedidos antigos.
 
 ### Campo denormalizado de conveniência
 
@@ -212,6 +213,8 @@ O modelo atual também possui `Address.isPrimaryForClient?`. Enquanto esse campo
 
 Pedidos preservam um `addressSnapshot` separado do Endereço vivo.
 
+No domínio de Pedido, ausência de `addressId` e `addressSnapshot` significa **retirada pelo cliente**, não um estado indefinido de entrega.
+
 ## 7. Produto
 
 Arquivo: `src/features/products/productTypes.ts`
@@ -293,8 +296,8 @@ Um Pedido antigo não deve mudar de endereço porque o cadastro do Cliente ou do
 `OrderItem` é embutido no Pedido:
 
 - `id`: identidade local do item;
-- `productId`: referência ao Produto;
-- `productName`: nome preservado;
+- `productId`: referência viva/canônica ao Produto;
+- `productName`: fallback denormalizado para quando o Produto não puder ser resolvido;
 - `quantity`;
 - `unit?`;
 - `unitPrice`;
@@ -302,7 +305,9 @@ Um Pedido antigo não deve mudar de endereço porque o cadastro do Cliente ou do
 - `notes?`;
 - `tagIds?`.
 
-O item do pedido é histórico. Não deve depender do preço atual do Produto para renderizar total antigo.
+O acordo comercial do item pertence ao Pedido. Quantidade, unidade e preço negociado são editáveis quando o acordo com o Cliente mudar e não devem ser substituídos pelo estado atual do Produto.
+
+Quando o Produto referenciado existir, sua descrição/nome atual pode ser exibida. Se estiver inativo, continua resolvível para Pedidos existentes. Se não puder mais ser resolvido, usar `OrderItem.productName` como fallback. Um item histórico nunca deve desaparecer apenas porque o Produto foi desativado ou deixou de ser resolvido.
 
 ### Totais
 
@@ -366,9 +371,12 @@ Portanto, não tratar geração de crédito como mutuamente exclusiva com aplica
 - qualquer pagamento que exceda o valor ainda necessário, considerando crédito aplicado, pode gerar novo crédito;
 - cálculos de saldo restante e status de pagamento devem considerar `amountPaid + creditApplied`;
 - não duplicar fórmulas de saldo em componentes;
-- Pedidos posteriores não devem reescrever retrospectivamente `creditApplied` ou `creditGenerated` de Pedidos anteriores;
-- editar campos não financeiros de um Pedido não deve recalcular ou redistribuir silenciosamente suas movimentações históricas de crédito;
-- uma edição financeira que altere pagamento/crédito deve preservar consistência do saldo derivado e exigir regra explícita de reconciliação quando afetar movimentações posteriores;
+- um Pedido novo calcula crédito disponível normalmente;
+- um Pedido existente ainda não quitado pode recalcular crédito disponível ao ser salvo, permitindo aproveitar crédito surgido depois;
+- um Pedido já quitado preserva `creditApplied` e `creditGenerated` quando a edição não altera Cliente, itens, quantidade, unidade, preço negociado, taxa de entrega ou valor pago;
+- se uma edição alterar esses dados comerciais/financeiros, saldo e crédito podem ser recalculados;
+- editar apenas endereço, data/hora, observações, etiquetas ou outros dados não financeiros de um Pedido quitado não deve redistribuir silenciosamente suas movimentações de crédito;
+- cancelar um Pedido retira suas movimentações do saldo disponível conforme a regra atual; reativá-lo volta a considerar as movimentações registradas, salvo recálculo decorrente de alteração financeira;
 - não persistir um "saldo do cliente" separado sem uma decisão explícita de fonte da verdade e reconciliação.
 
 ## 11. Tarefa
