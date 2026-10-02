@@ -12,14 +12,13 @@ interface AddressPickerContentProps {
 }
 
 function formatAddressSubtitle(address: Address) {
-  const owner = address.clientName ? `${address.clientName} · ` : "";
   const number = address.number ? `, ${address.number}` : "";
   const complement = address.complement ? ` · ${address.complement}` : "";
   const neighborhood = address.neighborhood ? ` · ${address.neighborhood}` : "";
   const city = address.city ? ` · ${address.city}` : "";
   const state = address.state ? `/${address.state}` : "";
 
-  return `${owner}${address.street}${number}${complement}${neighborhood}${city}${state}`;
+  return `${address.street}${number}${complement}${neighborhood}${city}${state}`;
 }
 
 export function AddressPickerContent({
@@ -51,7 +50,7 @@ export function AddressPickerContent({
                 >
                   <div className="entity-row-line">
                     <strong className="entity-title">
-                      Sem endereço definido
+                      Retirada pelo cliente
                     </strong>
 
                     {!draftAddressId && (
@@ -60,7 +59,7 @@ export function AddressPickerContent({
                   </div>
 
                   <span className="entity-subtitle">
-                    O pedido será salvo sem endereço de entrega.
+                    O pedido será salvo como retirada pelo cliente.
                   </span>
                 </button>
 
