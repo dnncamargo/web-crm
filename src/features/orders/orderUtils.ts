@@ -1,9 +1,17 @@
+import type { Product } from "../products/productTypes";
 import type { Order, OrderItem, OrderStatus, PaymentStatus } from "./orderTypes";
 
 export type OrderBalanceType = "remaining" | "credit" | "settled";
 
 export function calculateOrderSubtotal(items: OrderItem[]) {
   return items.reduce((sum, item) => sum + item.total, 0);
+}
+
+export function getOrderItemProductName(
+  item: Pick<OrderItem, "productId" | "productName">,
+  products: Array<Pick<Product, "id" | "name">>,
+) {
+  return products.find((product) => product.id === item.productId)?.name ?? item.productName;
 }
 
 export function calculateOrderTotal(items: OrderItem[], deliveryFee: number) {
