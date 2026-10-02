@@ -9,9 +9,10 @@ interface OrderDetailsPanelContentProps {
   order: Order;
   products: Product[];
   onEdit: () => void;
+  onPrint: () => void;
 }
 
-export function OrderDetailsPanelContent({ order, products, onEdit }: OrderDetailsPanelContentProps) {
+export function OrderDetailsPanelContent({ order, products, onEdit, onPrint }: OrderDetailsPanelContentProps) {
   const paymentStatus = getPaymentStatus(order);
   const balanceInfo = getOrderBalanceInfo(order);
   const creditApplied = order.creditApplied ?? 0;
@@ -159,6 +160,9 @@ export function OrderDetailsPanelContent({ order, products, onEdit }: OrderDetai
 
       <div className="panel-footer">
         <div className="panel-actions">
+          <Button type="button" variant="secondary" onClick={onPrint}>
+            Imprimir via
+          </Button>
           <Button type="button" variant="primary" onClick={onEdit}>
             Editar pedido
           </Button>
