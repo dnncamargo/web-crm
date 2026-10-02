@@ -2,9 +2,12 @@
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
 import { formatCurrencyBR } from "../../../utils/money";
+import type { Product } from "../../products/productTypes";
 import type { Order } from "../orderTypes";
 import {
   formatDateTimeBR,
+  getOrderBalanceInfo,
+  getOrderItemProductName,
   getOrderStatusLabel,
   getPaymentStatus,
   getPaymentStatusLabel,
@@ -12,12 +15,13 @@ import {
 
 interface OrderCardProps {
   order: Order;
+  products: Product[];
   onRequestEditOrder: (order: Order) => void;
 }
 
-export function OrderCard({ order, onRequestEditOrder }: OrderCardProps) {
+export function OrderCard({ order, products, onRequestEditOrder }: OrderCardProps) {
   const paymentStatus = getPaymentStatus(order);
-  const remaining = Math.max(order.total - order.amountPaid, 0);
+  const balanceInfo = getOrderBalanceInfo(order);
 
   return (
     <Card className={order.orderStatus !== "active" ? "muted-card" : ""}>
@@ -34,14 +38,14 @@ export function OrderCard({ order, onRequestEditOrder }: OrderCardProps) {
         {order.addressSnapshot ? (
           <Badge>{order.addressSnapshot.city}</Badge>
         ) : (
-          <Badge>sem-endereco</Badge>
+          <Badge>Retirada pelo cliente</Badge>
         )}
       </div>
 
       <div className="client-meta">
         <span>Total: {formatCurrencyBR(order.total)}</span>
         <span>Pago: {formatCurrencyBR(order.amountPaid)}</span>
-        <span>Restante: {formatCurrencyBR(remaining)}</span>
+        <span>{balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}</span>
       </div>
 
       <div className="panel-list order-card-items">
@@ -49,7 +53,7 @@ export function OrderCard({ order, onRequestEditOrder }: OrderCardProps) {
 
         {order.items.map((item) => (
           <small key={item.id}>
-            {item.quantity} Ã— {item.productName} Â·{" "}
+            {item.quantity} Ã— {getOrderItemProductName(item, products)} Â·{" "}
             {formatCurrencyBR(item.total)}
           </small>
         ))}

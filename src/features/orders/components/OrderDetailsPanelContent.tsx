@@ -1,20 +1,22 @@
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { formatCurrencyBR } from "../../../utils/money";
+import type { Product } from "../../products/productTypes";
 import type { Order } from "../orderTypes";
-import { formatDateTimeBR, getOrderBalanceInfo, getOrderStatusLabel, getPaymentStatus, getPaymentStatusLabel } from "../orderUtils";
+import { formatDateTimeBR, getOrderBalanceInfo, getOrderEffectivePaid, getOrderItemProductName, getOrderStatusLabel, getPaymentStatus, getPaymentStatusLabel } from "../orderUtils";
 
 interface OrderDetailsPanelContentProps {
   order: Order;
+  products: Product[];
   onEdit: () => void;
 }
 
-export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelContentProps) {
+export function OrderDetailsPanelContent({ order, products, onEdit }: OrderDetailsPanelContentProps) {
   const paymentStatus = getPaymentStatus(order);
   const balanceInfo = getOrderBalanceInfo(order);
   const creditApplied = order.creditApplied ?? 0;
   const creditGenerated = order.creditGenerated ?? 0;
-  const effectivePaid = order.amountPaid + creditApplied;
+  const effectivePaid = getOrderEffectivePaid(order);
 
   return (
     <div className="panel-view">
@@ -42,7 +44,7 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
             </div>
           </section>
 
-          {order.addressSnapshot && (
+          {order.addressSnapshot ? (
             <section className="panel-section">
               <div className="panel-section-title">
                 <span>Entrega</span>
@@ -61,6 +63,16 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
                 {order.addressSnapshot.reference && <p>{order.addressSnapshot.reference}</p>}
               </div>
             </section>
+          ) : (
+            <section className="panel-section">
+              <div className="panel-section-title">
+                <span>Entrega</span>
+              </div>
+              <div className="panel-note">
+                <span>Retirada pelo cliente</span>
+                <p>Nenhum endereço de entrega foi selecionado.</p>
+              </div>
+            </section>
           )}
 
           <section className="panel-section">
@@ -72,7 +84,7 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
               {order.items.map((item) => (
                 <div className="panel-list-row compact-row panel-list-row-with-value" key={item.id}>
                   <div>
-                    <strong>{item.productName}</strong>
+                    <strong>{getOrderItemProductName(item, products)}</strong>
                     <span>
                       {item.quantity} × {formatCurrencyBR(item.unitPrice)} cada
                     </span>
@@ -102,16 +114,19 @@ export function OrderDetailsPanelContent({ order, onEdit }: OrderDetailsPanelCon
                 Total: <strong>{formatCurrencyBR(order.total)}</strong>
               </span>
               <span>
-                Pago pelo cliente: <strong>{formatCurrencyBR(order.amountPaid)}</strong>
+                Pago: <strong>{formatCurrencyBR(order.amountPaid)}</strong>
               </span>
               {creditApplied > 0 && (
                 <span>
-                  Crédito aplicado: <strong>{formatCurrencyBR(creditApplied)}</strong>
+                  Crédito usado: <strong>{formatCurrencyBR(creditApplied)}</strong>
                 </span>
               )}
-              <span>
-                Total pago considerado: <strong>{formatCurrencyBR(effectivePaid)}</strong>
-              </span>
+              {creditGenerated > 0 && (
+                <span>
+                  Crédito gerado: <strong>{formatCurrencyBR(creditGenerated)}</strong>
+                </span>
+              )}
+              <span>Pago considerado: <strong>{formatCurrencyBR(effectivePaid)}</strong></span>
               <span className="summary-full">
                 {balanceInfo.label}: <strong>{formatCurrencyBR(balanceInfo.amount)}</strong>
               </span>

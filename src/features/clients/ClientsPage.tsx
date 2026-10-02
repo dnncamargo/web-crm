@@ -223,6 +223,10 @@ export function ClientsPage() {
     const createdAddress = await addAddress(data);
 
     if (data.isPrimaryForClient) {
+      if (addressPanel.client.primaryAddressId && addressPanel.client.primaryAddressId !== createdAddress.id) {
+        await editAddress(addressPanel.client.primaryAddressId, { isPrimaryForClient: false });
+      }
+
       const clientUpdate = {
         primaryAddressId: createdAddress.id,
       };
@@ -244,6 +248,10 @@ export function ClientsPage() {
     await editAddress(addressPanel.address.id, data);
 
     if (data.isPrimaryForClient) {
+      if (addressPanel.client.primaryAddressId && addressPanel.client.primaryAddressId !== addressPanel.address.id) {
+        await editAddress(addressPanel.client.primaryAddressId, { isPrimaryForClient: false });
+      }
+
       const clientUpdate = {
         primaryAddressId: addressPanel.address.id,
       };

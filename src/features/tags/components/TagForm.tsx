@@ -5,7 +5,7 @@ import { Button } from "../../../components/ui/Button";
 import { Switch } from "../../../components/ui/Switch";
 import type { NewTagData, Tag, TagEntity } from "../tagTypes";
 import { createSlug } from "../useTags";
-import { entityLabels, getDefaultTagGroup } from "../tagConfig";
+import { entityLabels, getDefaultTagGroup, getTagGroupOptions } from "../tagConfig";
 
 interface TagFormProps {
   tag?: Tag;
@@ -13,13 +13,10 @@ interface TagFormProps {
   onSave: (data: NewTagData) => Promise<void>;
 }
 
-const customGroupValue = "__custom__";
-
 export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
   const [label, setLabel] = useState(tag?.label ?? "");
   const [entity, setEntity] = useState<TagEntity>(tag?.entity ?? "product");
-  const [group, setGroup] = useState(tag?.group ?? getDefaultTagGroup(tag?.entity ?? "product"));
-  const [customGroup] = useState("");
+  const [group, setGroup] = useState(tag?.group || getDefaultTagGroup(tag?.entity ?? "product"));
   const [active, setActive] = useState(tag?.active ?? true);
   const [saving, setSaving] = useState(false);
 
@@ -27,7 +24,7 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
     event.preventDefault();
 
     const trimmedLabel = label.trim();
-    const finalGroup = group === customGroupValue ? customGroup.trim() : group.trim();
+    const finalGroup = group.trim();
 
     if (!trimmedLabel) {
       return;
@@ -71,10 +68,7 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
                     onChange={(event) => {
                       const nextEntity = event.target.value as TagEntity;
                       setEntity(nextEntity);
-
-                      if (!tag) {
-                        setGroup(getDefaultTagGroup(nextEntity));
-                      }
+                      setGroup(getDefaultTagGroup(nextEntity));
                     }}
                   >
                     {Object.entries(entityLabels).map(([value, text]) => (
@@ -87,7 +81,17 @@ export function TagForm({ tag, onCancel, onSave }: TagFormProps) {
 
                 <label>
                   Grupo
-                  <input value={group} onChange={(event) => setGroup(event.target.value)} placeholder="Ex: Categoria, Restrição, Preferência..." />
+                  <select value={group} onChange={(event) => setGroup(event.target.value)}>
+                    {!getTagGroupOptions(entity).includes(group) && group && (
+                      <option value={group}>{group}</option>
+                    )}
+
+                    {getTagGroupOptions(entity).map((groupOption) => (
+                      <option key={groupOption} value={groupOption}>
+                        {groupOption}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               </div>
             </section>

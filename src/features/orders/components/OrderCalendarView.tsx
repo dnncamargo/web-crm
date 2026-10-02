@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { formatCurrencyBR } from "../../../utils/money";
+import type { Product } from "../../products/productTypes";
 import type { Order } from "../orderTypes";
-import { getPaymentStatus, getPaymentStatusLabel } from "../orderUtils";
+import { getOrderItemProductName, getPaymentStatus, getPaymentStatusLabel } from "../orderUtils";
 interface OrderCalendarViewProps {
   orders: Order[];
+  products: Product[];
   onRequestEditOrder: (order: Order) => void;
 }
 interface CalendarDay {
@@ -67,7 +69,7 @@ function formatSelectedDateLabel(dateKey: string) {
   return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long" }).format(date);
 }
 
-export function OrderCalendarView({ orders, onRequestEditOrder }: OrderCalendarViewProps) {
+export function OrderCalendarView({ orders, products, onRequestEditOrder }: OrderCalendarViewProps) {
   const todayKey = getTodayKey();
   const [referenceDate, setReferenceDate] = useState(() => getCurrentMonthReferenceDate());
   const [selectedDateKey, setSelectedDateKey] = useState(todayKey);
@@ -181,7 +183,7 @@ export function OrderCalendarView({ orders, onRequestEditOrder }: OrderCalendarV
                       {" "}
                       {getOrderTime(order)} · {order.clientName}{" "}
                     </strong>{" "}
-                    <small> {order.items.map((item) => `${item.quantity}× ${item.productName}`).join(" · ")} </small>{" "}
+                    <small> {order.items.map((item) => `${item.quantity}× ${getOrderItemProductName(item, products)}`).join(" · ")} </small>{" "}
                   </div>{" "}
                   <div className="selected-day-order-meta">
                     {" "}

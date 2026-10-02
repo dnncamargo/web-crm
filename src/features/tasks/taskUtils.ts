@@ -2,6 +2,17 @@ import type { Task } from "./taskTypes";
 
 export type TaskDueStatus = "done" | "overdue" | "today" | "future" | "no-date";
 
+export function getTaskCompletedAt(
+  done: boolean,
+  currentCompletedAt?: string | null,
+) {
+  if (!done) {
+    return null;
+  }
+
+  return currentCompletedAt ?? new Date().toISOString();
+}
+
 export function formatTaskDateBR(value?: string | null) {
   if (!value) {
     return "Sem prazo";

@@ -21,6 +21,8 @@ export function TodayPage() {
     ordersError,
     clientsError,
     tasksError,
+    products,
+    productsError,
   } = useTodayDashboard();
 
   return (
@@ -32,6 +34,7 @@ export function TodayPage() {
       {ordersError && <p className="error-text">{ordersError}</p>}
       {clientsError && <p className="error-text">{clientsError}</p>}
       {tasksError && <p className="error-text">{tasksError}</p>}
+      {productsError && <p className="error-text">{productsError}</p>}
 
       <TodayOverviewGrid
         upcomingDeliveriesCount={upcomingDeliveries.length}
@@ -44,7 +47,7 @@ export function TodayPage() {
 
       <TodayProductionSection todayKey={todayKey} productionByDate={productionByDate} />
 
-      <TodayDeliveriesSection deliverySummaryCards={deliverySummaryCards} />
+      <TodayDeliveriesSection deliverySummaryCards={deliverySummaryCards} products={products} />
 
       <TodayOtherInforms pendingPayments={pendingPayments} contactSuggestions={contactSuggestions} openTasks={openTasks} />
     </div>

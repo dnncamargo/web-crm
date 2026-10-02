@@ -5,6 +5,7 @@ import { Button } from "../../../components/ui/Button";
 import type { Client } from "../../clients/clientTypes";
 import type { Tag } from "../../tags/tagTypes";
 import type { NewTaskData, Subtask, Task } from "../taskTypes";
+import { getTaskCompletedAt } from "../taskUtils";
 import { Switch } from "../../../components/ui/Switch";
 
 interface TaskFormProps {
@@ -104,6 +105,7 @@ export function TaskForm({ task, clients, availableTags, onCancel, onSave }: Tas
       clientName: selectedClient?.name ?? null,
       dueDate: dueDate || null,
       done,
+      completedAt: getTaskCompletedAt(done, task?.completedAt),
       subtasks: parsedSubtasks,
       tagIds: selectedTagIds,
     });
