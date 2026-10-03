@@ -5,9 +5,12 @@ import { Button } from "../../components/ui/Button";
 import { useProducts } from "../products/useProducts";
 import { encodePrintJob } from "../printers/escposEncoder";
 import { getPrintColumnsForPaperWidth } from "../printers/printJobLayout";
+import type { PrintJobRaster } from "../printers/printJobTypes";
+import { loadPrintRaster } from "../printers/printRaster";
 import { resolveDefaultPrinter } from "../printers/printerUtils";
 import { usePrinters } from "../printers/usePrinters";
 import { OrderReceipt } from "./components/OrderReceipt";
+import { ORDER_RECEIPT_BRAND_NAME, ORDER_RECEIPT_LOGO_SRC } from "./orderReceiptBrand";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
 import { createOrderReceiptPrintJob } from "./orderReceiptPrintJob";
 import { useOrders } from "./useOrders";
@@ -49,8 +52,18 @@ export function OrderReceiptPage() {
 
     try {
       const document = createOrderReceiptDocument(order, products);
+      let logo: PrintJobRaster | undefined;
+
+      try {
+        logo = await loadPrintRaster(ORDER_RECEIPT_LOGO_SRC);
+      } catch {
+        logo = undefined;
+      }
+
       const job = createOrderReceiptPrintJob(document, {
         columns: getPrintColumnsForPaperWidth(defaultPrinter.paperWidthMm),
+        brandName: ORDER_RECEIPT_BRAND_NAME,
+        logo,
       });
       const bytes = encodePrintJob(job);
 

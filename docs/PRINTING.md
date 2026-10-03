@@ -73,8 +73,29 @@ Order + Products
 `Imprimir pelo navegador` continua chamando `window.print()` e permanece
 disponível independentemente da ponte. Não existe fallback automático depois de
 uma falha de impressão térmica. O caminho direto atualmente suporta apenas o
-contrato estabelecido de papel de 80 mm com 48 colunas e omite o logo. A
-materialização/decodificação raster do logo fica para trabalho futuro.
+contrato estabelecido de papel de 80 mm com 48 colunas. O BMP da marca é
+materializado pelo navegador como raster e enviado no mesmo `PrintJob` do
+recibo; se o logo não puder ser carregado ou materializado, o recibo usa
+`Delícias do Porto` como fallback textual em ESC/POS. Somente a imagem da marca
+é rasterizada; o corpo do recibo continua texto nativo. A impressão pelo
+navegador permanece independente e não há fallback automático para
+`window.print()`.
+
+```text
+brand BMP
+→ browser raster materialization
+→ raster command
+        +
+OrderReceiptDocument
+→ textual PrintJob commands
+        ↓
+one PrintJob
+→ one ESC/POS Uint8Array
+→ one PrinterTransport.print()
+→ bridge
+→ TCP printer
+→ one partial cut
+```
 
 ## Diagnóstico físico
 

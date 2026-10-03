@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { Product } from "../products/productTypes";
 import { encodePrintJob } from "../printers/escposEncoder";
+import type { PrintJobRaster } from "../printers/printJobTypes";
+import { ORDER_RECEIPT_BRAND_NAME } from "./orderReceiptBrand";
 import type { Order } from "./orderTypes";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
 import { createOrderReceiptPrintJob } from "./orderReceiptPrintJob";
@@ -41,6 +43,12 @@ function createOrder(overrides: Partial<Order> = {}): Order {
 }
 
 describe("OrderReceiptDocument", () => {
+  const logo: PrintJobRaster = {
+    widthDots: 8,
+    heightDots: 1,
+    data: new Uint8Array([0xaa]),
+  };
+
   it("preserves delivery address semantics without Address.label", () => {
     const document = createOrderReceiptDocument(createOrder({
       addressSnapshot: {
@@ -128,11 +136,64 @@ describe("OrderReceiptDocument", () => {
       deliveryFee: 10,
       total: 30,
     }), products);
-    const job = createOrderReceiptPrintJob(document, { columns: 48 });
+    const job = createOrderReceiptPrintJob(document, {
+      columns: 48,
+      brandName: ORDER_RECEIPT_BRAND_NAME,
+    });
     const bytes = encodePrintJob(job);
 
     expect(job.commands.filter((command) => command.type === "text").every((command) => command.text.length <= 48)).toBe(true);
-    expect(checksum(bytes)).toBe("fac79ee0");
+    expect(checksum(bytes)).toBe("189aa66e");
     expect(Array.from(bytes.slice(-4))).toEqual([0x1d, 0x56, 0x42, 0x01]);
+  });
+
+  it("places the raster logo before the receipt without duplicating the brand text", () => {
+    const document = createOrderReceiptDocument(createOrder(), products);
+    const job = createOrderReceiptPrintJob(document, {
+      columns: 48,
+      brandName: ORDER_RECEIPT_BRAND_NAME,
+      logo,
+    });
+    const rasterIndex = job.commands.findIndex((command) => command.type === "raster");
+    const titleIndex = job.commands.findIndex(
+      (command) => command.type === "text" && command.text === "Pedido",
+    );
+
+    expect(job.commands.slice(0, 4)).toEqual([
+      { type: "alignment", alignment: "center" },
+      { type: "raster", raster: logo },
+      { type: "text", text: "Pedido" },
+      { type: "text", text: "Entrega: data inválida para o teste" },
+    ]);
+    expect(rasterIndex).toBeGreaterThanOrEqual(0);
+    expect(rasterIndex).toBeLessThan(titleIndex);
+    expect(job.commands.filter((command) => command.type === "text" && command.text === ORDER_RECEIPT_BRAND_NAME)).toHaveLength(0);
+    expect(job.commands.filter((command) => command.type === "cut")).toHaveLength(1);
+    const bytes = encodePrintJob(job);
+
+    expect(Array.from(bytes.slice(5, 17))).toEqual([
+      0x1b, 0x61, 0x01,
+      0x1d, 0x76, 0x30, 0x00, 0x01, 0x00, 0x01, 0x00, 0xaa,
+    ]);
+    expect(Array.from(bytes.slice(-4))).toEqual([0x1d, 0x56, 0x42, 0x01]);
+  });
+
+  it("uses a centered bold textual brand fallback when the logo is unavailable", () => {
+    const document = createOrderReceiptDocument(createOrder(), products);
+    const job = createOrderReceiptPrintJob(document, {
+      columns: 48,
+      brandName: ORDER_RECEIPT_BRAND_NAME,
+    });
+
+    expect(job.commands.slice(0, 6)).toEqual([
+      { type: "alignment", alignment: "center" },
+      { type: "bold", enabled: true },
+      { type: "text", text: ORDER_RECEIPT_BRAND_NAME },
+      { type: "bold", enabled: false },
+      { type: "text", text: "Pedido" },
+      { type: "text", text: "Entrega: data inválida para o teste" },
+    ]);
+    expect(job.commands.filter((command) => command.type === "cut")).toHaveLength(1);
+    expect(Array.from(encodePrintJob(job)).slice(-4)).toEqual([0x1d, 0x56, 0x42, 0x01]);
   });
 });

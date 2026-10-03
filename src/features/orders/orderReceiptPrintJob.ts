@@ -4,6 +4,7 @@ import type { PrintJob, PrintJobRaster } from "../printers/printJobTypes";
 
 export interface OrderReceiptPrintJobOptions {
   columns: number;
+  brandName: string;
   logo?: PrintJobRaster;
 }
 
@@ -19,12 +20,16 @@ export function createOrderReceiptPrintJob(
 ): PrintJob {
   const commands: PrintJob["commands"] = [];
 
+  commands.push({ type: "alignment", alignment: "center" });
+
   if (options.logo) {
-    commands.push({ type: "alignment", alignment: "center" });
     commands.push({ type: "raster", raster: options.logo });
+  } else {
+    commands.push({ type: "bold", enabled: true });
+    addWrappedText(commands, options.brandName, options.columns);
+    commands.push({ type: "bold", enabled: false });
   }
 
-  commands.push({ type: "alignment", alignment: "center" });
   addWrappedText(commands, document.title, options.columns);
   addWrappedText(commands, `Entrega: ${document.deliveryDateTime}`, options.columns);
 
