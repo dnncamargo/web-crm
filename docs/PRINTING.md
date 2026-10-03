@@ -56,30 +56,36 @@ auto-início ou instalação nesta etapa. Android/iOS permanecem trabalho futuro
 
 ## Recibo do pedido
 
-O recibo pode ser enviado explicitamente para a impressora padrão ativa pela
-ponte local, mantendo o navegador como alternativa separada:
+O botão único `Imprimir` escolhe automaticamente o caminho disponível:
 
 ```text
-Order + Products
-→ active default PrinterConfiguration
-→ OrderReceiptDocument
-→ PrintJob
-→ ESC/POS
-→ PrinterTransport
-→ local bridge
-→ TCP printer
+Imprimir
+├─ caminho térmico disponível antes do envio dos bytes
+│  → RAW ESC/POS
+└─ caminho térmico indisponível durante o preflight
+   → impressão pelo navegador/sistema
 ```
 
-`Imprimir pelo navegador` continua chamando `window.print()` e permanece
-disponível independentemente da ponte. Não existe fallback automático depois de
-uma falha de impressão térmica. O caminho direto atualmente suporta apenas o
-contrato estabelecido de papel de 80 mm com 48 colunas. O BMP da marca é
-materializado pelo navegador como raster e enviado no mesmo `PrintJob` do
-recibo; se o logo não puder ser carregado ou materializado, o recibo usa
-`Delícias do Porto` como fallback textual em ESC/POS. Somente a imagem da marca
-é rasterizada; o corpo do recibo continua texto nativo. A impressão pelo
-navegador permanece independente e não há fallback automático para
-`window.print()`.
+O preflight verifica a configuração, a saúde da ponte local e a conexão TCP de
+zero bytes com o destino. Se qualquer verificação falhar, a aplicação chama
+`window.print()` automaticamente antes de gerar/enviar bytes do recibo. Não há
+fallback automático depois que a transmissão RAW começa: se o envio falhar, a
+aplicação mostra um erro controlado, sem repetir o trabalho e sem abrir a
+impressão do navegador automaticamente.
+
+No Windows desktop com o helper local em execução, o caminho normal é ponte
+disponível, impressora alcançável e impressão térmica RAW. Em navegadores
+Android/iOS sem uma ponte local, o caminho normal é a impressão do navegador ou
+do sistema. `127.0.0.1` é local ao dispositivo que executa o navegador; ele não
+expõe o helper do Windows ao celular. Impressão RAW direta nativa em Android ou
+iOS não está implementada.
+
+O caminho térmico continua suportando o contrato estabelecido de papel de
+80 mm com 48 colunas. O BMP da marca é materializado pelo navegador como
+raster e enviado no mesmo `PrintJob` do recibo; se o logo não puder ser carregado
+ou materializado, o recibo usa `Delícias do Porto` como fallback textual em
+ESC/POS. Somente a imagem da marca é rasterizada; o corpo do recibo continua
+texto nativo.
 
 ```text
 brand BMP
