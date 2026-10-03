@@ -14,6 +14,21 @@ function addWrappedText(commands: PrintJob["commands"], text: string, columns: n
   }
 }
 
+function addBoldWrappedText(commands: PrintJob["commands"], text: string, columns: number) {
+  commands.push({ type: "bold", enabled: true });
+  addWrappedText(commands, text, columns);
+  commands.push({ type: "bold", enabled: false });
+}
+
+function addKeyValue(
+  commands: PrintJob["commands"],
+  label: string,
+  value: string,
+  options: { labelBold?: boolean; valueBold?: boolean } = {},
+) {
+  commands.push({ type: "keyValue", label, value, ...options });
+}
+
 export function createOrderReceiptPrintJob(
   document: OrderReceiptDocument,
   options: OrderReceiptPrintJobOptions,
@@ -24,18 +39,19 @@ export function createOrderReceiptPrintJob(
 
   if (options.logo) {
     commands.push({ type: "raster", raster: options.logo });
+    commands.push({ type: "feed", lines: 1 });
   } else {
     commands.push({ type: "bold", enabled: true });
     addWrappedText(commands, options.brandName, options.columns);
     commands.push({ type: "bold", enabled: false });
   }
 
-  addWrappedText(commands, document.title, options.columns);
+  addBoldWrappedText(commands, document.title, options.columns);
   addWrappedText(commands, `Entrega: ${document.deliveryDateTime}`, options.columns);
 
   commands.push({ type: "alignment", alignment: "left" });
-  commands.push({ type: "keyValue", label: "Cliente", value: document.customerName });
-  addWrappedText(commands, "Entrega", options.columns);
+  addKeyValue(commands, "Cliente:", document.customerName, { labelBold: true });
+  addBoldWrappedText(commands, "Entrega", options.columns);
 
   if (document.fulfillment.type === "delivery") {
     for (const line of document.fulfillment.lines) {
@@ -46,10 +62,10 @@ export function createOrderReceiptPrintJob(
   }
 
   commands.push({ type: "rule" });
-  addWrappedText(commands, "Itens", options.columns);
+  addBoldWrappedText(commands, "Itens", options.columns);
 
   for (const item of document.items) {
-    commands.push({ type: "keyValue", label: item.name, value: item.total });
+    addKeyValue(commands, item.name, item.total, { valueBold: item.total.startsWith("R$") });
     addWrappedText(commands, item.details, options.columns);
 
     if (item.notes) {
@@ -58,10 +74,10 @@ export function createOrderReceiptPrintJob(
   }
 
   commands.push({ type: "rule" });
-  addWrappedText(commands, "Resumo", options.columns);
+  addBoldWrappedText(commands, "Resumo", options.columns);
 
   for (const row of document.summary.rows) {
-    commands.push({ type: "keyValue", label: row.label, value: row.value });
+    addKeyValue(commands, row.label, row.value, { valueBold: row.value.startsWith("R$") });
   }
 
   if (document.summary.settled) {
@@ -69,15 +85,16 @@ export function createOrderReceiptPrintJob(
   }
 
   if (document.summary.creditGenerated) {
-    commands.push({
-      type: "keyValue",
-      label: document.summary.creditGenerated.label,
-      value: document.summary.creditGenerated.value,
-    });
+    addKeyValue(
+      commands,
+      document.summary.creditGenerated.label,
+      document.summary.creditGenerated.value,
+      { valueBold: document.summary.creditGenerated.value.startsWith("R$") },
+    );
   }
 
   commands.push({ type: "bold", enabled: true });
-  commands.push({ type: "keyValue", label: "TOTAL", value: document.summary.total });
+  addKeyValue(commands, "TOTAL", document.summary.total);
   commands.push({ type: "bold", enabled: false });
   commands.push({ type: "feed", lines: 3 });
   commands.push({ type: "cut", mode: "partial" });

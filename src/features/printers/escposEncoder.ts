@@ -84,6 +84,60 @@ function appendTextLine(target: number[], text: string, columns: number) {
   }
 }
 
+function appendBoldTextLine(target: number[], text: string, bold: boolean) {
+  if (bold) {
+    appendBytes(target, [0x1b, 0x45, 0x01]);
+  }
+
+  appendBytes(target, encodeCp1252(text));
+  target.push(0x0a);
+
+  if (bold) {
+    appendBytes(target, [0x1b, 0x45, 0x00]);
+  }
+}
+
+function appendStyledKeyValue(
+  target: number[],
+  label: string,
+  value: string,
+  columns: number,
+  labelBold: boolean,
+  valueBold: boolean,
+) {
+  const labelLines = wrapPrintText(label, columns);
+  const valueLines = wrapPrintText(value, columns);
+
+  if (labelLines.length === 1 && valueLines.length === 1 && label.length + value.length + 1 <= columns) {
+    if (labelBold) {
+      appendBytes(target, [0x1b, 0x45, 0x01]);
+    }
+    appendBytes(target, encodeCp1252(label));
+    const spacing = " ".repeat(columns - label.length - value.length);
+    appendBytes(target, encodeCp1252(spacing));
+    if (labelBold) {
+      appendBytes(target, [0x1b, 0x45, 0x00]);
+    }
+    if (valueBold) {
+      appendBytes(target, [0x1b, 0x45, 0x01]);
+    }
+    appendBytes(target, encodeCp1252(value));
+    if (valueBold) {
+      appendBytes(target, [0x1b, 0x45, 0x00]);
+    }
+    target.push(0x0a);
+    return;
+  }
+
+  for (const line of labelLines) {
+    appendBoldTextLine(target, line, labelBold);
+  }
+
+  for (const line of valueLines) {
+    appendBoldTextLine(target, line.padStart(columns, " "), valueBold);
+  }
+}
+
 function appendRaster(target: number[], raster: PrintJobRaster) {
   assertValidRaster(raster);
   const widthBytes = Math.ceil(raster.widthDots / 8);
@@ -104,6 +158,17 @@ function appendCommand(target: number[], command: PrintJobCommand, columns: numb
       appendBytes(target, [0x1b, 0x45, command.enabled ? 1 : 0]);
       return;
     case "keyValue":
+      if (command.labelBold || command.valueBold) {
+        appendStyledKeyValue(
+          target,
+          command.label,
+          command.value,
+          columns,
+          command.labelBold ?? false,
+          command.valueBold ?? false,
+        );
+        return;
+      }
       for (const line of formatPrintKeyValue(command.label, command.value, columns)) {
         appendBytes(target, encodeCp1252(line));
         target.push(0x0a);
