@@ -4,6 +4,14 @@ function assertPositiveColumns(columns: number) {
   }
 }
 
+export function getPrintColumnsForPaperWidth(paperWidthMm: number) {
+  if (paperWidthMm === 80) {
+    return 48;
+  }
+
+  throw new Error("A impressão está disponível apenas para papel de 80 mm.");
+}
+
 export function wrapPrintText(text: string, columns: number) {
   assertPositiveColumns(columns);
 

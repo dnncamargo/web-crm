@@ -1,22 +1,9 @@
 import type { PrinterConfiguration } from "./printerTypes";
 import type { PrintJob } from "./printJobTypes";
-
-const PRINT_COLUMNS_BY_PAPER_WIDTH_MM: Readonly<Record<number, number>> = {
-  80: 48,
-};
-
-function getPrinterIntegrityTestColumns(paperWidthMm: number) {
-  const columns = PRINT_COLUMNS_BY_PAPER_WIDTH_MM[paperWidthMm];
-
-  if (columns === undefined) {
-    throw new Error("O teste de impressão está disponível apenas para papel de 80 mm.");
-  }
-
-  return columns;
-}
+import { getPrintColumnsForPaperWidth } from "./printJobLayout";
 
 export function createPrinterIntegrityTestJob(printer: PrinterConfiguration): PrintJob {
-  const columns = getPrinterIntegrityTestColumns(printer.paperWidthMm);
+  const columns = getPrintColumnsForPaperWidth(printer.paperWidthMm);
 
   return {
     columns,

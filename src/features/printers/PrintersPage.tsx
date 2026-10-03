@@ -10,6 +10,7 @@ import type {
   NewPrinterConfigurationData,
   PrinterConfiguration,
 } from "./printerTypes";
+import { resolveDefaultPrinter } from "./printerUtils";
 import { usePrinters } from "./usePrinters";
 
 type PrinterPanelState =
@@ -41,11 +42,7 @@ export function PrintersPage() {
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
 
-  const effectiveDefaultPrinterId = printers.some(
-    (printer) => printer.id === defaultPrinterId && printer.active,
-  )
-    ? defaultPrinterId
-    : null;
+  const effectiveDefaultPrinter = resolveDefaultPrinter(printers, defaultPrinterId);
 
   function closePanel() {
     setPanel(null);
@@ -152,7 +149,7 @@ export function PrintersPage() {
             <PrinterCard
               key={printer.id}
               printer={printer}
-              isDefault={printer.id === effectiveDefaultPrinterId}
+              isDefault={printer.id === effectiveDefaultPrinter?.id}
               busy={busyPrinterId === printer.id}
               onEdit={(selectedPrinter) => setPanel({ type: "edit", printer: selectedPrinter })}
               onActiveChange={handleActiveChange}
