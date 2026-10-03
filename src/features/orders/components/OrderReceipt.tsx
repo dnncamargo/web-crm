@@ -1,50 +1,33 @@
-import { formatCurrencyBR } from "../../../utils/money";
 import type { Product } from "../../products/productTypes";
 import type { Order } from "../orderTypes";
-import {
-  formatDateTimeBR,
-  getOrderBalanceInfo,
-  getOrderGeneratedCreditAmount,
-  getOrderItemProductName,
-} from "../orderUtils";
+import { createOrderReceiptDocument } from "../orderReceiptDocument";
 
 interface OrderReceiptProps {
   order: Order;
   products: Product[];
 }
 
-function getAddressLines(address: NonNullable<Order["addressSnapshot"]>) {
-  const street = `${address.street}${address.number ? `, ${address.number}` : ""}`;
-  const neighborhood = [address.complement, address.neighborhood].filter(Boolean).join(" · ");
-  const city = [address.city, address.state].filter(Boolean).join("/");
-
-  return [street, neighborhood, city, address.reference ? `Referência: ${address.reference}` : null].filter(Boolean);
-}
-
 export function OrderReceipt({ order, products }: OrderReceiptProps) {
-  const balanceInfo = getOrderBalanceInfo(order);
-  const creditApplied = order.creditApplied ?? 0;
-  const creditGenerated = getOrderGeneratedCreditAmount(order);
-  const addressLines = order.addressSnapshot ? getAddressLines(order.addressSnapshot) : [];
+  const document = createOrderReceiptDocument(order, products);
 
   return (
     <article className="receipt-paper" aria-label="Prévia do recibo do pedido">
       <header className="receipt-header">
         <img className="receipt-logo" src="/brand/brand-mark-print.bmp" alt="Delícias do Porto" />
-        <h1>Pedido</h1>
-        <p>Entrega: {formatDateTimeBR(order.deliveryDateTime)}</p>
+        <h1>{document.title}</h1>
+        <p>Entrega: {document.deliveryDateTime}</p>
       </header>
 
       <section className="receipt-section receipt-customer">
         <p>
-          Cliente: <strong>{order.clientName}</strong>
+          Cliente: <strong>{document.customerName}</strong>
         </p>
         <div className="receipt-address">
           <strong>Entrega</strong>
-          {order.addressSnapshot ? (
-            addressLines.map((line) => <p key={line}>{line}</p>)
+          {document.fulfillment.type === "delivery" ? (
+            document.fulfillment.lines.map((line) => <p key={line}>{line}</p>)
           ) : (
-            <p>Retirada pelo cliente</p>
+            <p>{document.fulfillment.label}</p>
           )}
         </div>
       </section>
@@ -52,17 +35,14 @@ export function OrderReceipt({ order, products }: OrderReceiptProps) {
       <section className="receipt-section">
         <h2>Itens</h2>
         <div className="receipt-items">
-          {order.items.map((item) => (
+          {document.items.map((item) => (
             <article className="receipt-item" key={item.id}>
               <div className="receipt-item-header">
-                <h3>{getOrderItemProductName(item, products)}</h3>
-                <strong>{formatCurrencyBR(item.total)}</strong>
+                <h3>{item.name}</h3>
+                <strong>{item.total}</strong>
               </div>
-              <p className="receipt-item-meta">
-                {item.quantity}
-                {item.unit ? ` ${item.unit}` : ""} × {formatCurrencyBR(item.unitPrice)}
-              </p>
-              {item.notes?.trim() && <p className="receipt-item-notes">{item.notes}</p>}
+              <p className="receipt-item-meta">{item.details}</p>
+              {item.notes && <p className="receipt-item-notes">{item.notes}</p>}
             </article>
           ))}
         </div>
@@ -70,42 +50,22 @@ export function OrderReceipt({ order, products }: OrderReceiptProps) {
 
       <section className="receipt-section receipt-summary">
         <h2>Resumo</h2>
-        <div className="receipt-summary-row">
-          <span>Subtotal</span>
-          <strong>{formatCurrencyBR(order.subtotal)}</strong>
-        </div>
-        {order.deliveryFee > 0 && (
-          <div className="receipt-summary-row">
-            <span>Entrega</span>
-            <strong>{formatCurrencyBR(order.deliveryFee)}</strong>
+        {document.summary.rows.map((row) => (
+          <div className="receipt-summary-row" key={row.label}>
+            <span>{row.label}</span>
+            <strong>{row.value}</strong>
           </div>
-        )}
-        <div className="receipt-summary-row">
-          <span>Pago</span>
-          <strong>{formatCurrencyBR(order.amountPaid)}</strong>
-        </div>
-        {creditApplied > 0 && (
+        ))}
+        {document.summary.settled && <p className="receipt-settled">Quitado</p>}
+        {document.summary.creditGenerated && (
           <div className="receipt-summary-row">
-            <span>Crédito usado</span>
-            <strong>{formatCurrencyBR(creditApplied)}</strong>
-          </div>
-        )}
-        {balanceInfo.type === "remaining" && (
-          <div className="receipt-summary-row">
-            <span>Restante</span>
-            <strong>{formatCurrencyBR(balanceInfo.amount)}</strong>
-          </div>
-        )}
-        {balanceInfo.type !== "remaining" && <p className="receipt-settled">Quitado</p>}
-        {creditGenerated > 0 && (
-          <div className="receipt-summary-row">
-            <span>Crédito gerado</span>
-            <strong>{formatCurrencyBR(creditGenerated)}</strong>
+            <span>{document.summary.creditGenerated.label}</span>
+            <strong>{document.summary.creditGenerated.value}</strong>
           </div>
         )}
         <div className="receipt-total">
           <span>TOTAL</span>
-          <strong>{formatCurrencyBR(order.total)}</strong>
+          <strong>{document.summary.total}</strong>
         </div>
       </section>
     </article>
