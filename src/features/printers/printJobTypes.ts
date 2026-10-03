@@ -10,7 +10,13 @@ export type PrintJobCommand =
   | { type: "text"; text: string }
   | { type: "alignment"; alignment: PrintJobAlignment }
   | { type: "bold"; enabled: boolean }
-  | { type: "keyValue"; label: string; value: string }
+  | {
+      type: "keyValue";
+      label: string;
+      value: string;
+      labelBold?: boolean;
+      valueBold?: boolean;
+    }
   | { type: "rule"; character?: string }
   | { type: "feed"; lines: number }
   | { type: "raster"; raster: PrintJobRaster }
