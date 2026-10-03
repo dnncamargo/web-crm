@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { encodeCp1252, encodePrintJob } from "./escposEncoder";
-import { formatPrintKeyValue, wrapPrintText } from "./printJobLayout";
+import { formatPrintKeyValue, getPrintColumnsForPaperWidth, wrapPrintText } from "./printJobLayout";
 import { createPrinterIntegrityTestJob } from "./printerIntegrityPrintJob";
 import type { PrintJob } from "./printJobTypes";
 
@@ -31,6 +31,11 @@ describe("CP1252", () => {
 });
 
 describe("PrintJob layout and ESC/POS", () => {
+  it("resolves the supported 80 mm paper width to 48 columns", () => {
+    expect(getPrintColumnsForPaperWidth(80)).toBe(48);
+    expect(() => getPrintColumnsForPaperWidth(58)).toThrow("apenas para papel de 80 mm");
+  });
+
   it("creates the 80 mm physical printer integrity test job", () => {
     const job = createPrinterIntegrityTestJob({
       id: "printer-1",

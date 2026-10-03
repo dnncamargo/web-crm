@@ -1,5 +1,6 @@
 import type { Product } from "../../products/productTypes";
 import type { Order } from "../orderTypes";
+import { ORDER_RECEIPT_BRAND_NAME, ORDER_RECEIPT_LOGO_SRC } from "../orderReceiptBrand";
 import { createOrderReceiptDocument } from "../orderReceiptDocument";
 
 interface OrderReceiptProps {
@@ -13,7 +14,7 @@ export function OrderReceipt({ order, products }: OrderReceiptProps) {
   return (
     <article className="receipt-paper" aria-label="Prévia do recibo do pedido">
       <header className="receipt-header">
-        <img className="receipt-logo" src="/brand/brand-mark-print.bmp" alt="Delícias do Porto" />
+        <img className="receipt-logo" src={ORDER_RECEIPT_LOGO_SRC} alt={ORDER_RECEIPT_BRAND_NAME} />
         <h1>{document.title}</h1>
         <p>Entrega: {document.deliveryDateTime}</p>
       </header>

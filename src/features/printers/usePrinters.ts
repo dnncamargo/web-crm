@@ -18,6 +18,19 @@ import { createPrinterIntegrityTestJob } from "./printerIntegrityPrintJob";
 
 const printerTransport = createLoopbackPrinterTransport();
 
+export async function printToPrinter(
+  printer: PrinterConfiguration,
+  bytes: Uint8Array,
+) {
+  await printerTransport.print(
+    {
+      host: printer.host,
+      port: printer.port,
+    },
+    bytes,
+  );
+}
+
 export function usePrinters() {
   const [printers, setPrinters] = useState<PrinterConfiguration[]>([]);
   const [defaultPrinterId, setDefaultPrinterId] = useState<string | null>(null);
@@ -84,13 +97,7 @@ export function usePrinters() {
     const job = createPrinterIntegrityTestJob(printer);
     const bytes = encodePrintJob(job);
 
-    await printerTransport.print(
-      {
-        host: printer.host,
-        port: printer.port,
-      },
-      bytes,
-    );
+    await printToPrinter(printer, bytes);
   }
 
   return {
@@ -104,5 +111,6 @@ export function usePrinters() {
     chooseDefaultPrinter,
     testPrinterConnection,
     printPrinterIntegrityTest,
+    printToPrinter,
   };
 }
