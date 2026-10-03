@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Product } from "../products/productTypes";
 import { encodePrintJob } from "../printers/escposEncoder";
-import type { PrintJobRaster } from "../printers/printJobTypes";
+import type { PrintJob, PrintJobRaster } from "../printers/printJobTypes";
 import { ORDER_RECEIPT_BRAND_NAME } from "./orderReceiptBrand";
 import type { Order } from "./orderTypes";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
@@ -143,7 +143,7 @@ describe("OrderReceiptDocument", () => {
     const bytes = encodePrintJob(job);
 
     expect(job.commands.filter((command) => command.type === "text").every((command) => command.text.length <= 48)).toBe(true);
-    expect(checksum(bytes)).toBe("189aa66e");
+    expect(checksum(bytes)).toBe("a10418a1");
     expect(Array.from(bytes.slice(-4))).toEqual([0x1d, 0x56, 0x42, 0x01]);
   });
 
@@ -159,11 +159,13 @@ describe("OrderReceiptDocument", () => {
       (command) => command.type === "text" && command.text === "Pedido",
     );
 
-    expect(job.commands.slice(0, 4)).toEqual([
+    expect(job.commands.slice(0, 6)).toEqual([
       { type: "alignment", alignment: "center" },
       { type: "raster", raster: logo },
+      { type: "feed", lines: 1 },
+      { type: "bold", enabled: true },
       { type: "text", text: "Pedido" },
-      { type: "text", text: "Entrega: data inválida para o teste" },
+      { type: "bold", enabled: false },
     ]);
     expect(rasterIndex).toBeGreaterThanOrEqual(0);
     expect(rasterIndex).toBeLessThan(titleIndex);
@@ -185,15 +187,54 @@ describe("OrderReceiptDocument", () => {
       brandName: ORDER_RECEIPT_BRAND_NAME,
     });
 
-    expect(job.commands.slice(0, 6)).toEqual([
+    expect(job.commands.slice(0, 8)).toEqual([
       { type: "alignment", alignment: "center" },
       { type: "bold", enabled: true },
       { type: "text", text: ORDER_RECEIPT_BRAND_NAME },
       { type: "bold", enabled: false },
+      { type: "bold", enabled: true },
       { type: "text", text: "Pedido" },
+      { type: "bold", enabled: false },
       { type: "text", text: "Entrega: data inválida para o teste" },
     ]);
     expect(job.commands.filter((command) => command.type === "cut")).toHaveLength(1);
     expect(Array.from(encodePrintJob(job)).slice(-4)).toEqual([0x1d, 0x56, 0x42, 0x01]);
+  });
+
+  it("bolds requested headings, the customer label, and currency values", () => {
+    const document = createOrderReceiptDocument(createOrder({ creditApplied: 5, creditGenerated: 2 }), products);
+    const job = createOrderReceiptPrintJob(document, {
+      columns: 48,
+      brandName: ORDER_RECEIPT_BRAND_NAME,
+    });
+    type KeyValueCommand = Extract<PrintJob["commands"][number], { type: "keyValue" }>;
+    const keyValueCommands = job.commands.filter(
+      (command): command is KeyValueCommand => command.type === "keyValue",
+    );
+
+    for (const text of ["Pedido", "Entrega", "Itens", "Resumo"]) {
+      const index = job.commands.findIndex(
+        (command) => command.type === "text" && command.text === text,
+      );
+
+      expect(job.commands[index - 1]).toEqual({ type: "bold", enabled: true });
+      expect(job.commands[index + 1]).toEqual({ type: "bold", enabled: false });
+    }
+
+    expect(keyValueCommands.find((command) => command.label === "Cliente:")).toMatchObject({
+      labelBold: true,
+    });
+
+    const currencyRows = keyValueCommands.filter(
+      (command) => command.label !== "TOTAL" && command.value.startsWith("R$"),
+    );
+    expect(currencyRows.length).toBeGreaterThan(0);
+    expect(currencyRows.every((command) => command.valueBold)).toBe(true);
+
+    const totalIndex = job.commands.findIndex(
+      (command) => command.type === "keyValue" && command.label === "TOTAL",
+    );
+    expect(job.commands[totalIndex - 1]).toEqual({ type: "bold", enabled: true });
+    expect(job.commands[totalIndex + 1]).toEqual({ type: "bold", enabled: false });
   });
 });

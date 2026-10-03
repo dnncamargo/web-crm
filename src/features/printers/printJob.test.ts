@@ -101,6 +101,31 @@ describe("PrintJob layout and ESC/POS", () => {
     expect(wrapped.at(-1)).toBe("     R$ 1,00");
   });
 
+  it("encodes independently bold key/value spans", () => {
+    const bytes = encodePrintJob({
+      columns: 24,
+      codePage: "cp1252",
+      commands: [{
+        type: "keyValue",
+        label: "Cliente:",
+        value: "R$ 1,00",
+        labelBold: true,
+        valueBold: true,
+      }],
+    });
+
+    expect(Array.from(bytes.slice(5))).toEqual([
+      0x1b, 0x45, 0x01,
+      ...Array.from(encodeCp1252("Cliente:")),
+      ...Array.from(encodeCp1252("         ")),
+      0x1b, 0x45, 0x00,
+      0x1b, 0x45, 0x01,
+      ...Array.from(encodeCp1252("R$ 1,00")),
+      0x1b, 0x45, 0x00,
+      0x0a,
+    ]);
+  });
+
   it("emits initialize, CP1252, alignment and bold command bytes", () => {
     const job: PrintJob = {
       columns: 48,
