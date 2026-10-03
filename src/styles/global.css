@@ -166,6 +166,10 @@ textarea:focus {
   display: none;
 }
 
+.mobile-settings-link {
+  display: none;
+}
+
 .nav-link {
   position: relative;
   padding: 10px 12px 10px 14px;
@@ -208,6 +212,38 @@ textarea:focus {
 
   .content-area {
     padding: 18px 14px 34px;
+  }
+
+  .topbar {
+    height: auto;
+    min-height: 64px;
+    padding: 12px 14px;
+  }
+
+  .global-search-wrap {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .mobile-settings-link {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: 0 0 auto;
+    padding: 0 10px;
+    border: var(--border-base);
+    border-radius: var(--radius-xxl);
+    background: var(--surface);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.76rem;
+  }
+
+  .mobile-settings-link.active {
+    border-color: var(--border-selected);
+    background: var(--accent-surface);
+    color: var(--accent);
   }
 
   .mobile-nav {

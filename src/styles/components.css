@@ -134,6 +134,11 @@
   transform: translateX(20px);
 }
 
+.switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .button {
   min-height: 39px;
   border-radius: var(--radius-xxl);
@@ -1862,6 +1867,66 @@
 
 .color-page {
   max-width: 860px;
+}
+
+.printer-list {
+  display: grid;
+  gap: 12px;
+}
+
+.printer-card {
+  display: grid;
+  gap: 14px;
+}
+
+.printer-card-header,
+.printer-card-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.printer-card-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.printer-card-header p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.printer-card-details {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.printer-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .printer-card-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .printer-card-actions {
+    justify-content: stretch;
+  }
+
+  .printer-card-actions .button {
+    flex: 1 1 auto;
+  }
 }
 
 .color-config-card {
