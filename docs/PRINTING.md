@@ -54,6 +54,20 @@ origins exatos configurados. Não há autenticação ou segredo de pareamento ai
 isso deve ser reavaliado antes de distribuição. Não há `.exe`, serviço do Windows,
 auto-início ou instalação nesta etapa. Android/iOS permanecem trabalho futuro.
 
-A UI de recibo ainda não usa `PrinterTransport`, e este checkpoint não dispara
-impressão física a partir do CRM. A integração de impressão direta do recibo é
-trabalho futuro.
+A UI de recibo ainda não usa `PrinterTransport`; a integração de impressão
+direta do recibo é trabalho futuro. A impressão física deste checkpoint existe
+exclusivamente no diagnóstico da configuração de impressoras.
+
+## Diagnóstico físico
+
+Em `Configurações → Impressoras`, as ações têm intenções diferentes:
+
+- `Testar conexão` abre o TCP pela ponte e envia zero bytes à impressora; não
+  consome papel.
+- `Imprimir teste` cria um `PrintJob` regular, codifica-o pelo encoder ESC/POS
+  existente e envia-o pelo `PrinterTransport`; consome papel e executa o corte
+  parcial.
+
+A página de teste usa o contrato atualmente estabelecido para papel de 80 mm,
+com 48 colunas. Outras larguras ainda não possuem um contrato de colunas
+suportado pelo domínio.

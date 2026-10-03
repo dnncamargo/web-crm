@@ -13,6 +13,8 @@ import type {
   UpdatePrinterConfigurationData,
 } from "./printerTypes";
 import { createLoopbackPrinterTransport } from "./loopbackPrinterTransport";
+import { encodePrintJob } from "./escposEncoder";
+import { createPrinterIntegrityTestJob } from "./printerIntegrityPrintJob";
 
 const printerTransport = createLoopbackPrinterTransport();
 
@@ -78,6 +80,19 @@ export function usePrinters() {
     });
   }
 
+  async function printPrinterIntegrityTest(printer: PrinterConfiguration) {
+    const job = createPrinterIntegrityTestJob(printer);
+    const bytes = encodePrintJob(job);
+
+    await printerTransport.print(
+      {
+        host: printer.host,
+        port: printer.port,
+      },
+      bytes,
+    );
+  }
+
   return {
     printers,
     defaultPrinterId,
@@ -88,5 +103,6 @@ export function usePrinters() {
     setPrinterActive,
     chooseDefaultPrinter,
     testPrinterConnection,
+    printPrinterIntegrityTest,
   };
 }

@@ -34,6 +34,7 @@ export function PrintersPage() {
     setPrinterActive,
     chooseDefaultPrinter,
     testPrinterConnection,
+    printPrinterIntegrityTest,
   } = usePrinters();
   const [panel, setPanel] = useState<PrinterPanelState>(null);
   const [busyPrinterId, setBusyPrinterId] = useState<string | null>(null);
@@ -103,11 +104,26 @@ export function PrintersPage() {
     }
   }
 
+  async function handlePrintIntegrityTest(printer: PrinterConfiguration) {
+    setActionError("");
+    setActionSuccess("");
+    setBusyPrinterId(printer.id);
+
+    try {
+      await printPrinterIntegrityTest(printer);
+      setActionSuccess(`Página de teste enviada para “${printer.name}”.`);
+    } catch (error) {
+      setActionError(getErrorMessage(error));
+    } finally {
+      setBusyPrinterId(null);
+    }
+  }
+
   return (
     <div className="page-stack">
       <PageHeader
         title="Impressoras"
-        description="Configure destinos e teste a conexão pela ponte local, sem imprimir diretamente pelo navegador."
+        description="Configure destinos, teste a conexão e envie uma página de teste pela ponte local."
         action={
           <Button type="button" onClick={() => setPanel({ type: "create" })}>
             + Impressora
@@ -142,6 +158,7 @@ export function PrintersPage() {
               onActiveChange={handleActiveChange}
               onSetDefault={handleSetDefault}
               onTestConnection={handleTestConnection}
+              onPrintIntegrityTest={handlePrintIntegrityTest}
             />
           ))}
         </div>
