@@ -12,23 +12,37 @@ import type {
   PrinterConfiguration,
   UpdatePrinterConfigurationData,
 } from "./printerTypes";
+import type { PrinterDestination } from "./printerTransport";
 import { createLoopbackPrinterTransport } from "./loopbackPrinterTransport";
 import { encodePrintJob } from "./escposEncoder";
 import { createPrinterIntegrityTestJob } from "./printerIntegrityPrintJob";
 
 const printerTransport = createLoopbackPrinterTransport();
 
+export async function checkHealth() {
+  await printerTransport.checkHealth();
+}
+
+export async function testConnection(destination: PrinterDestination) {
+  await printerTransport.testConnection(destination);
+}
+
+export async function print(destination: PrinterDestination, bytes: Uint8Array) {
+  await printerTransport.print(destination, bytes);
+}
+
+function getDestination(printer: PrinterConfiguration): PrinterDestination {
+  return {
+    host: printer.host,
+    port: printer.port,
+  };
+}
+
 export async function printToPrinter(
   printer: PrinterConfiguration,
   bytes: Uint8Array,
 ) {
-  await printerTransport.print(
-    {
-      host: printer.host,
-      port: printer.port,
-    },
-    bytes,
-  );
+  await print(getDestination(printer), bytes);
 }
 
 export function usePrinters() {
@@ -87,10 +101,7 @@ export function usePrinters() {
   }
 
   async function testPrinterConnection(printer: PrinterConfiguration) {
-    await printerTransport.testConnection({
-      host: printer.host,
-      port: printer.port,
-    });
+    await testConnection(getDestination(printer));
   }
 
   async function printPrinterIntegrityTest(printer: PrinterConfiguration) {
@@ -111,6 +122,9 @@ export function usePrinters() {
     chooseDefaultPrinter,
     testPrinterConnection,
     printPrinterIntegrityTest,
+    checkHealth,
+    testConnection,
+    print,
     printToPrinter,
   };
 }
