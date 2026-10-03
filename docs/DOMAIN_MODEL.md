@@ -468,6 +468,31 @@ O padrão de impressão é uma preferência global em `appSettings/printing`:
 
 Esta configuração não implementa transporte TCP, geração ESC/POS, descoberta ou impressão. Ela apenas mantém o destino persistido para uso futuro.
 
+### Projeções transitórias de recibo e impressão
+
+`OrderReceiptDocument` é uma projeção transitória de `Order` e `Product[]` usada
+pelos renderizadores do recibo. `PrintJob` é uma representação transitória dos
+comandos imprimíveis antes do transporte. Nenhum dos dois é entidade Firestore e
+nenhum deve ser persistido.
+
+A separação arquitetural é:
+
+```text
+Order
+→ OrderReceiptDocument
+→ renderizadores HTML ou PrintJob
+
+PrintJob
+→ encoder ESC/POS
+→ Uint8Array
+
+PrinterConfiguration
+→ destino e configuração
+```
+
+Transporte, descoberta, consulta de status e envio dos bytes permanecem fora
+dessa camada.
+
 ## 15. Serviços e hooks
 
 Responsabilidades:
