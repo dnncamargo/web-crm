@@ -464,7 +464,7 @@ O padrão de impressão é uma preferência global em `appSettings/printing`:
 - `defaultPrinterId: string | null`;
 - `updatedAt`.
 
-`isDefault` não é persistido nas impressoras. Não existe padrão como estado válido; a definição é sempre uma ação explícita sobre uma impressora ativa. Ao desativar a impressora padrão, a impressora e `defaultPrinterId: null` devem ser atualizados na mesma transação. Reativar uma impressora não a torna padrão automaticamente.
+`isDefault` não é persistido nas impressoras. A ausência de padrão é um estado válido; a definição é sempre uma ação explícita sobre uma impressora ativa. Ao desativar a impressora padrão, a impressora e `defaultPrinterId: null` devem ser atualizados na mesma transação. Reativar uma impressora não a torna padrão automaticamente.
 
 Esta configuração não implementa transporte TCP, geração ESC/POS, descoberta ou impressão. Ela apenas mantém o destino persistido para uso futuro.
 
