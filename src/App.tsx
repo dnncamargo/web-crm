@@ -10,6 +10,7 @@ import { TasksPage } from "./features/tasks/TasksPage";
 import { TodayPage } from "./features/today/TodayPage";
 import { useRemoteAccentColor } from "./features/color/useRemoteAccentColor";
 import { ColorPage } from "./features/color/ColorPage";
+import { PrintersPage } from "./features/printers/PrintersPage";
 
 export default function App() {
 
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="produtos" element={<ProductsPage />} />
         <Route path="tarefas" element={<TasksPage />} />
         <Route path="etiquetas" element={<TagsPage />} />
+        <Route path="configuracoes/impressoras" element={<PrintersPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
         <Route path="/cor" element={<ColorPage />} />
       </Route>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Settings2 } from "lucide-react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 
 import { useClients } from "../../features/clients/useClients";
@@ -16,6 +17,7 @@ const navItems = [
   { to: "/produtos", label: "Produtos" },
   { to: "/tarefas", label: "Tarefas" },
   { to: "/etiquetas", label: "Etiquetas" },
+  { to: "/configuracoes/impressoras", label: "Configurações" },
 ];
 
 function normalizeSearchValue(value: string) {
@@ -166,6 +168,18 @@ export function AppShell() {
               </div>
             )}
           </div>
+
+          <NavLink
+            className={({ isActive }) =>
+              isActive ? "mobile-settings-link active" : "mobile-settings-link"
+            }
+            to="/configuracoes/impressoras"
+            aria-label="Configurações"
+            title="Configurações"
+          >
+            <Settings2 size={18} aria-hidden="true" />
+            <span>Configurações</span>
+          </NavLink>
         </header>
 
         <section className="content-area">

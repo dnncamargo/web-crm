@@ -32,6 +32,7 @@ As entidades raiz são armazenadas em coleções do Cloud Firestore:
 Configuração da aplicação:
 
 - `appSettings/theme`
+- `appSettings/printing`
 
 Os serviços usam listeners em tempo real com `onSnapshot`.
 
@@ -441,7 +442,33 @@ Contrato atual:
 
 Configurações globais devem ficar separadas das coleções de domínio.
 
-## 14. Serviços e hooks
+## 14. Impressora
+
+`PrinterConfiguration` é uma entidade raiz de configuração armazenada na coleção `printers`.
+
+Campos principais:
+
+- `name`;
+- `model?` como metadado opcional;
+- `transport: "tcp"`;
+- `protocol: "escpos"`;
+- `host`;
+- `port`;
+- `paperWidthMm`;
+- `printableWidthDots?`;
+- `codePage: "cp1252"`;
+- `active`.
+
+O padrão de impressão é uma preferência global em `appSettings/printing`:
+
+- `defaultPrinterId: string | null`;
+- `updatedAt`.
+
+`isDefault` não é persistido nas impressoras. A ausência de padrão é um estado válido; a definição é sempre uma ação explícita sobre uma impressora ativa. Ao desativar a impressora padrão, a impressora e `defaultPrinterId: null` devem ser atualizados na mesma transação. Reativar uma impressora não a torna padrão automaticamente.
+
+Esta configuração não implementa transporte TCP, geração ESC/POS, descoberta ou impressão. Ela apenas mantém o destino persistido para uso futuro.
+
+## 15. Serviços e hooks
 
 Responsabilidades:
 
@@ -466,7 +493,7 @@ Responsabilidades:
 - interação e composição visual;
 - não duplicar regra financeira, temporal ou de relacionamento que já pertence ao domínio.
 
-## 15. Regras para novas entidades
+## 16. Regras para novas entidades
 
 Antes de criar uma coleção:
 
@@ -478,7 +505,7 @@ Antes de criar uma coleção:
 
 Se a resposta for "não" para a maior parte, prefira objeto embutido.
 
-## 16. Regras para novas relações
+## 17. Regras para novas relações
 
 Antes de adicionar `xId`, `xName`, snapshot ou array de IDs, responder:
 
@@ -491,7 +518,7 @@ Antes de adicionar `xId`, `xName`, snapshot ou array de IDs, responder:
 
 Documentar relações bidirecionais e denormalizações. Não criar sincronização implícita.
 
-## 17. Valores monetários
+## 18. Valores monetários
 
 Valores monetários são números e a apresentação usa BRL por meio de `formatCurrencyBR`.
 
@@ -501,7 +528,7 @@ Valores monetários são números e a apresentação usa BRL por meio de `format
 - evitar comparar valores monetários formatados;
 - não substituir o valor histórico do pedido pelo preço atual do produto.
 
-## 18. Datas
+## 19. Datas
 
 Convenções atuais:
 
@@ -513,7 +540,7 @@ Não comparar datas formatadas como `DD/MM/YYYY`.
 
 Para regras civis de "hoje", "atrasado" e "próximos dias", usar utilitários de domínio e evitar conversões UTC acidentais.
 
-## 19. Checklist de modelagem
+## 20. Checklist de modelagem
 
 Antes de concluir uma mudança de domínio:
 
