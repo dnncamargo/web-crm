@@ -120,7 +120,7 @@ export function PrinterForm({ printer, onCancel, onSave }: PrinterFormProps) {
           <section className="panel-section">
             <div className="panel-section-title">
               <span>Destino de rede</span>
-              <small>Esses dados apenas configuram a impressora. Nenhuma conexão é testada agora.</small>
+              <small>Esses dados configuram o destino usado pela ponte local de impressão.</small>
             </div>
 
             <div className="panel-field-group">

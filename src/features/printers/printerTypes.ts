@@ -1,4 +1,4 @@
-export type PrinterTransport = "tcp";
+export type PrinterTransportKind = "tcp";
 export type PrinterProtocol = "escpos";
 export type PrinterCodePage = "cp1252";
 
@@ -6,7 +6,7 @@ export interface PrinterConfiguration {
   id: string;
   name: string;
   model?: string;
-  transport: PrinterTransport;
+  transport: PrinterTransportKind;
   protocol: PrinterProtocol;
   host: string;
   port: number;
@@ -21,7 +21,7 @@ export interface PrinterConfiguration {
 export interface NewPrinterConfigurationData {
   name: string;
   model?: string;
-  transport: PrinterTransport;
+  transport: PrinterTransportKind;
   protocol: PrinterProtocol;
   host: string;
   port: number;

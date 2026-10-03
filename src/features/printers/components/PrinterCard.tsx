@@ -11,6 +11,7 @@ interface PrinterCardProps {
   onEdit: (printer: PrinterConfiguration) => void;
   onActiveChange: (printer: PrinterConfiguration, active: boolean) => Promise<void>;
   onSetDefault: (printer: PrinterConfiguration) => Promise<void>;
+  onTestConnection: (printer: PrinterConfiguration) => Promise<void>;
 }
 
 export function PrinterCard({
@@ -20,6 +21,7 @@ export function PrinterCard({
   onEdit,
   onActiveChange,
   onSetDefault,
+  onTestConnection,
 }: PrinterCardProps) {
   return (
     <Card className={printer.active ? "printer-card" : "printer-card muted-card"}>
@@ -53,6 +55,10 @@ export function PrinterCard({
         />
 
         <div className="printer-card-actions">
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => onTestConnection(printer)}>
+            Testar conexão
+          </Button>
+
           <Button type="button" variant="secondary" disabled={busy} onClick={() => onEdit(printer)}>
             Editar
           </Button>

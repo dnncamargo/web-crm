@@ -12,6 +12,9 @@ import type {
   PrinterConfiguration,
   UpdatePrinterConfigurationData,
 } from "./printerTypes";
+import { createLoopbackPrinterTransport } from "./loopbackPrinterTransport";
+
+const printerTransport = createLoopbackPrinterTransport();
 
 export function usePrinters() {
   const [printers, setPrinters] = useState<PrinterConfiguration[]>([]);
@@ -68,6 +71,13 @@ export function usePrinters() {
     await setDefaultPrinter(printerId);
   }
 
+  async function testPrinterConnection(printer: PrinterConfiguration) {
+    await printerTransport.testConnection({
+      host: printer.host,
+      port: printer.port,
+    });
+  }
+
   return {
     printers,
     defaultPrinterId,
@@ -77,5 +87,6 @@ export function usePrinters() {
     editPrinter,
     setPrinterActive,
     chooseDefaultPrinter,
+    testPrinterConnection,
   };
 }
