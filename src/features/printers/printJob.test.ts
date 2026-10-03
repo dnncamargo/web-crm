@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { encodeCp1252, encodePrintJob } from "./escposEncoder";
 import { formatPrintKeyValue, wrapPrintText } from "./printJobLayout";
+import { createPrinterIntegrityTestJob } from "./printerIntegrityPrintJob";
 import type { PrintJob } from "./printJobTypes";
 
 function checksum(bytes: Uint8Array) {
@@ -30,6 +31,55 @@ describe("CP1252", () => {
 });
 
 describe("PrintJob layout and ESC/POS", () => {
+  it("creates the 80 mm physical printer integrity test job", () => {
+    const job = createPrinterIntegrityTestJob({
+      id: "printer-1",
+      name: "Balcão",
+      model: "TA-TP510W",
+      transport: "tcp",
+      protocol: "escpos",
+      host: "192.168.0.50",
+      port: 9100,
+      paperWidthMm: 80,
+      codePage: "cp1252",
+      active: false,
+    });
+
+    expect(job.codePage).toBe("cp1252");
+    expect(job.columns).toBe(48);
+    expect(job.commands.slice(0, 4)).toEqual([
+      { type: "alignment", alignment: "center" },
+      { type: "bold", enabled: true },
+      { type: "text", text: "TESTE DE IMPRESSÃO" },
+      { type: "bold", enabled: false },
+    ]);
+    expect(job.commands).toContainEqual({ type: "alignment", alignment: "left" });
+    expect(job.commands).toContainEqual({ type: "bold", enabled: true });
+    expect(job.commands).toContainEqual({ type: "bold", enabled: false });
+    expect(job.commands).toContainEqual({ type: "text", text: "João · Conceição · Açúcar" });
+    expect(job.commands.at(-2)).toEqual({ type: "feed", lines: 4 });
+    expect(job.commands.at(-1)).toEqual({ type: "cut", mode: "partial" });
+
+    const bytes = encodePrintJob(job);
+
+    expect(Array.from(bytes)).toEqual(expect.arrayContaining([0xe3, 0xe7, 0xfa, 0xd7, 0xb7]));
+    expect(Array.from(bytes.slice(-4))).toEqual([0x1d, 0x56, 0x42, 0x01]);
+  });
+
+  it("keeps the integrity test explicitly limited to the supported 80 mm width", () => {
+    expect(() => createPrinterIntegrityTestJob({
+      id: "printer-1",
+      name: "Balcão",
+      transport: "tcp",
+      protocol: "escpos",
+      host: "192.168.0.50",
+      port: 9100,
+      paperWidthMm: 58,
+      codePage: "cp1252",
+      active: true,
+    })).toThrow("apenas para papel de 80 mm");
+  });
+
   it("wraps text deterministically", () => {
     expect(wrapPrintText("Alpha beta gamma", 10)).toEqual(["Alpha beta", "gamma"]);
     expect(wrapPrintText("12345678901", 10)).toEqual(["1234567890", "1"]);
