@@ -181,6 +181,40 @@
   color: var(--text);
 }
 
+.android-wake-card {
+  display: grid;
+  gap: 18px;
+  max-width: 720px;
+}
+
+.android-wake-status {
+  display: grid;
+  gap: 8px;
+}
+
+.android-wake-status[data-state="success"] .badge {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.android-wake-status[data-state="error"] .badge {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.android-wake-details,
+.android-wake-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.android-wake-details {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
 .star-button {
   width: 34px;
   height: 34px;

@@ -11,6 +11,7 @@ import { TodayPage } from "./features/today/TodayPage";
 import { useRemoteAccentColor } from "./features/color/useRemoteAccentColor";
 import { ColorPage } from "./features/color/ColorPage";
 import { PrintersPage } from "./features/printers/PrintersPage";
+import { AndroidPrintWakePage } from "./features/diagnostics/AndroidPrintWakePage";
 
 export default function App() {
 
@@ -20,6 +21,8 @@ export default function App() {
     <Routes>
       <Route path="pedidos/:orderId/via" element={<OrderReceiptPage />} />
       <Route element={<AppShell />}>
+        <Route path="diagnostics/android-print-wake" element={<AndroidPrintWakePage />} />
+        <Route path="android-print-bridge/activate" element={<AndroidPrintWakePage />} />
         <Route index element={<TodayPage />} />
         <Route path="clientes" element={<ClientsPage />} />
         <Route path="pedidos" element={<OrdersPage />} />
