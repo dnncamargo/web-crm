@@ -466,7 +466,7 @@ O padrão de impressão é uma preferência global em `appSettings/printing`:
 
 `isDefault` não é persistido nas impressoras. A ausência de padrão é um estado válido; a definição é sempre uma ação explícita sobre uma impressora ativa. Ao desativar a impressora padrão, a impressora e `defaultPrinterId: null` devem ser atualizados na mesma transação. Reativar uma impressora não a torna padrão automaticamente.
 
-Esta configuração não implementa transporte TCP, geração ESC/POS, descoberta ou impressão. Ela apenas mantém o destino persistido para uso futuro.
+Esta configuração mantém o destino persistido. O transporte TCP é executado fora do domínio por uma ponte local: o navegador envia bytes já codificados para `127.0.0.1`, e o helper encaminha esses bytes ao host e à porta configurados. A configuração não implementa geração ESC/POS, descoberta ou consulta de status.
 
 ### Projeções transitórias de recibo e impressão
 
@@ -488,10 +488,18 @@ PrintJob
 
 PrinterConfiguration
 → destino e configuração
+
+Browser
+→ LoopbackPrinterTransport
+→ HTTP em 127.0.0.1
+→ helper local Windows-first
+→ TCP bruto para o destino configurado
 ```
 
-Transporte, descoberta, consulta de status e envio dos bytes permanecem fora
-dessa camada.
+`PrintJob` e ESC/POS permanecem independentes de plataforma. O helper recebe
+`Uint8Array` já codificado e não conhece `Order`, Firebase ou regras de negócio.
+O transporte para Android/iOS e o empacotamento/auto-início do helper ficam para
+trabalho futuro.
 
 ## 15. Serviços e hooks
 

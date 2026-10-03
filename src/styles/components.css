@@ -1914,6 +1914,13 @@
   gap: 8px;
 }
 
+.printer-feedback {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
 @media (max-width: 640px) {
   .printer-card-footer {
     align-items: stretch;

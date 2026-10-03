@@ -20,7 +20,7 @@ type PrinterPanelState =
 function getErrorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
-    : "Não foi possível atualizar a impressora.";
+    : "Não foi possível concluir a ação.";
 }
 
 export function PrintersPage() {
@@ -33,10 +33,12 @@ export function PrintersPage() {
     editPrinter,
     setPrinterActive,
     chooseDefaultPrinter,
+    testPrinterConnection,
   } = usePrinters();
   const [panel, setPanel] = useState<PrinterPanelState>(null);
   const [busyPrinterId, setBusyPrinterId] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
+  const [actionSuccess, setActionSuccess] = useState("");
 
   const effectiveDefaultPrinterId = printers.some(
     (printer) => printer.id === defaultPrinterId && printer.active,
@@ -60,6 +62,7 @@ export function PrintersPage() {
 
   async function handleActiveChange(printer: PrinterConfiguration, active: boolean) {
     setActionError("");
+    setActionSuccess("");
     setBusyPrinterId(printer.id);
 
     try {
@@ -73,6 +76,7 @@ export function PrintersPage() {
 
   async function handleSetDefault(printer: PrinterConfiguration) {
     setActionError("");
+    setActionSuccess("");
     setBusyPrinterId(printer.id);
 
     try {
@@ -84,11 +88,26 @@ export function PrintersPage() {
     }
   }
 
+  async function handleTestConnection(printer: PrinterConfiguration) {
+    setActionError("");
+    setActionSuccess("");
+    setBusyPrinterId(printer.id);
+
+    try {
+      await testPrinterConnection(printer);
+      setActionSuccess(`Conexão com “${printer.name}” testada com sucesso.`);
+    } catch (error) {
+      setActionError(getErrorMessage(error));
+    } finally {
+      setBusyPrinterId(null);
+    }
+  }
+
   return (
     <div className="page-stack">
       <PageHeader
         title="Impressoras"
-        description="Configure destinos de impressão para uso futuro, sem testar conexões ou imprimir diretamente pelo navegador."
+        description="Configure destinos e teste a conexão pela ponte local, sem imprimir diretamente pelo navegador."
         action={
           <Button type="button" onClick={() => setPanel({ type: "create" })}>
             + Impressora
@@ -98,6 +117,7 @@ export function PrintersPage() {
 
       {printersError && <p className="error-text">{printersError}</p>}
       {actionError && <p className="error-text">{actionError}</p>}
+      {actionSuccess && <p className="printer-feedback" aria-live="polite">{actionSuccess}</p>}
 
       {loading && <p className="muted-text">Carregando impressoras...</p>}
 
@@ -121,6 +141,7 @@ export function PrintersPage() {
               onEdit={(selectedPrinter) => setPanel({ type: "edit", printer: selectedPrinter })}
               onActiveChange={handleActiveChange}
               onSetDefault={handleSetDefault}
+              onTestConnection={handleTestConnection}
             />
           ))}
         </div>
