@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Filter } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -28,6 +29,7 @@ type OrderPaymentFilter = "all" | "unpaid" | "partial" | "paid";
 type OrderSortMode = "createdAt" | "deliveryDateTime" | "clientName" | "total";
 
 export function OrdersPage() {
+  const navigate = useNavigate();
   const { filteredClients, loading: loadingClients, error: clientsError, editClient } = useClients();
 
   const { addresses, addressesError, saveAddressForClient } = useAddresses();
@@ -189,6 +191,10 @@ export function OrdersPage() {
     setStackedEditOrder(selectedOrder);
   }
 
+  function openOrderReceipt(selectedOrder: Order) {
+    navigate(`/pedidos/${selectedOrder.id}/via`);
+  }
+
   const mainPanelSize = panel?.type === "view-order" && stackedEditOrder ? "fullscreen" : panel?.type === "view-order" ? "wide" : "fullscreen";
 
   return (
@@ -297,7 +303,14 @@ export function OrdersPage() {
         onClose={panel?.type === "view-order" ? closePanel : requestCloseOrderFormPanel}
       >
         {" "}
-        {panel?.type === "view-order" && <OrderDetailsPanelContent order={panel.order} products={products} onEdit={() => openStackedEditOrder(panel.order)} />}
+        {panel?.type === "view-order" && (
+          <OrderDetailsPanelContent
+            order={panel.order}
+            products={products}
+            onEdit={() => openStackedEditOrder(panel.order)}
+            onPrint={() => openOrderReceipt(panel.order)}
+          />
+        )}
         {panel?.type === "create-order" && (
           <OrderForm
             orders={orders}

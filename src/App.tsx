@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./components/layout/AppShell";
 import { ClientsPage } from "./features/clients/ClientsPage";
 import { OrdersPage } from "./features/orders/OrdersPage";
+import { OrderReceiptPage } from "./features/orders/OrderReceiptPage";
 import { ProductsPage } from "./features/products/ProductsPage";
 import { TagsPage } from "./features/tags/TagsPage";
 import { TasksPage } from "./features/tasks/TasksPage";
@@ -16,6 +17,7 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="pedidos/:orderId/via" element={<OrderReceiptPage />} />
       <Route element={<AppShell />}>
         <Route index element={<TodayPage />} />
         <Route path="clientes" element={<ClientsPage />} />
