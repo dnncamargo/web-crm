@@ -922,6 +922,18 @@
   padding-bottom: 10px;
   border-bottom: 1px dashed #000;
   text-align: center;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.receipt-logo {
+  display: block;
+  width: 100%;
+  max-width: 42mm;
+  height: auto;
+  margin: 0 auto;
+  break-inside: avoid;
+  page-break-inside: avoid;
 }
 
 .receipt-header h1,

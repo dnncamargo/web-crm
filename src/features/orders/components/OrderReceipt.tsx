@@ -30,6 +30,7 @@ export function OrderReceipt({ order, products }: OrderReceiptProps) {
   return (
     <article className="receipt-paper" aria-label="Prévia do recibo do pedido">
       <header className="receipt-header">
+        <img className="receipt-logo" src="/brand/brand-mark-print.bmp" alt="Delícias do Porto" />
         <h1>Pedido</h1>
         <p>Entrega: {formatDateTimeBR(order.deliveryDateTime)}</p>
       </header>
