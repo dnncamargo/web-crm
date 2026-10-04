@@ -28,6 +28,7 @@ import {
   type WakePollResult,
 } from "./androidPrintWakeResume";
 import { getAndroidPrintWakeErrorDetails } from "./androidPrintWakeErrors";
+import { createAndroidPrintDiagnosticResumeOwner } from "./androidPrintDiagnosticResumeOwner";
 import {
   appendAndroidDiagnosticLog,
   createInitialAndroidDiagnosticLog,
@@ -169,7 +170,7 @@ export function AndroidPrintWakePage() {
   const attemptNumberRef = useRef(0);
   const pollAttemptCountRef = useRef(0);
   const currentAttemptIdRef = useRef<string | null>(initialPendingWake?.attemptId ?? null);
-  const resumeAttemptIdRef = useRef<string | null>(null);
+  const resumeOwnerRef = useRef(createAndroidPrintDiagnosticResumeOwner());
   const staleAttemptLogRef = useRef(new Set<string>());
 
   const appendDiagnosticLog = useCallback((
@@ -331,7 +332,12 @@ export function AndroidPrintWakePage() {
     }
     const pendingWake = freshPending.pending;
     const attemptId = pendingWake.attemptId;
-    const alreadyResuming = resumeAttemptIdRef.current === attemptId;
+    const isResumeOwner = resumeOwnerRef.current.claim(attemptId);
+
+    if (!isResumeOwner) {
+      appendDiagnosticLog("resume", "reutilizado", `id=${shortenAndroidDiagnosticAttemptId(attemptId)}`);
+      return;
+    }
 
     if (currentAttemptIdRef.current !== attemptId) {
       currentAttemptIdRef.current = attemptId;
@@ -340,20 +346,15 @@ export function AndroidPrintWakePage() {
     } else if (attemptStartedAtRef.current === null) {
       resetAttemptMetrics(pendingWake.createdAt, "health");
       appendDiagnosticLog("resume", "início", `id=${shortenAndroidDiagnosticAttemptId(attemptId)}`);
-    } else if (alreadyResuming) {
-      appendDiagnosticLog("resume", "reutilizado", `id=${shortenAndroidDiagnosticAttemptId(attemptId)}`);
     }
 
-    resumeAttemptIdRef.current = attemptId;
-    if (!alreadyResuming) {
-      setCurrentStage("health");
-      setBridgeStatus("checking");
-      setFlowStatus("preparing");
-      setMessage("Aguardando o companion responder…");
-      setErrorMessage("");
-      setShowDownload(false);
-      setShowPair(false);
-    }
+    setCurrentStage("health");
+    setBridgeStatus("checking");
+    setFlowStatus("preparing");
+    setMessage("Aguardando o companion responder…");
+    setErrorMessage("");
+    setShowDownload(false);
+    setShowPair(false);
 
     try {
       const config = loadPrintCompanionConfig();
@@ -441,9 +442,7 @@ export function AndroidPrintWakePage() {
       if (currentAttemptIdRef.current === attemptId) {
         finishAttempt();
       }
-      if (resumeAttemptIdRef.current === attemptId) {
-        resumeAttemptIdRef.current = null;
-      }
+      resumeOwnerRef.current.release(attemptId);
     }
   }, [appendAttemptDiagnosticLog, appendDiagnosticLog, defaultPrinter, finishAttempt, getCurrentElapsedMs, handleHealthReady, handlePollAttempt, handlePollResult, handleStageChange, handleStageResult, isProduction, loadingPrinters, resetAttemptMetrics]);
 
@@ -453,7 +452,8 @@ export function AndroidPrintWakePage() {
     }
 
     const previousAttemptId = currentAttemptIdRef.current;
-    if (previousAttemptId !== null && resumeAttemptIdRef.current !== null && previousAttemptId !== wakeIntent.attemptId) {
+    const activeResumeAttemptId = resumeOwnerRef.current.getActiveAttemptId();
+    if (previousAttemptId !== null && activeResumeAttemptId !== null && previousAttemptId !== wakeIntent.attemptId) {
       appendDiagnosticLog(
         "resume",
         "tentativa anterior invalidada",
@@ -602,12 +602,12 @@ export function AndroidPrintWakePage() {
           )}
           {isProduction && showPair && (flowStatus === "idle" || flowStatus === "fail") && (
             <a className="button button-primary" href={wakeIntent.intentUrl} onClick={handleWakeClick}>
-              PAREAR COMPANION
+              Parear companion
             </a>
           )}
           {isProduction && !showPair && flowStatus === "idle" && (
             <a className="button button-secondary" href={wakeIntent.intentUrl} onClick={handleWakeClick}>
-              {isInstallLanding ? "Tentar abrir aplicativo" : "ATIVAR COMPANION E TESTAR"}
+              {isInstallLanding ? "Tentar abrir aplicativo" : "Ativar companion e testar"}
             </a>
           )}
           {isProduction && flowStatus === "fail" && !showPair && (
@@ -646,10 +646,10 @@ export function AndroidPrintWakePage() {
         <pre>{diagnosticLog.map(formatAndroidDiagnosticLogEntry).join("\n")}</pre>
         <div className="android-wake-actions">
           <Button type="button" variant="secondary" onClick={() => setDiagnosticLog([])}>
-            LIMPAR LOG
+            Limpar log
           </Button>
           <Button type="button" variant="secondary" onClick={() => void copyLog()}>
-            COPIAR LOG
+            Copiar log
           </Button>
           {copyMessage && <span className="muted-text">{copyMessage}</span>}
         </div>
