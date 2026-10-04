@@ -35,7 +35,7 @@ describe("Android diagnostic visible log", () => {
 
   it("formats a safe copy payload with the diagnostic header", () => {
     const text = formatAndroidDiagnosticLog({
-      diagnosticVersion: "1.0.4",
+      diagnosticVersion: "1.0.5",
       companionVersion: "1.0.0",
       companionVersionCode: 1,
       environment: "PRODUÇÃO",
@@ -52,7 +52,7 @@ describe("Android diagnostic visible log", () => {
       details: "app=1.0.0 code=1 api=1 paired=false",
     }]);
 
-    expect(text).toContain("Diagnóstico Android v1.0.4");
+    expect(text).toContain("Diagnóstico Android v1.0.5");
     expect(text).toContain("Ambiente PRODUÇÃO");
     expect(text).toContain("Tentativa #2");
     expect(text).toContain("[health] probe #1 respondeu");

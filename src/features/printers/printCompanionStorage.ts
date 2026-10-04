@@ -4,6 +4,7 @@ import type {
   PrintCompanionToken,
 } from "./printCompanionTypes";
 import { PRINT_COMPANION_API_VERSION } from "./printCompanionTypes";
+import { WAKE_TIMEOUT_MS } from "../diagnostics/androidPrintWakeResume";
 
 export const PRINT_COMPANION_TOKEN_STORAGE_KEY = "web-crm.print-companion.auth.v1";
 export const PRINT_COMPANION_CONFIG_STORAGE_KEY = "web-crm.print-companion.config.v1";
@@ -12,9 +13,15 @@ export const PRINT_COMPANION_WAKE_SESSION_KEY = "web-crm.print-companion.wake.v1
 const DEFAULT_IDLE_TIMEOUT_MINUTES = 15;
 
 export interface PendingPrintCompanionWake {
+  attemptId: string;
   nonce: string;
   createdAt: number;
   intent: PrintCompanionIntent;
+}
+
+export interface FreshPendingPrintCompanionWake {
+  pending: PendingPrintCompanionWake | null;
+  staleAgeMs?: number;
 }
 
 function getStorage(
@@ -148,17 +155,67 @@ export function loadPendingPrintCompanionWake(storage?: Storage): PendingPrintCo
     value === null ||
     typeof value !== "object" ||
     typeof (value as Record<string, unknown>).nonce !== "string" ||
-    typeof (value as Record<string, unknown>).createdAt !== "number"
+    (value as Record<string, unknown>).nonce === "" ||
+    typeof (value as Record<string, unknown>).createdAt !== "number" ||
+    !Number.isFinite((value as Record<string, unknown>).createdAt)
   ) {
     return null;
   }
 
   const intent = (value as Record<string, unknown>).intent;
+  const attemptId = (value as Record<string, unknown>).attemptId;
+  if (
+    typeof attemptId !== "string" ||
+    attemptId.length === 0 ||
+    (intent !== "test" && intent !== "print")
+  ) {
+    return null;
+  }
+
   return {
+    attemptId,
     nonce: (value as Record<string, unknown>).nonce as string,
     createdAt: (value as Record<string, unknown>).createdAt as number,
     intent: intent === "print" ? "print" : "test",
   };
+}
+
+export function clearPendingPrintCompanionWakeIfMatches(
+  attemptId: string,
+  storage?: Storage,
+) {
+  const current = loadPendingPrintCompanionWake(storage);
+  if (!current || current.attemptId !== attemptId) {
+    return false;
+  }
+
+  getStorage(storage, "sessionStorage")?.removeItem(PRINT_COMPANION_WAKE_SESSION_KEY);
+  return true;
+}
+
+export function inspectFreshPendingPrintCompanionWake(
+  storage?: Storage,
+  now = Date.now(),
+): FreshPendingPrintCompanionWake {
+  const pending = loadPendingPrintCompanionWake(storage);
+  if (!pending) {
+    return { pending: null };
+  }
+
+  const ageMs = Math.max(0, now - pending.createdAt);
+  if (ageMs >= WAKE_TIMEOUT_MS) {
+    clearPendingPrintCompanionWakeIfMatches(pending.attemptId, storage);
+    return { pending: null, staleAgeMs: ageMs };
+  }
+
+  return { pending };
+}
+
+export function loadFreshPendingPrintCompanionWake(
+  storage?: Storage,
+  now = Date.now(),
+) {
+  return inspectFreshPendingPrintCompanionWake(storage, now).pending;
 }
 
 export function savePendingPrintCompanionWake(
@@ -170,8 +227,4 @@ export function savePendingPrintCompanionWake(
     PRINT_COMPANION_WAKE_SESSION_KEY,
     wake,
   );
-}
-
-export function clearPendingPrintCompanionWake(storage?: Storage) {
-  getStorage(storage, "sessionStorage")?.removeItem(PRINT_COMPANION_WAKE_SESSION_KEY);
 }

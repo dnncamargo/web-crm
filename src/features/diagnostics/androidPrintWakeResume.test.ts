@@ -183,6 +183,22 @@ describe("Android wake resume controller", () => {
     expect(health).toHaveBeenCalledTimes(1);
   });
 
+  it("starts the first probe before timing out at the exact deadline", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(WAKE_TIMEOUT_MS);
+    const health = vi.fn().mockResolvedValue(false);
+    const harness = createHarness({
+      health,
+      startedAt: 0,
+    });
+
+    harness.controller.beginPendingWake();
+    await settle();
+
+    expect(health).toHaveBeenCalledTimes(1);
+    expect(harness.onWakeTimeout).toHaveBeenCalledTimes(1);
+  });
+
   it("fails and clears the pending wake when the finite timeout expires", async () => {
     vi.useFakeTimers();
     const harness = createHarness({ health: vi.fn().mockResolvedValue(false) });
