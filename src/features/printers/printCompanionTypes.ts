@@ -2,6 +2,7 @@ export const PRINT_COMPANION_API_VERSION = "1" as const;
 export const PRINT_COMPANION_ORIGIN = "https://deliciasdoporto.vercel.app";
 export const PRINT_COMPANION_APP_LINK =
   "https://deliciasdoporto.vercel.app/android-print-bridge/activate";
+export const PRINT_COMPANION_DOWNLOAD_URL = "/downloads/print-companion";
 
 export type PrintCompanionCapability = string;
 

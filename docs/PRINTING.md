@@ -61,6 +61,11 @@ operar. O App Link de wake é
 o nonce é efêmero e não é persistido no Firestore. Não há `.exe`, serviço do
 Windows, auto-início ou instalação nesta etapa.
 
+Quando o companion não puder ser acordado, a landing do App Link oferece a URL
+estável `/downloads/print-companion`. O deployment deve publicar nessa URL
+somente o APK release assinado de `io.webcrm.printcompanion`; o web-crm não
+gera nem valida um APK Android.
+
 Neste checkpoint, as ações de teste da configuração de impressoras usam o
 cliente Android v1. A página de diagnóstico e o botão de impressão do recibo
 continuam no transporte legado até o cutover R3b.
