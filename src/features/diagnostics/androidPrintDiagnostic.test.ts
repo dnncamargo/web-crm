@@ -10,7 +10,7 @@ import {
 
 describe("Android print diagnostic metadata", () => {
   it("keeps the diagnostic and companion baselines explicit", () => {
-    expect(ANDROID_PRINT_DIAGNOSTIC_VERSION).toBe("1.0.2");
+    expect(ANDROID_PRINT_DIAGNOSTIC_VERSION).toBe("1.0.3");
     expect(EXPECTED_COMPANION_APP_VERSION).toBe("1.0.0");
     expect(EXPECTED_COMPANION_VERSION_CODE).toBe(1);
   });

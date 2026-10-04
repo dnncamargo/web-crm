@@ -4,6 +4,7 @@ import {
   createWakeResumeController,
   POLL_INTERVAL_MS,
   WAKE_TIMEOUT_MS,
+  type WakePollResult,
   type WakePollProgress,
 } from "./androidPrintWakeResume";
 
@@ -17,6 +18,8 @@ function createHarness(options: {
   health: () => Promise<boolean>;
   runTest?: () => Promise<void>;
   onPollAttempt?: (progress: WakePollProgress) => void;
+  onPollResult?: (result: WakePollResult) => void;
+  startedAt?: number;
 }) {
   let pending = options.pending ?? true;
   const clearPendingWake = vi.fn(() => {
@@ -34,6 +37,8 @@ function createHarness(options: {
     onInitialHealth,
     onWakeTimeout,
     onPollAttempt: options.onPollAttempt,
+    onPollResult: options.onPollResult,
+    startedAt: options.startedAt,
   });
 
   return {
@@ -107,6 +112,49 @@ describe("Android wake resume controller", () => {
       { attempt: 1, elapsedMs: 0 },
       { attempt: 2, elapsedMs: POLL_INTERVAL_MS },
     ]);
+  });
+
+  it("does not overlap health probes while the current probe is pending", async () => {
+    vi.useFakeTimers();
+    let resolveHealth: ((value: boolean) => void) | undefined;
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const health = vi.fn(() => new Promise<boolean>((resolve) => {
+      resolveHealth = resolve;
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+    }).finally(() => {
+      inFlight -= 1;
+    }));
+    const harness = createHarness({ health });
+
+    harness.controller.beginPendingWake();
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS * 3);
+    expect(health).toHaveBeenCalledTimes(1);
+    expect(maxInFlight).toBe(1);
+
+    resolveHealth?.(true);
+    await vi.advanceTimersByTimeAsync(0);
+    await settle();
+    expect(harness.runPendingTest).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the fifteen-second deadline anchored to the wake start", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const health = vi.fn().mockResolvedValue(false);
+    const harness = createHarness({
+      health,
+      startedAt: 0,
+    });
+
+    vi.advanceTimersByTime(14_900);
+    harness.controller.beginPendingWake();
+    await vi.advanceTimersByTimeAsync(100);
+    await settle();
+
+    expect(harness.onWakeTimeout).toHaveBeenCalledTimes(1);
+    expect(health).toHaveBeenCalledTimes(1);
   });
 
   it("fails and clears the pending wake when the finite timeout expires", async () => {
