@@ -10,7 +10,6 @@ import {
 } from "../printers/printCompanionStorage";
 import {
   PRINT_COMPANION_DOWNLOAD_URL,
-  PrintCompanionError,
   type PrintCompanionHealth,
 } from "../printers/printCompanionTypes";
 import {
@@ -20,7 +19,8 @@ import {
   getProductionDiagnosticUrl,
   isAndroidPrintDiagnosticProduction,
 } from "./androidPrintDiagnostic";
-import type { WakePollProgress } from "./androidPrintWakeResume";
+import type { WakePollProgress, WakePollResult } from "./androidPrintWakeResume";
+import { getAndroidPrintWakeErrorDetails } from "./androidPrintWakeErrors";
 import { usePrinters } from "../printers/usePrinters";
 import { resolveDefaultPrinter } from "../printers/printerUtils";
 
@@ -29,88 +29,6 @@ type FlowStatus = "idle" | "preparing" | "configuring" | "testing" | "pass" | "f
 type DiagnosticStage = "idle" | "wake" | "health" | "pair" | "config" | "test";
 
 const companionClient = createPrintCompanionClient();
-
-function getErrorDetails(error: unknown) {
-  if (!(error instanceof PrintCompanionError)) {
-    return {
-      message: "Não foi possível preparar o aplicativo de impressão.",
-      publicCode: "unknown_error",
-      showDownload: false,
-      showPair: false,
-      downloadLabel: "Baixar aplicativo para Android",
-    };
-  }
-
-  if (error.code === "pairing_expired" && error.companionCode === "wake_timeout") {
-    return {
-      message: "O companion não respondeu em 15 segundos.",
-      publicCode: error.code,
-      showDownload: true,
-      showPair: false,
-      downloadLabel: "Baixar aplicativo para Android",
-    };
-  }
-
-  if (error.code === "companion_incompatible") {
-    return {
-      message: "A API do companion é incompatível com este diagnóstico.",
-      publicCode: error.code,
-      showDownload: false,
-      showPair: false,
-      downloadLabel: "Atualizar aplicativo",
-    };
-  }
-
-  if (error.code === "pairing_required" || error.code === "invalid_token") {
-    return {
-      message: "Pareie o companion para continuar.",
-      publicCode: error.code,
-      showDownload: false,
-      showPair: true,
-      downloadLabel: "Baixar aplicativo para Android",
-    };
-  }
-
-  if (error.code === "pairing_expired") {
-    return {
-      message: "O pareamento do companion expirou.",
-      publicCode: error.code,
-      showDownload: false,
-      showPair: false,
-      downloadLabel: "Baixar aplicativo para Android",
-    };
-  }
-
-  if (error.code === "protocol_error") {
-    return {
-      message: "O companion retornou uma resposta inválida.",
-      publicCode: error.code,
-      showDownload: false,
-      showPair: false,
-      downloadLabel: "Baixar aplicativo para Android",
-    };
-  }
-
-  if (error.code === "missing_capability") {
-    return {
-      message: "O aplicativo instalado não oferece a capacidade necessária.",
-      publicCode: error.code,
-      showDownload: false,
-      showPair: false,
-      downloadLabel: "Atualizar aplicativo",
-    };
-  }
-
-  return {
-    message: error.code === "companion_offline"
-      ? "O companion está offline."
-      : error.message,
-    publicCode: error.code,
-    showDownload: false,
-    showPair: false,
-    downloadLabel: "Baixar aplicativo para Android",
-  };
-}
 
 function getFlowLabel(flowStatus: FlowStatus, bridgeStatus: BridgeStatus, currentStage: DiagnosticStage) {
   if (flowStatus === "pass") {
@@ -150,6 +68,16 @@ function getFlowLabel(flowStatus: FlowStatus, bridgeStatus: BridgeStatus, curren
 
 function formatElapsed(elapsedMs: number) {
   return `${(elapsedMs / 1000).toFixed(1).replace(".", ",")} s`;
+}
+
+function monotonicNow() {
+  return typeof performance === "undefined" ? Date.now() : performance.now();
+}
+
+function formatLogTime() {
+  const wallTime = new Date().toLocaleTimeString("pt-BR", { hour12: false });
+  const tenths = Math.floor((monotonicNow() % 1000) / 100);
+  return `${wallTime},${tenths}`;
 }
 
 function getStageLabel(stage: DiagnosticStage) {
@@ -204,16 +132,71 @@ export function AndroidPrintWakePage() {
   const [health, setHealth] = useState<PrintCompanionHealth | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [attemptStartedAt, setAttemptStartedAt] = useState<number | null>(null);
+  const [attemptActive, setAttemptActive] = useState(false);
   const [pollAttemptCount, setPollAttemptCount] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [currentStage, setCurrentStage] = useState<DiagnosticStage>(hasPendingWake ? "health" : "idle");
   const [lastPublicErrorCode, setLastPublicErrorCode] = useState<string | null>(null);
+  const [stageLog, setStageLog] = useState<string[]>([]);
+  const attemptStartedAtRef = useRef<number | null>(null);
+  const attemptStartedPerformanceAtRef = useRef<number | null>(null);
   const runningRef = useRef(false);
+
+  const appendStageLog = useCallback((event: string) => {
+    setStageLog((current) => [...current, `${formatLogTime()} ${event}`].slice(-20));
+  }, []);
+
+  const resetAttemptMetrics = useCallback((startedAt: number, stage: DiagnosticStage) => {
+    const elapsedBeforeResume = Math.max(0, Date.now() - startedAt);
+    attemptStartedAtRef.current = startedAt;
+    attemptStartedPerformanceAtRef.current = monotonicNow() - elapsedBeforeResume;
+    setAttemptStartedAt(startedAt);
+    setAttemptActive(true);
+    setPollAttemptCount(0);
+    setElapsedMs(elapsedBeforeResume);
+    setCurrentStage(stage);
+    setLastPublicErrorCode(null);
+    setStageLog([]);
+  }, []);
+
+  const updateElapsed = useCallback(() => {
+    const startedAt = attemptStartedPerformanceAtRef.current;
+    if (startedAt !== null) {
+      setElapsedMs(Math.max(0, monotonicNow() - startedAt));
+    }
+  }, []);
+
+  const finishAttempt = useCallback(() => {
+    updateElapsed();
+    setAttemptActive(false);
+  }, [updateElapsed]);
+
+  useEffect(() => {
+    if (!attemptActive) {
+      return undefined;
+    }
+
+    updateElapsed();
+    const heartbeat = window.setInterval(updateElapsed, 250);
+    return () => window.clearInterval(heartbeat);
+  }, [attemptActive, updateElapsed]);
 
   const handlePollAttempt = useCallback(({ attempt, elapsedMs: nextElapsedMs }: WakePollProgress) => {
     setCurrentStage("health");
     setPollAttemptCount(attempt);
     setElapsedMs(nextElapsedMs);
+    appendStageLog(`health #${attempt} iniciado`);
+  }, [appendStageLog]);
+
+  const handlePollResult = useCallback(({ attempt, status }: WakePollResult) => {
+    appendStageLog(`health #${attempt} ${status === "online" ? "respondeu" : "sem resposta"}`);
+  }, [appendStageLog]);
+
+  const handleHealthReady = useCallback((nextHealth: PrintCompanionHealth) => {
+    setHealth(nextHealth);
+    setBridgeStatus("online");
+    setCurrentStage("pair");
+    setMessage("Companion respondeu. Verificando pareamento…");
   }, []);
 
   const handleStageChange = useCallback((stage: "health" | "pair" | "config") => {
@@ -221,25 +204,29 @@ export function AndroidPrintWakePage() {
     if (stage === "pair") {
       setFlowStatus("preparing");
       setMessage("Companion respondeu. Pareando…");
+      appendStageLog("pair iniciado");
     } else if (stage === "config") {
       setFlowStatus("configuring");
       setMessage("Companion respondeu. Aplicando configuração…");
+      appendStageLog("config iniciado");
     } else {
       setMessage("Aguardando o companion responder…");
     }
-  }, []);
+  }, [appendStageLog]);
 
   const resumeAcceptance = useCallback(async () => {
-    if (!isProduction || loadingPrinters || runningRef.current || !loadPendingPrintCompanionWake()) {
+    const pendingWake = loadPendingPrintCompanionWake();
+    if (!isProduction || loadingPrinters || runningRef.current || !pendingWake) {
       return;
     }
 
+    if (attemptStartedAtRef.current === null) {
+      resetAttemptMetrics(pendingWake.createdAt, "health");
+      appendStageLog("wake retomado");
+    }
+
     runningRef.current = true;
-    setAttemptStartedAt(Date.now());
-    setPollAttemptCount(0);
-    setElapsedMs(0);
     setCurrentStage("health");
-    setLastPublicErrorCode(null);
     setBridgeStatus("checking");
     setFlowStatus("preparing");
     setMessage("Aguardando o companion responder…");
@@ -253,7 +240,9 @@ export function AndroidPrintWakePage() {
         requiredCapabilities: ["test"],
         config,
         onPollAttempt: handlePollAttempt,
+        onPollResult: handlePollResult,
         onStageChange: handleStageChange,
+        onHealthReady: handleHealthReady,
       });
       setHealth(readyHealth);
       setAuthenticated(true);
@@ -275,7 +264,7 @@ export function AndroidPrintWakePage() {
       setFlowStatus("pass");
       setMessage(`Conexão com “${defaultPrinter.name}” estabelecida. Nenhuma impressão física foi realizada.`);
     } catch (error) {
-      const details = getErrorDetails(error);
+      const details = getAndroidPrintWakeErrorDetails(error);
       setBridgeStatus("offline");
       setFlowStatus("fail");
       setAuthenticated(false);
@@ -285,33 +274,33 @@ export function AndroidPrintWakePage() {
       setShowPair(details.showPair);
       setDownloadLabel(details.downloadLabel);
       setMessage("O diagnóstico não foi concluído.");
+      appendStageLog(`erro ${details.publicCode}`);
     } finally {
+      finishAttempt();
       runningRef.current = false;
     }
-  }, [defaultPrinter, handlePollAttempt, handleStageChange, isProduction, loadingPrinters]);
+  }, [appendStageLog, defaultPrinter, finishAttempt, handleHealthReady, handlePollAttempt, handlePollResult, handleStageChange, isProduction, loadingPrinters, resetAttemptMetrics]);
 
   const handleWakeClick = useCallback(() => {
     if (!isProduction) {
       return;
     }
 
+    const clickTimestamp = Date.now();
     companionClient.activatePreparedWake(wakeIntent);
+    resetAttemptMetrics(clickTimestamp, "wake");
+    appendStageLog("wake enviado");
     window.setTimeout(() => {
       setWakeIntent(companionClient.prepareWakeIntent("test"));
       void resumeAcceptance();
     }, 0);
-    setAttemptStartedAt(Date.now());
-    setPollAttemptCount(0);
-    setElapsedMs(0);
-    setCurrentStage("wake");
-    setLastPublicErrorCode(null);
     setBridgeStatus("checking");
     setFlowStatus("preparing");
     setMessage("Solicitação de abertura enviada ao Android.");
     setErrorMessage("");
     setShowDownload(false);
     setShowPair(false);
-  }, [isProduction, resumeAcceptance, wakeIntent]);
+  }, [appendStageLog, isProduction, resetAttemptMetrics, resumeAcceptance, wakeIntent]);
 
   useEffect(() => {
     if (!isProduction || loadingPrinters) {
@@ -382,11 +371,23 @@ export function AndroidPrintWakePage() {
           <span>Impressora: {defaultPrinter?.name ?? "nenhuma padrão ativa"}</span>
           <span>Etapa: {getStageLabel(currentStage)}</span>
           <span>Tentativa iniciada: {attemptStartedAt ? new Date(attemptStartedAt).toLocaleTimeString("pt-BR") : "—"}</span>
-          {isProduction && bridgeStatus === "checking" && currentStage === "health" && pollAttemptCount > 0 && (
-            <span>Tentativa {pollAttemptCount} · {formatElapsed(elapsedMs)}</span>
+          {isProduction && attemptStartedAt !== null && (
+            <>
+              <span>Health probes: {pollAttemptCount}</span>
+              <span>Tempo total: {formatElapsed(elapsedMs)}</span>
+            </>
           )}
           {lastPublicErrorCode && <span>Código: {lastPublicErrorCode}</span>}
         </div>
+
+        {stageLog.length > 0 && (
+          <div className="muted-text">
+            <span>Etapas recentes:</span>
+            <ul>
+              {stageLog.map((entry, index) => <li key={`${entry}-${index}`}>{entry}</li>)}
+            </ul>
+          </div>
+        )}
 
         <div className="android-wake-actions">
           {!isProduction && (

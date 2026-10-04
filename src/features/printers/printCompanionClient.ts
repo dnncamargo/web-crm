@@ -23,9 +23,11 @@ import {
   type PrintCompanionToken,
 } from "./printCompanionTypes";
 import {
+  WAKE_HEALTH_REQUEST_TIMEOUT_MS,
   WAKE_TIMEOUT_MS,
   waitForWakeResume,
   type WakePollProgress,
+  type WakePollResult,
 } from "../diagnostics/androidPrintWakeResume";
 
 export const DEFAULT_PRINT_COMPANION_URL = "http://127.0.0.1:17890";
@@ -50,7 +52,9 @@ export interface PrintCompanionReadyOptions {
   requiredCapabilities?: PrintCompanionCapability[];
   config?: PrintCompanionConfig;
   onPollAttempt?: (progress: WakePollProgress) => void;
+  onPollResult?: (result: WakePollResult) => void;
   onStageChange?: (stage: "health" | "pair" | "config") => void;
+  onHealthReady?: (health: PrintCompanionHealth) => void;
 }
 
 export interface PrintCompanionWakeIntent {
@@ -61,7 +65,7 @@ export interface PrintCompanionWakeIntent {
 }
 
 export interface PrintCompanionClient {
-  health(): Promise<PrintCompanionHealth>;
+  health(timeoutMs?: number): Promise<PrintCompanionHealth>;
   prepareWakeIntent(intent?: PrintCompanionIntent): PrintCompanionWakeIntent;
   activatePreparedWake(wakeIntent: PrintCompanionWakeIntent): void;
   startWakeFromUserGesture(intent?: PrintCompanionIntent): { nonce: string; url: string };
@@ -280,9 +284,10 @@ export function createPrintCompanionClient(
     init: RequestInit = {},
     token?: string,
     extraSecrets: string[] = [],
+    timeoutMs = requestTimeoutMs,
   ): Promise<unknown> {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), requestTimeoutMs);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
 
@@ -364,8 +369,8 @@ export function createPrintCompanionClient(
     }
   }
 
-  async function health() {
-    const body = await request("/v1/health", { method: "GET" });
+  async function health(timeoutMs = requestTimeoutMs) {
+    const body = await request("/v1/health", { method: "GET" }, undefined, [], timeoutMs);
     if (!isValidHealth(body)) {
       throw new PrintCompanionError(
         "protocol_error",
@@ -465,13 +470,18 @@ export function createPrintCompanionClient(
       try {
         const pendingWake = getFreshPendingWake();
         if (!pendingWake) {
-          throw new PrintCompanionError("pairing_expired", "A ativação do companion expirou.");
+          throw new PrintCompanionError(
+            "pairing_expired",
+            "A ativação do companion expirou.",
+            { companionCode: "wake_timeout" },
+          );
         }
 
         readyOptions.onStageChange?.("health");
         const healthResult = await waitForWakeResume(
           async () => {
-            const value = await health();
+            const remainingMs = Math.max(1, pendingWake.createdAt + WAKE_TIMEOUT_MS - Date.now());
+            const value = await health(Math.min(WAKE_HEALTH_REQUEST_TIMEOUT_MS, remainingMs));
             if (value.apiVersion !== PRINT_COMPANION_API_VERSION) {
               throw new PrintCompanionError(
                 "companion_incompatible",
@@ -484,11 +494,14 @@ export function createPrintCompanionClient(
           {
             clearPendingWakeOnSuccess: false,
             onPollAttempt: readyOptions.onPollAttempt,
+            onPollResult: readyOptions.onPollResult,
+            startedAt: pendingWake.createdAt,
             isTransientError: (error) =>
               !(error instanceof PrintCompanionError &&
                 (error.code === "protocol_error" || error.code === "companion_incompatible")),
           },
         );
+        readyOptions.onHealthReady?.(healthResult);
         validateHealth(healthResult, readyOptions.requiredCapabilities ?? []);
 
         if (!loadPrintCompanionToken(localStorage)) {
