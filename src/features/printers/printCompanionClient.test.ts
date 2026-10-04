@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createPrintCompanionClient,
@@ -8,6 +8,7 @@ import {
 import { savePendingPrintCompanionWake, savePrintCompanionToken } from "./printCompanionStorage";
 import { PrintCompanionError } from "./printCompanionTypes";
 import type { PrinterConfiguration } from "./printerTypes";
+import { POLL_INTERVAL_MS, WAKE_TIMEOUT_MS } from "../diagnostics/androidPrintWakeResume";
 
 class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>();
@@ -83,6 +84,10 @@ function createClient(fetchImpl: typeof fetch, localStorage = new MemoryStorage(
 }
 
 describe("PrintCompanionClient", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("validates health compatibility and required capabilities", async () => {
     const incompatible = createClient(vi.fn<typeof fetch>().mockResolvedValue(response(health({ apiVersion: "2" }))));
     await expect(incompatible.client.ensureCompanionReady()).rejects.toMatchObject<Partial<PrintCompanionError>>({
@@ -169,6 +174,109 @@ describe("PrintCompanionClient", () => {
     expect(JSON.parse((fetchImpl.mock.calls[1]?.[1] as RequestInit).body as string)).toMatchObject({
       nonce: "pending-nonce",
     });
+  });
+
+  it("arms resume after App Link navigation without waiting for lifecycle events", async () => {
+    const sessionStorage = new MemoryStorage();
+    const localStorage = new MemoryStorage();
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(health()))
+      .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }));
+    let resumePromise: Promise<unknown> | undefined;
+    const assign = vi.fn(() => {
+      queueMicrotask(() => {
+        resumePromise = client.resumePendingWake();
+      });
+    });
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl,
+      localStorage,
+      sessionStorage,
+      locationAssign: assign,
+    });
+
+    client.startWakeFromUserGesture("test");
+    expect(assign).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(resumePromise).toBeDefined();
+    await expect(resumePromise!).resolves.toBeDefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(sessionStorage.getItem("web-crm.print-companion.wake.v1")).toBeNull();
+  });
+
+  it("keeps pending through offline polling and completes pair, config, and test", async () => {
+    vi.useFakeTimers();
+    const sessionStorage = new MemoryStorage();
+    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    const localStorage = new MemoryStorage();
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockResolvedValueOnce(response(health()))
+      .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }))
+      .mockResolvedValueOnce(response({ ok: true }))
+      .mockResolvedValueOnce(response(health()))
+      .mockResolvedValueOnce(response({ ok: true }));
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl,
+      localStorage,
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+
+    const resumePromise = client.resumePendingWake({
+      requiredCapabilities: ["test"],
+      config: { idleTimeoutMinutes: 15 },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sessionStorage.getItem("web-crm.print-companion.wake.v1")).toContain("pending-nonce");
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    await resumePromise;
+
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(sessionStorage.getItem("web-crm.print-companion.wake.v1")).toBeNull();
+    await client.testPrinter(printer);
+    expect(fetchImpl).toHaveBeenCalledTimes(6);
+    expect(fetchImpl.mock.calls[5]?.[0]).toBe("http://127.0.0.1:17891/v1/test");
+  });
+
+  it("clears pending and reports pairing expiration only after the finite timeout", async () => {
+    vi.useFakeTimers();
+    const sessionStorage = new MemoryStorage();
+    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl: vi.fn<typeof fetch>().mockRejectedValue(new TypeError("offline")),
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+
+    const resumePromise = client.resumePendingWake();
+    const rejection = expect(resumePromise).rejects.toMatchObject<Partial<PrintCompanionError>>({
+      code: "pairing_expired",
+    });
+    await vi.advanceTimersByTimeAsync(WAKE_TIMEOUT_MS);
+    await rejection;
+    expect(sessionStorage.getItem("web-crm.print-companion.wake.v1")).toBeNull();
+  });
+
+  it("clears pending immediately for a definitive health protocol error", async () => {
+    const sessionStorage = new MemoryStorage();
+    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(response({ ok: true })),
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+
+    await expect(client.resumePendingWake()).rejects.toMatchObject<Partial<PrintCompanionError>>({
+      code: "protocol_error",
+    });
+    expect(sessionStorage.getItem("web-crm.print-companion.wake.v1")).toBeNull();
   });
 
   it("resumes pairing and applies config after returning from the App Link", async () => {

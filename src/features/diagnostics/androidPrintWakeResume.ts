@@ -9,6 +9,7 @@ interface WakeResumeControllerOptions {
   runPendingTest: () => Promise<void>;
   onInitialHealth: (online: boolean) => void;
   onWakeTimeout: () => void;
+  clearPendingOnSuccess?: boolean;
 }
 
 export interface WakeResumeController {
@@ -18,15 +19,23 @@ export interface WakeResumeController {
   dispose(): void;
 }
 
+export interface WaitForWakeResumeOptions {
+  clearPendingWakeOnSuccess?: boolean;
+  isTransientError?: (error: unknown) => boolean;
+}
+
 export async function waitForWakeResume<T>(
   checkHealth: () => Promise<T>,
   isReady: (value: T) => boolean,
+  options: WaitForWakeResumeOptions = {},
 ): Promise<T> {
   let latestValue: T | undefined;
   let pending = true;
   let resolveResult: (value: T) => void = () => undefined;
   let rejectResult: (reason: unknown) => void = () => undefined;
   let settled = false;
+  let hasFatalError = false;
+  let fatalError: unknown;
 
   const result = new Promise<T>((resolve, reject) => {
     resolveResult = resolve;
@@ -43,13 +52,21 @@ export async function waitForWakeResume<T>(
         const value = await checkHealth();
         latestValue = value;
         return isReady(value);
-      } catch {
+      } catch (error) {
+        if (options.isTransientError && !options.isTransientError(error)) {
+          hasFatalError = true;
+          fatalError = error;
+          return true;
+        }
         return false;
       }
     },
     canRunPendingTest: () => true,
     runPendingTest: async () => {
-      if (latestValue !== undefined && !settled) {
+      if (hasFatalError && !settled) {
+        settled = true;
+        rejectResult(fatalError);
+      } else if (latestValue !== undefined && !settled) {
         settled = true;
         resolveResult(latestValue);
       }
@@ -61,6 +78,7 @@ export async function waitForWakeResume<T>(
         rejectResult(new Error("A ativação do companion expirou."));
       }
     },
+    clearPendingOnSuccess: options.clearPendingWakeOnSuccess !== false,
   });
 
   function resume() {
@@ -176,7 +194,9 @@ export function createWakeResumeController(
 
     pendingTestStarted = true;
     void options.runPendingTest().finally(() => {
-      options.clearPendingWake();
+      if (options.clearPendingOnSuccess !== false) {
+        options.clearPendingWake();
+      }
     });
   }
 

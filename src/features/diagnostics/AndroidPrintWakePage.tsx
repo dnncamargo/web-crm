@@ -195,13 +195,16 @@ export function AndroidPrintWakePage() {
 
   const activateCompanion = useCallback(() => {
     companionClient.startWakeFromUserGesture("test");
+    queueMicrotask(() => {
+      void resumeAcceptance();
+    });
     setBridgeStatus("checking");
     setFlowStatus("preparing");
     setMessage("Abrindo o aplicativo de impressão…");
     setErrorMessage("");
     setShowDownload(false);
     setShowPair(false);
-  }, []);
+  }, [resumeAcceptance]);
 
   useEffect(() => {
     if (loadingPrinters) {

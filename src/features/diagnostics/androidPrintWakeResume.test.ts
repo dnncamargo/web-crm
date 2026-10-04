@@ -57,6 +57,7 @@ describe("Android wake resume controller", () => {
     harness.controller.beginPendingWake();
     await vi.advanceTimersByTimeAsync(0);
     harness.controller.resumePendingWake();
+    expect(harness.clearPendingWake).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
     await settle();
 

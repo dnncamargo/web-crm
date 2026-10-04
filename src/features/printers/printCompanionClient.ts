@@ -20,7 +20,7 @@ import {
   type PrintCompanionOperationResult,
   type PrintCompanionToken,
 } from "./printCompanionTypes";
-import { WAKE_TIMEOUT_MS } from "../diagnostics/androidPrintWakeResume";
+import { WAKE_TIMEOUT_MS, waitForWakeResume } from "../diagnostics/androidPrintWakeResume";
 
 export const DEFAULT_PRINT_COMPANION_URL = "http://127.0.0.1:17890";
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
@@ -371,7 +371,7 @@ export function createPrintCompanionClient(
     return startWakeFromUserGesture("test");
   }
 
-  async function pair(nonce: string) {
+  async function pair(nonce: string, clearPending = true) {
     if (!nonce) {
       throw new PrintCompanionError("pairing_expired", "A ativação do companion expirou.");
     }
@@ -399,7 +399,9 @@ export function createPrintCompanionClient(
       apiVersion: PRINT_COMPANION_API_VERSION,
     };
     savePrintCompanionToken(pairedToken, localStorage);
-    clearPendingPrintCompanionWake(sessionStorage);
+    if (clearPending) {
+      clearPendingPrintCompanionWake(sessionStorage);
+    }
     return pairedToken;
   }
 
@@ -434,11 +436,29 @@ export function createPrintCompanionClient(
           throw new PrintCompanionError("pairing_expired", "A ativação do companion expirou.");
         }
 
-        const healthResult = await health();
+        const healthResult = await waitForWakeResume(
+          async () => {
+            const value = await health();
+            if (value.apiVersion !== PRINT_COMPANION_API_VERSION) {
+              throw new PrintCompanionError(
+                "companion_incompatible",
+                "A versão da API do companion não é compatível.",
+              );
+            }
+            return value;
+          },
+          (value) => value.state === "RUNNING",
+          {
+            clearPendingWakeOnSuccess: false,
+            isTransientError: (error) =>
+              !(error instanceof PrintCompanionError &&
+                (error.code === "protocol_error" || error.code === "companion_incompatible")),
+          },
+        );
         validateHealth(healthResult, readyOptions.requiredCapabilities ?? []);
 
         if (!loadPrintCompanionToken(localStorage)) {
-          await pair(pendingWake.nonce);
+          await pair(pendingWake.nonce, false);
         }
 
         if (readyOptions.config) {
@@ -449,6 +469,13 @@ export function createPrintCompanionClient(
         return healthResult;
       } catch (error) {
         clearPendingPrintCompanionWake(sessionStorage);
+        if (error instanceof Error && error.message === "A ativação do companion expirou.") {
+          throw new PrintCompanionError(
+            "pairing_expired",
+            "A ativação do companion expirou.",
+            { cause: error },
+          );
+        }
         throw error;
       } finally {
         resumePromise = null;
