@@ -13,7 +13,6 @@ import {
 import {
   PRINT_COMPANION_API_VERSION,
   PRINT_COMPANION_APP_LINK,
-  PRINT_COMPANION_ORIGIN,
   PRINT_COMPANION_PACKAGE,
   PrintCompanionError,
   type PrintCompanionCapability,
@@ -187,6 +186,10 @@ function mapCompanionCode(code: string, status?: number) {
     return "service_stopping" as const;
   }
 
+  if (code === "invalid_request") {
+    return "protocol_error" as const;
+  }
+
   return "companion_offline" as const;
 }
 
@@ -279,7 +282,6 @@ export function createPrintCompanionClient(
   );
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-  const origin = PRINT_COMPANION_ORIGIN;
   const localStorage = options.localStorage;
   const sessionStorage = options.sessionStorage;
   const locationAssign = options.locationAssign ?? ((url: string) => {
@@ -468,8 +470,7 @@ export function createPrintCompanionClient(
       "/v1/pair",
       {
         method: "POST",
-        headers: { Origin: origin },
-        body: JSON.stringify({ nonce, origin }),
+        body: JSON.stringify({ nonce }),
       },
       undefined,
       [nonce],
