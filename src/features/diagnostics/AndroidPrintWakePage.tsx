@@ -7,11 +7,14 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { createLoopbackPrinterTransport } from "../printers/loopbackPrinterTransport";
 import { usePrinters } from "../printers/usePrinters";
 import { resolveDefaultPrinter } from "../printers/printerUtils";
+import {
+  createWakeResumeController,
+  WAKE_TIMEOUT_MS,
+  type WakeResumeController,
+} from "./androidPrintWakeResume";
 
 const APP_LINK_URL = "https://deliciasdoporto.vercel.app/android-print-bridge/activate";
 const PENDING_TEST_KEY = "web-crm.android-print-wake.pending";
-const WAKE_TIMEOUT_MS = 15_000;
-const POLL_INTERVAL_MS = 500;
 
 type BridgeStatus = "checking" | "online" | "offline";
 type FlowStatus = "idle" | "waking" | "testing" | "pass" | "fail";
@@ -44,10 +47,6 @@ function clearPendingTest() {
   window.localStorage.removeItem(PENDING_TEST_KEY);
 }
 
-function wait(milliseconds: number) {
-  return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
-}
-
 export function AndroidPrintWakePage() {
   const {
     printers,
@@ -60,10 +59,18 @@ export function AndroidPrintWakePage() {
     [defaultPrinterId, printers],
   );
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("checking");
-  const [flowStatus, setFlowStatus] = useState<FlowStatus>("idle");
-  const [message, setMessage] = useState("Consultando a ponte local…");
+  const [flowStatus, setFlowStatus] = useState<FlowStatus>(() =>
+    hasPendingTest() ? "waking" : "idle",
+  );
+  const [message, setMessage] = useState(() =>
+    hasPendingTest()
+      ? "Aguardando o companion iniciar a ponte…"
+      : "Consultando a ponte local…",
+  );
   const [errorMessage, setErrorMessage] = useState("");
-  const testStartedRef = useRef(false);
+  const runTestRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const wakeResumeControllerRef = useRef<WakeResumeController | null>(null);
+  const loadingPrintersRef = useRef(loadingPrinters);
 
   const checkHealth = useCallback(async () => {
     try {
@@ -106,96 +113,88 @@ export function AndroidPrintWakePage() {
   }, [defaultPrinter]);
 
   useEffect(() => {
-    let cancelled = false;
+    runTestRef.current = runTest;
+  }, [runTest]);
 
-    async function initialize() {
-      if (hasPendingTest()) {
-        setFlowStatus("waking");
-        setMessage("Aguardando o companion iniciar a ponte…");
-        const startedAt = Date.now();
+  useEffect(() => {
+    loadingPrintersRef.current = loadingPrinters;
+  }, [loadingPrinters]);
 
-        while (!cancelled && Date.now() - startedAt <= WAKE_TIMEOUT_MS) {
-          if (await checkHealth()) {
-            return;
-          }
-          await wait(POLL_INTERVAL_MS);
-        }
-
-        if (!cancelled) {
-          clearPendingTest();
-          setFlowStatus("fail");
-          setMessage("A ponte não ficou online dentro do tempo limite.");
-          setErrorMessage("Ativação expirada após 15 segundos.");
-        }
-        return;
-      }
-
-      setFlowStatus("idle");
-      setMessage("Consultando a ponte local…");
-      const isOnline = await checkHealth();
-      if (!cancelled) {
+  useEffect(() => {
+    const controller = createWakeResumeController({
+      hasPendingWake: hasPendingTest,
+      clearPendingWake: clearPendingTest,
+      checkHealth,
+      canRunPendingTest: () => !loadingPrintersRef.current,
+      runPendingTest: () => runTestRef.current(),
+      onInitialHealth: (online) => {
+        setFlowStatus("idle");
         setMessage(
-          isOnline
+          online
             ? "A ponte está pronta para o próximo passo."
             : "A ponte está offline; ative o companion para continuar.",
         );
-      }
-    }
+      },
+      onWakeTimeout: () => {
+        setFlowStatus("fail");
+        setMessage("A ponte não ficou online dentro do tempo limite.");
+        setErrorMessage("Ativação expirada após 15 segundos.");
+      },
+    });
+    wakeResumeControllerRef.current = controller;
 
-    void initialize();
+    controller.start();
     return () => {
-      cancelled = true;
+      controller.dispose();
+      wakeResumeControllerRef.current = null;
     };
   }, [checkHealth]);
 
   useEffect(() => {
-    if (
-      flowStatus !== "waking" ||
-      bridgeStatus !== "online" ||
-      loadingPrinters ||
-      testStartedRef.current
-    ) {
+    if (!loadingPrinters) {
+      wakeResumeControllerRef.current?.resumePendingWake();
+    }
+  }, [loadingPrinters]);
+
+  const resumePendingWake = useCallback(() => {
+    if (document.visibilityState !== "visible" || !hasPendingTest()) {
       return;
     }
 
-    testStartedRef.current = true;
-    void runTest();
-  }, [bridgeStatus, flowStatus, loadingPrinters, runTest]);
+    setBridgeStatus("checking");
+    setFlowStatus("waking");
+    setMessage("Retomando o teste após a ativação do companion…");
+    wakeResumeControllerRef.current?.resumePendingWake();
+  }, []);
 
   useEffect(() => {
-    function resumeFromBrowser() {
-      if (hasPendingTest()) {
-        testStartedRef.current = false;
-        setBridgeStatus("checking");
-        setFlowStatus("waking");
-        setMessage("Retomando o teste após a ativação do companion…");
-      } else {
-        testStartedRef.current = false;
-        setFlowStatus("idle");
-        void checkHealth();
+    function resumeFromVisibility() {
+      if (document.visibilityState === "visible") {
+        resumePendingWake();
       }
     }
 
-    window.addEventListener("pageshow", resumeFromBrowser);
-    document.addEventListener("visibilitychange", resumeFromBrowser);
+    window.addEventListener("pageshow", resumePendingWake);
+    window.addEventListener("focus", resumePendingWake);
+    document.addEventListener("visibilitychange", resumeFromVisibility);
     return () => {
-      window.removeEventListener("pageshow", resumeFromBrowser);
-      document.removeEventListener("visibilitychange", resumeFromBrowser);
+      window.removeEventListener("pageshow", resumePendingWake);
+      window.removeEventListener("focus", resumePendingWake);
+      document.removeEventListener("visibilitychange", resumeFromVisibility);
     };
-  }, [checkHealth]);
+  }, [resumePendingWake]);
 
   function activateCompanion() {
     markPendingTest();
-    testStartedRef.current = false;
     setErrorMessage("");
     setBridgeStatus("checking");
     setFlowStatus("waking");
     setMessage("Abrindo o App Link HTTPS do companion…");
+    wakeResumeControllerRef.current?.beginPendingWake();
     window.location.assign(APP_LINK_URL);
   }
 
   function testDirectly() {
-    testStartedRef.current = true;
     void runTest();
   }
 
