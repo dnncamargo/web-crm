@@ -13,11 +13,20 @@ import {
   PrintCompanionError,
   type PrintCompanionHealth,
 } from "../printers/printCompanionTypes";
+import {
+  ANDROID_PRINT_DIAGNOSTIC_VERSION,
+  EXPECTED_COMPANION_APP_VERSION,
+  EXPECTED_COMPANION_VERSION_CODE,
+  getProductionDiagnosticUrl,
+  isAndroidPrintDiagnosticProduction,
+} from "./androidPrintDiagnostic";
+import type { WakePollProgress } from "./androidPrintWakeResume";
 import { usePrinters } from "../printers/usePrinters";
 import { resolveDefaultPrinter } from "../printers/printerUtils";
 
-type BridgeStatus = "checking" | "online" | "offline";
+type BridgeStatus = "unknown" | "checking" | "online" | "offline";
 type FlowStatus = "idle" | "preparing" | "configuring" | "testing" | "pass" | "fail";
+type DiagnosticStage = "idle" | "wake" | "health" | "pair" | "config" | "test";
 
 const companionClient = createPrintCompanionClient();
 
@@ -25,6 +34,17 @@ function getErrorDetails(error: unknown) {
   if (!(error instanceof PrintCompanionError)) {
     return {
       message: "Não foi possível preparar o aplicativo de impressão.",
+      publicCode: "unknown_error",
+      showDownload: false,
+      showPair: false,
+      downloadLabel: "Baixar aplicativo para Android",
+    };
+  }
+
+  if (error.code === "pairing_expired" && error.companionCode === "wake_timeout") {
+    return {
+      message: "O companion não respondeu em 15 segundos.",
+      publicCode: error.code,
       showDownload: true,
       showPair: false,
       downloadLabel: "Baixar aplicativo para Android",
@@ -33,8 +53,9 @@ function getErrorDetails(error: unknown) {
 
   if (error.code === "companion_incompatible") {
     return {
-      message: "O aplicativo de impressão precisa ser atualizado.",
-      showDownload: true,
+      message: "A API do companion é incompatível com este diagnóstico.",
+      publicCode: error.code,
+      showDownload: false,
       showPair: false,
       downloadLabel: "Atualizar aplicativo",
     };
@@ -43,16 +64,28 @@ function getErrorDetails(error: unknown) {
   if (error.code === "pairing_required" || error.code === "invalid_token") {
     return {
       message: "Pareie o companion para continuar.",
+      publicCode: error.code,
       showDownload: false,
       showPair: true,
       downloadLabel: "Baixar aplicativo para Android",
     };
   }
 
-  if (error.code === "companion_offline" || error.code === "pairing_expired") {
+  if (error.code === "pairing_expired") {
     return {
-      message: "Companion não disponível neste dispositivo.",
-      showDownload: true,
+      message: "O pareamento do companion expirou.",
+      publicCode: error.code,
+      showDownload: false,
+      showPair: false,
+      downloadLabel: "Baixar aplicativo para Android",
+    };
+  }
+
+  if (error.code === "protocol_error") {
+    return {
+      message: "O companion retornou uma resposta inválida.",
+      publicCode: error.code,
+      showDownload: false,
       showPair: false,
       downloadLabel: "Baixar aplicativo para Android",
     };
@@ -61,30 +94,25 @@ function getErrorDetails(error: unknown) {
   if (error.code === "missing_capability") {
     return {
       message: "O aplicativo instalado não oferece a capacidade necessária.",
-      showDownload: true,
+      publicCode: error.code,
+      showDownload: false,
       showPair: false,
       downloadLabel: "Atualizar aplicativo",
     };
   }
 
-  if (error.code === "printer_connection_failed" || error.code === "printer_timeout") {
-    return {
-      message: "Não foi possível estabelecer conexão com a impressora.",
-      showDownload: false,
-      showPair: false,
-      downloadLabel: "Baixar aplicativo para Android",
-    };
-  }
-
   return {
-    message: "Não foi possível concluir o diagnóstico do companion.",
+    message: error.code === "companion_offline"
+      ? "O companion está offline."
+      : error.message,
+    publicCode: error.code,
     showDownload: false,
     showPair: false,
     downloadLabel: "Baixar aplicativo para Android",
   };
 }
 
-function getFlowLabel(flowStatus: FlowStatus, bridgeStatus: BridgeStatus) {
+function getFlowLabel(flowStatus: FlowStatus, bridgeStatus: BridgeStatus, currentStage: DiagnosticStage) {
   if (flowStatus === "pass") {
     return "PASS";
   }
@@ -101,11 +129,44 @@ function getFlowLabel(flowStatus: FlowStatus, bridgeStatus: BridgeStatus) {
     return "TESTANDO";
   }
 
-  if (flowStatus === "preparing") {
+  if (flowStatus === "preparing" && currentStage !== "health") {
     return "PREPARANDO";
   }
 
-  return bridgeStatus === "online" ? "ONLINE" : "VERIFICANDO";
+  if (bridgeStatus === "online") {
+    return "ONLINE";
+  }
+
+  if (bridgeStatus === "checking") {
+    return "VERIFICANDO";
+  }
+
+  if (bridgeStatus === "offline") {
+    return "OFFLINE";
+  }
+
+  return "AGUARDANDO AÇÃO";
+}
+
+function formatElapsed(elapsedMs: number) {
+  return `${(elapsedMs / 1000).toFixed(1).replace(".", ",")} s`;
+}
+
+function getStageLabel(stage: DiagnosticStage) {
+  switch (stage) {
+    case "wake":
+      return "wake";
+    case "health":
+      return "health";
+    case "pair":
+      return "pair";
+    case "config":
+      return "config";
+    case "test":
+      return "test";
+    default:
+      return "aguardando";
+  }
 }
 
 export function AndroidPrintWakePage() {
@@ -120,36 +181,68 @@ export function AndroidPrintWakePage() {
     [defaultPrinterId, printers],
   );
   const isInstallLanding = window.location.pathname === "/android-print-bridge/activate";
+  const isProduction = isAndroidPrintDiagnosticProduction(window.location.origin);
   const [wakeIntent] = useState(() => companionClient.prepareWakeIntent("test"));
-  const hasPendingWake = Boolean(loadPendingPrintCompanionWake());
-  const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("checking");
+  const hasPendingWake = isProduction && Boolean(loadPendingPrintCompanionWake());
+  const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("unknown");
   const [flowStatus, setFlowStatus] = useState<FlowStatus>(() =>
     hasPendingWake ? "preparing" : "idle",
   );
   const [message, setMessage] = useState(() =>
     hasPendingWake
       ? "Retomando a ativação do aplicativo de impressão…"
+      : !isProduction
+        ? "Este diagnóstico físico só pode ser executado em produção."
       : isInstallLanding
         ? "Instale o aplicativo e toque em abrir aplicativo para iniciar o pareamento."
-        : "Clique em ativar para abrir o aplicativo de impressão.",
+        : "Clique em ativar para iniciar o diagnóstico.",
   );
   const [errorMessage, setErrorMessage] = useState("");
-  const [showDownload, setShowDownload] = useState(isInstallLanding && !hasPendingWake);
+  const [showDownload, setShowDownload] = useState(isInstallLanding && isProduction);
   const [showPair, setShowPair] = useState(false);
   const [downloadLabel, setDownloadLabel] = useState("Baixar aplicativo para Android");
   const [health, setHealth] = useState<PrintCompanionHealth | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
+  const [attemptStartedAt, setAttemptStartedAt] = useState<number | null>(null);
+  const [pollAttemptCount, setPollAttemptCount] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [currentStage, setCurrentStage] = useState<DiagnosticStage>(hasPendingWake ? "health" : "idle");
+  const [lastPublicErrorCode, setLastPublicErrorCode] = useState<string | null>(null);
   const runningRef = useRef(false);
 
+  const handlePollAttempt = useCallback(({ attempt, elapsedMs: nextElapsedMs }: WakePollProgress) => {
+    setCurrentStage("health");
+    setPollAttemptCount(attempt);
+    setElapsedMs(nextElapsedMs);
+  }, []);
+
+  const handleStageChange = useCallback((stage: "health" | "pair" | "config") => {
+    setCurrentStage(stage);
+    if (stage === "pair") {
+      setFlowStatus("preparing");
+      setMessage("Companion respondeu. Pareando…");
+    } else if (stage === "config") {
+      setFlowStatus("configuring");
+      setMessage("Companion respondeu. Aplicando configuração…");
+    } else {
+      setMessage("Aguardando o companion responder…");
+    }
+  }, []);
+
   const resumeAcceptance = useCallback(async () => {
-    if (loadingPrinters || runningRef.current || !loadPendingPrintCompanionWake()) {
+    if (!isProduction || loadingPrinters || runningRef.current || !loadPendingPrintCompanionWake()) {
       return;
     }
 
     runningRef.current = true;
+    setAttemptStartedAt(Date.now());
+    setPollAttemptCount(0);
+    setElapsedMs(0);
+    setCurrentStage("health");
+    setLastPublicErrorCode(null);
     setBridgeStatus("checking");
     setFlowStatus("preparing");
-    setMessage("Verificando o companion e preparando o pareamento…");
+    setMessage("Aguardando o companion responder…");
     setErrorMessage("");
     setShowDownload(false);
     setShowPair(false);
@@ -159,20 +252,23 @@ export function AndroidPrintWakePage() {
       const readyHealth = await companionClient.resumePendingWake({
         requiredCapabilities: ["test"],
         config,
+        onPollAttempt: handlePollAttempt,
+        onStageChange: handleStageChange,
       });
       setHealth(readyHealth);
       setAuthenticated(true);
       setBridgeStatus("online");
-      setFlowStatus("configuring");
-      setMessage(`Companion autenticado; configuração de ${config.idleTimeoutMinutes} min aplicada.`);
+      setMessage(`Companion respondeu; configuração de ${config.idleTimeoutMinutes} min aplicada.`);
 
       if (!defaultPrinter) {
+        setCurrentStage("test");
         setFlowStatus("fail");
         setErrorMessage("Defina uma impressora TCP ativa como padrão para executar o teste.");
         setMessage("O companion foi pareado, mas o teste não foi concluído.");
         return;
       }
 
+      setCurrentStage("test");
       setFlowStatus("testing");
       setMessage(`Testando a conexão com “${defaultPrinter.name}”…`);
       await companionClient.testPrinter(defaultPrinter);
@@ -184,6 +280,7 @@ export function AndroidPrintWakePage() {
       setFlowStatus("fail");
       setAuthenticated(false);
       setErrorMessage(details.message);
+      setLastPublicErrorCode(details.publicCode);
       setShowDownload(details.showDownload);
       setShowPair(details.showPair);
       setDownloadLabel(details.downloadLabel);
@@ -191,23 +288,32 @@ export function AndroidPrintWakePage() {
     } finally {
       runningRef.current = false;
     }
-  }, [defaultPrinter, loadingPrinters]);
+  }, [defaultPrinter, handlePollAttempt, handleStageChange, isProduction, loadingPrinters]);
 
   const handleWakeClick = useCallback(() => {
+    if (!isProduction) {
+      return;
+    }
+
     companionClient.activatePreparedWake(wakeIntent);
     window.setTimeout(() => {
       void resumeAcceptance();
     }, 0);
+    setAttemptStartedAt(Date.now());
+    setPollAttemptCount(0);
+    setElapsedMs(0);
+    setCurrentStage("wake");
+    setLastPublicErrorCode(null);
     setBridgeStatus("checking");
     setFlowStatus("preparing");
-    setMessage("Abrindo o aplicativo de impressão…");
+    setMessage("Solicitação de abertura enviada ao Android.");
     setErrorMessage("");
     setShowDownload(false);
     setShowPair(false);
-  }, [resumeAcceptance, wakeIntent]);
+  }, [isProduction, resumeAcceptance, wakeIntent]);
 
   useEffect(() => {
-    if (loadingPrinters) {
+    if (!isProduction || loadingPrinters) {
       return undefined;
     }
 
@@ -232,17 +338,19 @@ export function AndroidPrintWakePage() {
       window.removeEventListener("focus", resumeIfPending);
       document.removeEventListener("visibilitychange", resumeWhenVisible);
     };
-  }, [defaultPrinter, loadingPrinters, resumeAcceptance]);
+  }, [defaultPrinter, isProduction, loadingPrinters, resumeAcceptance]);
 
   function retry() {
     handleWakeClick();
   }
 
-  const statusLabel = getFlowLabel(flowStatus, bridgeStatus);
-  const statusState = flowStatus === "pass" || bridgeStatus === "online"
-    ? "success"
-    : flowStatus === "fail"
-      ? "error"
+  const statusLabel = !isProduction
+    ? "AMBIENTE NÃO SUPORTADO"
+    : getFlowLabel(flowStatus, bridgeStatus, currentStage);
+  const statusState = !isProduction || flowStatus === "fail"
+    ? "error"
+    : flowStatus === "pass" || bridgeStatus === "online"
+      ? "success"
       : "pending";
 
   return (
@@ -261,39 +369,54 @@ export function AndroidPrintWakePage() {
           {errorMessage && <span className="error-text">{errorMessage}</span>}
         </div>
 
-        {!isInstallLanding && (
-          <div className="android-wake-details">
-            <span>Companion: {health ? "ONLINE" : "verificando"}</span>
-            <span>Pairing: {authenticated ? "authenticated" : health?.paired ? "paired" : "não confirmado"}</span>
-            <span>API: {health?.apiVersion ?? "—"}</span>
-            <span>App: {health?.appVersion ?? "—"}</span>
-            <span>Capabilities: {health?.capabilities.join(", ") ?? "—"}</span>
-            <span>Impressora: {defaultPrinter?.name ?? "nenhuma padrão ativa"}</span>
-          </div>
-        )}
+        <div className="android-wake-details">
+          <span>Ambiente: {isProduction ? "PRODUÇÃO" : "NÃO SUPORTADO"}</span>
+          <span>Diagnóstico: v{ANDROID_PRINT_DIAGNOSTIC_VERSION}</span>
+          <span>Companion esperado: v{EXPECTED_COMPANION_APP_VERSION} (code {EXPECTED_COMPANION_VERSION_CODE})</span>
+          <span>Companion detectado: {health ? `v${health.appVersion} (code ${health.appVersionCode})` : "não verificado"}</span>
+          <span>API esperada: v1</span>
+          <span>API detectada: {health?.apiVersion ?? "—"}</span>
+          <span>Pairing: {authenticated ? "authenticated" : health?.paired ? "paired" : "não confirmado"}</span>
+          <span>Capabilities: {health?.capabilities.join(", ") ?? "—"}</span>
+          <span>Impressora: {defaultPrinter?.name ?? "nenhuma padrão ativa"}</span>
+          <span>Etapa: {getStageLabel(currentStage)}</span>
+          <span>Tentativa iniciada: {attemptStartedAt ? new Date(attemptStartedAt).toLocaleTimeString("pt-BR") : "—"}</span>
+          {isProduction && bridgeStatus === "checking" && currentStage === "health" && pollAttemptCount > 0 && (
+            <span>Tentativa {pollAttemptCount} · {formatElapsed(elapsedMs)}</span>
+          )}
+          {lastPublicErrorCode && <span>Código: {lastPublicErrorCode}</span>}
+        </div>
 
         <div className="android-wake-actions">
-          {showDownload && (
+          {!isProduction && (
+            <>
+              <span className="muted-text">Este diagnóstico físico só pode ser executado em produção.</span>
+              <a className="button button-secondary" href={getProductionDiagnosticUrl()}>
+                Abrir diagnóstico em produção
+              </a>
+            </>
+          )}
+          {isProduction && showDownload && (
             <a className="button button-primary" href={PRINT_COMPANION_DOWNLOAD_URL}>
               {downloadLabel}
             </a>
           )}
-          {showPair && (flowStatus === "idle" || flowStatus === "fail") && (
+          {isProduction && showPair && (flowStatus === "idle" || flowStatus === "fail") && (
             <a className="button button-primary" href={wakeIntent.intentUrl} onClick={handleWakeClick}>
               PAREAR COMPANION
             </a>
           )}
-          {!showPair && flowStatus === "idle" && (
+          {isProduction && !showPair && flowStatus === "idle" && (
             <a className="button button-secondary" href={wakeIntent.intentUrl} onClick={handleWakeClick}>
               {isInstallLanding ? "Tentar abrir aplicativo" : "ATIVAR COMPANION E TESTAR"}
             </a>
           )}
-          {flowStatus === "fail" && !showPair && (
+          {isProduction && flowStatus === "fail" && !showPair && (
             <a className="button button-secondary" href={wakeIntent.intentUrl} onClick={retry}>
               {isInstallLanding ? "Tentar abrir aplicativo" : "Tentar novamente"}
             </a>
           )}
-          {(flowStatus === "preparing" || flowStatus === "configuring" || flowStatus === "testing" || bridgeStatus === "checking") && (
+          {isProduction && (flowStatus === "preparing" || flowStatus === "configuring" || flowStatus === "testing" || bridgeStatus === "checking") && (
             <span className="muted-text">Aguarde o resultado do diagnóstico.</span>
           )}
         </div>

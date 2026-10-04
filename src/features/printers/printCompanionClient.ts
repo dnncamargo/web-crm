@@ -22,7 +22,11 @@ import {
   type PrintCompanionOperationResult,
   type PrintCompanionToken,
 } from "./printCompanionTypes";
-import { WAKE_TIMEOUT_MS, waitForWakeResume } from "../diagnostics/androidPrintWakeResume";
+import {
+  WAKE_TIMEOUT_MS,
+  waitForWakeResume,
+  type WakePollProgress,
+} from "../diagnostics/androidPrintWakeResume";
 
 export const DEFAULT_PRINT_COMPANION_URL = "http://127.0.0.1:17890";
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
@@ -45,6 +49,8 @@ export interface PrintCompanionClientOptions {
 export interface PrintCompanionReadyOptions {
   requiredCapabilities?: PrintCompanionCapability[];
   config?: PrintCompanionConfig;
+  onPollAttempt?: (progress: WakePollProgress) => void;
+  onStageChange?: (stage: "health" | "pair" | "config") => void;
 }
 
 export interface PrintCompanionWakeIntent {
@@ -458,6 +464,7 @@ export function createPrintCompanionClient(
           throw new PrintCompanionError("pairing_expired", "A ativação do companion expirou.");
         }
 
+        readyOptions.onStageChange?.("health");
         const healthResult = await waitForWakeResume(
           async () => {
             const value = await health();
@@ -472,6 +479,7 @@ export function createPrintCompanionClient(
           (value) => value.state === "RUNNING",
           {
             clearPendingWakeOnSuccess: false,
+            onPollAttempt: readyOptions.onPollAttempt,
             isTransientError: (error) =>
               !(error instanceof PrintCompanionError &&
                 (error.code === "protocol_error" || error.code === "companion_incompatible")),
@@ -480,10 +488,12 @@ export function createPrintCompanionClient(
         validateHealth(healthResult, readyOptions.requiredCapabilities ?? []);
 
         if (!loadPrintCompanionToken(localStorage)) {
+          readyOptions.onStageChange?.("pair");
           await pair(pendingWake.nonce, false);
         }
 
         if (readyOptions.config) {
+          readyOptions.onStageChange?.("config");
           await requestConfigWithRecovery(readyOptions.config);
         }
 
@@ -495,7 +505,7 @@ export function createPrintCompanionClient(
           throw new PrintCompanionError(
             "pairing_expired",
             "A ativação do companion expirou.",
-            { cause: error },
+            { cause: error, companionCode: "wake_timeout" },
           );
         }
         throw error;

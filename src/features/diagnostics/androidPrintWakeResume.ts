@@ -1,6 +1,11 @@
 export const WAKE_TIMEOUT_MS = 15_000;
 export const POLL_INTERVAL_MS = 500;
 
+export interface WakePollProgress {
+  attempt: number;
+  elapsedMs: number;
+}
+
 interface WakeResumeControllerOptions {
   hasPendingWake: () => boolean;
   clearPendingWake: () => void;
@@ -10,6 +15,7 @@ interface WakeResumeControllerOptions {
   onInitialHealth: (online: boolean) => void;
   onWakeTimeout: () => void;
   clearPendingOnSuccess?: boolean;
+  onPollAttempt?: (progress: WakePollProgress) => void;
 }
 
 export interface WakeResumeController {
@@ -22,6 +28,7 @@ export interface WakeResumeController {
 export interface WaitForWakeResumeOptions {
   clearPendingWakeOnSuccess?: boolean;
   isTransientError?: (error: unknown) => boolean;
+  onPollAttempt?: (progress: WakePollProgress) => void;
 }
 
 export async function waitForWakeResume<T>(
@@ -79,6 +86,7 @@ export async function waitForWakeResume<T>(
       }
     },
     clearPendingOnSuccess: options.clearPendingWakeOnSuccess !== false,
+    onPollAttempt: options.onPollAttempt,
   });
 
   function resume() {
@@ -118,6 +126,7 @@ export function createWakeResumeController(
   let pendingHealthOnline = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let generation = 0;
+  let pollAttemptCount = 0;
 
   function clearTimer() {
     if (timer !== undefined) {
@@ -137,6 +146,11 @@ export function createWakeResumeController(
       return;
     }
 
+    const pollAttempt = ++pollAttemptCount;
+    options.onPollAttempt?.({
+      attempt: pollAttempt,
+      elapsedMs: Date.now() - pollStartedAt,
+    });
     const online = await options.checkHealth().catch(() => false);
 
     if (disposed || !polling || currentGeneration !== generation) {
@@ -170,6 +184,7 @@ export function createWakeResumeController(
 
     polling = true;
     pendingHealthOnline = false;
+    pollAttemptCount = 0;
     pollStartedAt = Date.now();
     const currentGeneration = ++generation;
     void poll(currentGeneration);
