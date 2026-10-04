@@ -110,7 +110,7 @@ describe("PrintCompanionClient", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
-  it("creates a 32-byte URL-safe wake nonce and opens the exact App Link", () => {
+  it("prepares an explicit Android Intent URI with the persisted nonce", () => {
     const assign = vi.fn();
     const sessionStorage = new MemoryStorage();
     const fetchImpl = vi.fn<typeof fetch>();
@@ -125,10 +125,38 @@ describe("PrintCompanionClient", () => {
       },
     });
 
+    const wake = client.prepareWakeIntent("test");
+    client.activatePreparedWake(wake);
+
+    expect(wake.nonce).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(wake.intentUrl).toContain("intent://deliciasdoporto.vercel.app/android-print-bridge/activate?nonce=");
+    expect(wake.intentUrl).toContain("scheme=https");
+    expect(wake.intentUrl).toContain("package=io.webcrm.printcompanion");
+    expect(wake.intentUrl).toContain("S.browser_fallback_url=https%3A%2F%2Fdeliciasdoporto.vercel.app%2Fandroid-print-bridge%2Factivate");
+    expect(wake.intentUrl).toContain(`nonce=${encodeURIComponent(wake.nonce)}`);
+    expect(wake.fallbackUrl).toBe("https://deliciasdoporto.vercel.app/android-print-bridge/activate");
+    expect(JSON.parse(sessionStorage.getItem("web-crm.print-companion.wake.v1") as string)).toMatchObject({
+      nonce: wake.nonce,
+      intent: "test",
+    });
+    expect(assign).not.toHaveBeenCalled();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("keeps the compatibility wake API synchronous with the explicit Intent URI", () => {
+    const assign = vi.fn();
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl: vi.fn<typeof fetch>(),
+      sessionStorage: new MemoryStorage(),
+      locationAssign: assign,
+    });
+
     const wake = client.startWakeFromUserGesture("test");
+
     expect(wake.nonce).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(assign).toHaveBeenCalledWith(wake.url);
-    expect(wake.url).toContain("https://deliciasdoporto.vercel.app/android-print-bridge/activate?nonce=");
+    expect(wake.url).toContain("intent://deliciasdoporto.vercel.app/android-print-bridge/activate?nonce=");
   });
 
   it("requires an explicit wake when the companion is online without a local token", async () => {

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "../../components/ui/Badge";
-import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { createPrintCompanionClient } from "../printers/printCompanionClient";
@@ -121,6 +120,7 @@ export function AndroidPrintWakePage() {
     [defaultPrinterId, printers],
   );
   const isInstallLanding = window.location.pathname === "/android-print-bridge/activate";
+  const [wakeIntent] = useState(() => companionClient.prepareWakeIntent("test"));
   const hasPendingWake = Boolean(loadPendingPrintCompanionWake());
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("checking");
   const [flowStatus, setFlowStatus] = useState<FlowStatus>(() =>
@@ -193,18 +193,18 @@ export function AndroidPrintWakePage() {
     }
   }, [defaultPrinter, loadingPrinters]);
 
-  const activateCompanion = useCallback(() => {
-    companionClient.startWakeFromUserGesture("test");
-    queueMicrotask(() => {
+  const handleWakeClick = useCallback(() => {
+    companionClient.activatePreparedWake(wakeIntent);
+    window.setTimeout(() => {
       void resumeAcceptance();
-    });
+    }, 0);
     setBridgeStatus("checking");
     setFlowStatus("preparing");
     setMessage("Abrindo o aplicativo de impressão…");
     setErrorMessage("");
     setShowDownload(false);
     setShowPair(false);
-  }, [resumeAcceptance]);
+  }, [resumeAcceptance, wakeIntent]);
 
   useEffect(() => {
     if (loadingPrinters) {
@@ -235,7 +235,7 @@ export function AndroidPrintWakePage() {
   }, [defaultPrinter, loadingPrinters, resumeAcceptance]);
 
   function retry() {
-    activateCompanion();
+    handleWakeClick();
   }
 
   const statusLabel = getFlowLabel(flowStatus, bridgeStatus);
@@ -279,19 +279,19 @@ export function AndroidPrintWakePage() {
             </a>
           )}
           {showPair && (flowStatus === "idle" || flowStatus === "fail") && (
-            <Button type="button" variant="primary" onClick={activateCompanion}>
+            <a className="button button-primary" href={wakeIntent.intentUrl} onClick={handleWakeClick}>
               PAREAR COMPANION
-            </Button>
+            </a>
           )}
           {!showPair && flowStatus === "idle" && (
-            <Button type="button" variant="secondary" onClick={activateCompanion}>
+            <a className="button button-secondary" href={wakeIntent.intentUrl} onClick={handleWakeClick}>
               {isInstallLanding ? "Tentar abrir aplicativo" : "ATIVAR COMPANION E TESTAR"}
-            </Button>
+            </a>
           )}
           {flowStatus === "fail" && !showPair && (
-            <Button type="button" variant="secondary" onClick={retry}>
+            <a className="button button-secondary" href={wakeIntent.intentUrl} onClick={retry}>
               {isInstallLanding ? "Tentar abrir aplicativo" : "Tentar novamente"}
-            </Button>
+            </a>
           )}
           {(flowStatus === "preparing" || flowStatus === "configuring" || flowStatus === "testing" || bridgeStatus === "checking") && (
             <span className="muted-text">Aguarde o resultado do diagnóstico.</span>
