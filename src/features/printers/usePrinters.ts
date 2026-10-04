@@ -15,8 +15,10 @@ import type {
 import { createLoopbackPrinterTransport } from "./loopbackPrinterTransport";
 import { encodePrintJob } from "./escposEncoder";
 import { createPrinterIntegrityTestJob } from "./printerIntegrityPrintJob";
+import { createPrintCompanionClient, createPrintJobId } from "./printCompanionClient";
 
 const printerTransport = createLoopbackPrinterTransport();
+const printCompanionClient = createPrintCompanionClient();
 
 export async function printToPrinter(
   printer: PrinterConfiguration,
@@ -87,17 +89,14 @@ export function usePrinters() {
   }
 
   async function testPrinterConnection(printer: PrinterConfiguration) {
-    await printerTransport.testConnection({
-      host: printer.host,
-      port: printer.port,
-    });
+    await printCompanionClient.testPrinter(printer);
   }
 
   async function printPrinterIntegrityTest(printer: PrinterConfiguration) {
     const job = createPrinterIntegrityTestJob(printer);
     const bytes = encodePrintJob(job);
 
-    await printToPrinter(printer, bytes);
+    await printCompanionClient.print(printer, bytes, createPrintJobId());
   }
 
   return {
