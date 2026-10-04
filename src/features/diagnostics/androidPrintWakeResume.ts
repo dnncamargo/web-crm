@@ -18,6 +18,78 @@ export interface WakeResumeController {
   dispose(): void;
 }
 
+export async function waitForWakeResume<T>(
+  checkHealth: () => Promise<T>,
+  isReady: (value: T) => boolean,
+): Promise<T> {
+  let latestValue: T | undefined;
+  let pending = true;
+  let resolveResult: (value: T) => void = () => undefined;
+  let rejectResult: (reason: unknown) => void = () => undefined;
+  let settled = false;
+
+  const result = new Promise<T>((resolve, reject) => {
+    resolveResult = resolve;
+    rejectResult = reject;
+  });
+
+  const controller = createWakeResumeController({
+    hasPendingWake: () => pending,
+    clearPendingWake: () => {
+      pending = false;
+    },
+    checkHealth: async () => {
+      try {
+        const value = await checkHealth();
+        latestValue = value;
+        return isReady(value);
+      } catch {
+        return false;
+      }
+    },
+    canRunPendingTest: () => true,
+    runPendingTest: async () => {
+      if (latestValue !== undefined && !settled) {
+        settled = true;
+        resolveResult(latestValue);
+      }
+    },
+    onInitialHealth: () => undefined,
+    onWakeTimeout: () => {
+      if (!settled) {
+        settled = true;
+        rejectResult(new Error("A ativação do companion expirou."));
+      }
+    },
+  });
+
+  function resume() {
+    if (typeof document === "undefined" || document.visibilityState === "visible") {
+      controller.resumePendingWake();
+    }
+  }
+
+  const onVisibilityChange = () => resume();
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+  }
+
+  controller.start();
+
+  try {
+    return await result;
+  } finally {
+    controller.dispose();
+    if (typeof window !== "undefined" && typeof document !== "undefined") {
+      window.removeEventListener("pageshow", resume);
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    }
+  }
+}
+
 export function createWakeResumeController(
   options: WakeResumeControllerOptions,
 ): WakeResumeController {

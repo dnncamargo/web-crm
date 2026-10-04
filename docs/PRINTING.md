@@ -47,12 +47,28 @@ false, "code": string, "message": string }` em falha. O helper valida origin,
 método, `Content-Type`, tamanho do corpo, host, porta e base64, e aplica timeout
 de conexão/escrita finito.
 
-Exact-origin + loopback é a fronteira de segurança intencional deste primeiro
-checkpoint. Requisições sem o cabeçalho `Origin` são aceitas intencionalmente
-para diagnósticos locais/CLI; requisições de navegador continuam restritas aos
-origins exatos configurados. Não há autenticação ou segredo de pareamento ainda;
-isso deve ser reavaliado antes de distribuição. Não há `.exe`, serviço do Windows,
-auto-início ou instalação nesta etapa. Android/iOS permanecem trabalho futuro.
+Exact-origin + loopback continua sendo a fronteira de segurança do transporte
+legado. O cliente canônico `PrintCompanionClient` usa o protocolo Android v1 em
+`http://127.0.0.1:17890` e encapsula health, wake/resume, pairing, configuração,
+teste e envio autenticado. O token fica somente no `localStorage` do navegador
+em `web-crm.print-companion.auth.v1`; a configuração de inatividade fica em
+`web-crm.print-companion.config.v1`. Uma resposta 401 limpa o token, abre uma
+única nova janela de pairing e repete a mesma intenção lógica.
+
+O cliente exige `apiVersion: "1"` e as capabilities necessárias antes de
+operar. O App Link de wake é
+`https://deliciasdoporto.vercel.app/android-print-bridge/activate?nonce=...`;
+o nonce é efêmero e não é persistido no Firestore. Não há `.exe`, serviço do
+Windows, auto-início ou instalação nesta etapa.
+
+Quando o companion não puder ser acordado, a landing do App Link oferece a URL
+estável `/downloads/print-companion`. O deployment deve publicar nessa URL
+somente o APK release assinado de `io.webcrm.printcompanion`; o web-crm não
+gera nem valida um APK Android.
+
+Neste checkpoint, as ações de teste da configuração de impressoras usam o
+cliente Android v1. A página de diagnóstico e o botão de impressão do recibo
+continuam no transporte legado até o cutover R3b.
 
 ## Recibo do pedido
 

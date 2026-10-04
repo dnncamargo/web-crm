@@ -4,47 +4,94 @@ import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { createLoopbackPrinterTransport } from "../printers/loopbackPrinterTransport";
+import { createPrintCompanionClient } from "../printers/printCompanionClient";
+import {
+  loadPendingPrintCompanionWake,
+  loadPrintCompanionConfig,
+} from "../printers/printCompanionStorage";
+import {
+  PRINT_COMPANION_DOWNLOAD_URL,
+  PrintCompanionError,
+  type PrintCompanionHealth,
+} from "../printers/printCompanionTypes";
 import { usePrinters } from "../printers/usePrinters";
 import { resolveDefaultPrinter } from "../printers/printerUtils";
-import {
-  createWakeResumeController,
-  WAKE_TIMEOUT_MS,
-  type WakeResumeController,
-} from "./androidPrintWakeResume";
-
-const APP_LINK_URL = "https://deliciasdoporto.vercel.app/android-print-bridge/activate";
-const PENDING_TEST_KEY = "web-crm.android-print-wake.pending";
 
 type BridgeStatus = "checking" | "online" | "offline";
-type FlowStatus = "idle" | "waking" | "testing" | "pass" | "fail";
+type FlowStatus = "idle" | "preparing" | "configuring" | "testing" | "pass" | "fail";
 
-const bridgeTransport = createLoopbackPrinterTransport();
+const companionClient = createPrintCompanionClient();
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "A ponte local recusou o teste.";
-}
-
-function hasPendingTest() {
-  const value = window.localStorage.getItem(PENDING_TEST_KEY);
-  if (!value) {
-    return false;
+function getErrorDetails(error: unknown) {
+  if (!(error instanceof PrintCompanionError)) {
+    return {
+      message: "Não foi possível preparar o aplicativo de impressão.",
+      showDownload: true,
+      downloadLabel: "Baixar aplicativo para Android",
+    };
   }
 
-  try {
-    const parsed = JSON.parse(value) as { createdAt?: unknown };
-    return typeof parsed.createdAt === "number" && Date.now() - parsed.createdAt <= WAKE_TIMEOUT_MS;
-  } catch {
-    return false;
+  if (error.code === "companion_incompatible") {
+    return {
+      message: "O aplicativo de impressão precisa ser atualizado.",
+      showDownload: true,
+      downloadLabel: "Atualizar aplicativo",
+    };
   }
+
+  if (error.code === "companion_offline" || error.code === "pairing_expired") {
+    return {
+      message: "Companion não disponível neste dispositivo.",
+      showDownload: true,
+      downloadLabel: "Baixar aplicativo para Android",
+    };
+  }
+
+  if (error.code === "missing_capability") {
+    return {
+      message: "O aplicativo instalado não oferece a capacidade necessária.",
+      showDownload: true,
+      downloadLabel: "Atualizar aplicativo",
+    };
+  }
+
+  if (error.code === "printer_connection_failed" || error.code === "printer_timeout") {
+    return {
+      message: "Não foi possível estabelecer conexão com a impressora.",
+      showDownload: false,
+      downloadLabel: "Baixar aplicativo para Android",
+    };
+  }
+
+  return {
+    message: "Não foi possível concluir o diagnóstico do companion.",
+    showDownload: false,
+    downloadLabel: "Baixar aplicativo para Android",
+  };
 }
 
-function markPendingTest() {
-  window.localStorage.setItem(PENDING_TEST_KEY, JSON.stringify({ createdAt: Date.now() }));
-}
+function getFlowLabel(flowStatus: FlowStatus, bridgeStatus: BridgeStatus) {
+  if (flowStatus === "pass") {
+    return "PASS";
+  }
 
-function clearPendingTest() {
-  window.localStorage.removeItem(PENDING_TEST_KEY);
+  if (flowStatus === "fail") {
+    return "FAIL";
+  }
+
+  if (flowStatus === "configuring") {
+    return "CONFIGURANDO";
+  }
+
+  if (flowStatus === "testing") {
+    return "TESTANDO";
+  }
+
+  if (flowStatus === "preparing") {
+    return "PREPARANDO";
+  }
+
+  return bridgeStatus === "online" ? "ONLINE" : "VERIFICANDO";
 }
 
 export function AndroidPrintWakePage() {
@@ -58,202 +105,145 @@ export function AndroidPrintWakePage() {
     () => resolveDefaultPrinter(printers, defaultPrinterId),
     [defaultPrinterId, printers],
   );
+  const isInstallLanding = window.location.pathname === "/android-print-bridge/activate";
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("checking");
   const [flowStatus, setFlowStatus] = useState<FlowStatus>(() =>
-    hasPendingTest() ? "waking" : "idle",
+    loadPendingPrintCompanionWake() ? "preparing" : "idle",
   );
   const [message, setMessage] = useState(() =>
-    hasPendingTest()
-      ? "Aguardando o companion iniciar a ponte…"
-      : "Consultando a ponte local…",
+    loadPendingPrintCompanionWake()
+      ? "Retomando a ativação do aplicativo de impressão…"
+      : "Preparando o diagnóstico…",
   );
   const [errorMessage, setErrorMessage] = useState("");
-  const runTestRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  const wakeResumeControllerRef = useRef<WakeResumeController | null>(null);
-  const loadingPrintersRef = useRef(loadingPrinters);
+  const [showDownload, setShowDownload] = useState(false);
+  const [downloadLabel, setDownloadLabel] = useState("Baixar aplicativo para Android");
+  const [health, setHealth] = useState<PrintCompanionHealth | null>(null);
+  const [authenticated, setAuthenticated] = useState(false);
+  const runningRef = useRef(false);
 
-  const checkHealth = useCallback(async () => {
-    try {
-      await bridgeTransport.checkHealth();
-      setBridgeStatus("online");
-      return true;
-    } catch {
-      setBridgeStatus("offline");
-      return false;
-    }
-  }, []);
-
-  const runTest = useCallback(async () => {
-    if (!defaultPrinter) {
-      clearPendingTest();
-      setFlowStatus("fail");
-      setErrorMessage("Nenhuma impressora ativa está definida como padrão.");
-      setMessage("Não foi possível executar /v1/test.");
+  const runAcceptance = useCallback(async () => {
+    if (loadingPrinters || !defaultPrinter || runningRef.current) {
       return;
     }
 
-    setFlowStatus("testing");
-    setMessage(`Testando ${defaultPrinter.name} em /v1/test…`);
+    runningRef.current = true;
+    setBridgeStatus("checking");
+    setFlowStatus("preparing");
+    setMessage("Verificando o companion e preparando o pareamento…");
     setErrorMessage("");
+    setShowDownload(false);
 
     try {
-      await bridgeTransport.testConnection({
-        host: defaultPrinter.host,
-        port: defaultPrinter.port,
+      const config = loadPrintCompanionConfig();
+      const readyHealth = await companionClient.ensureCompanionReady({
+        requiredCapabilities: ["test"],
+        config,
       });
-      clearPendingTest();
+      setHealth(readyHealth);
+      setAuthenticated(true);
+      setBridgeStatus("online");
+      setFlowStatus("configuring");
+      setMessage(`Companion autenticado; configuração de ${config.idleTimeoutMinutes} min aplicada.`);
+
+      setFlowStatus("testing");
+      setMessage(`Testando a conexão com “${defaultPrinter.name}”…`);
+      await companionClient.testPrinter(defaultPrinter);
       setFlowStatus("pass");
-      setMessage("/v1/test respondeu OK; nenhum byte foi enviado à impressora.");
+      setMessage(`Conexão com “${defaultPrinter.name}” estabelecida. Nenhuma impressão física foi realizada.`);
     } catch (error) {
-      clearPendingTest();
+      const details = getErrorDetails(error);
+      setBridgeStatus("offline");
       setFlowStatus("fail");
-      setErrorMessage(getErrorMessage(error));
-      setMessage("A ponte respondeu, mas /v1/test falhou.");
+      setAuthenticated(false);
+      setErrorMessage(details.message);
+      setShowDownload(details.showDownload);
+      setDownloadLabel(details.downloadLabel);
+      setMessage("O diagnóstico não foi concluído.");
+    } finally {
+      runningRef.current = false;
     }
-  }, [defaultPrinter]);
+  }, [defaultPrinter, loadingPrinters]);
 
   useEffect(() => {
-    runTestRef.current = runTest;
-  }, [runTest]);
+    if (!loadingPrinters && defaultPrinter) {
+      const timerId = window.setTimeout(() => {
+        void runAcceptance();
+      }, 0);
 
-  useEffect(() => {
-    loadingPrintersRef.current = loadingPrinters;
-  }, [loadingPrinters]);
-
-  useEffect(() => {
-    const controller = createWakeResumeController({
-      hasPendingWake: hasPendingTest,
-      clearPendingWake: clearPendingTest,
-      checkHealth,
-      canRunPendingTest: () => !loadingPrintersRef.current,
-      runPendingTest: () => runTestRef.current(),
-      onInitialHealth: (online) => {
-        setFlowStatus("idle");
-        setMessage(
-          online
-            ? "A ponte está pronta para o próximo passo."
-            : "A ponte está offline; ative o companion para continuar.",
-        );
-      },
-      onWakeTimeout: () => {
-        setFlowStatus("fail");
-        setMessage("A ponte não ficou online dentro do tempo limite.");
-        setErrorMessage("Ativação expirada após 15 segundos.");
-      },
-    });
-    wakeResumeControllerRef.current = controller;
-
-    controller.start();
-    return () => {
-      controller.dispose();
-      wakeResumeControllerRef.current = null;
-    };
-  }, [checkHealth]);
-
-  useEffect(() => {
-    if (!loadingPrinters) {
-      wakeResumeControllerRef.current?.resumePendingWake();
+      return () => window.clearTimeout(timerId);
     }
-  }, [loadingPrinters]);
+  }, [defaultPrinter, loadingPrinters, runAcceptance]);
 
-  const resumePendingWake = useCallback(() => {
-    if (document.visibilityState !== "visible" || !hasPendingTest()) {
-      return;
-    }
-
-    setBridgeStatus("checking");
-    setFlowStatus("waking");
-    setMessage("Retomando o teste após a ativação do companion…");
-    wakeResumeControllerRef.current?.resumePendingWake();
-  }, []);
-
-  useEffect(() => {
-    function resumeFromVisibility() {
-      if (document.visibilityState === "visible") {
-        resumePendingWake();
-      }
-    }
-
-    window.addEventListener("pageshow", resumePendingWake);
-    window.addEventListener("focus", resumePendingWake);
-    document.addEventListener("visibilitychange", resumeFromVisibility);
-    return () => {
-      window.removeEventListener("pageshow", resumePendingWake);
-      window.removeEventListener("focus", resumePendingWake);
-      document.removeEventListener("visibilitychange", resumeFromVisibility);
-    };
-  }, [resumePendingWake]);
-
-  function activateCompanion() {
-    markPendingTest();
-    setErrorMessage("");
-    setBridgeStatus("checking");
-    setFlowStatus("waking");
-    setMessage("Abrindo o App Link HTTPS do companion…");
-    wakeResumeControllerRef.current?.beginPendingWake();
-    window.location.assign(APP_LINK_URL);
+  function retry() {
+    void runAcceptance();
   }
 
-  function testDirectly() {
-    void runTest();
-  }
-
-  const statusLabel = flowStatus === "pass"
-    ? "PASS"
+  const statusLabel = getFlowLabel(flowStatus, bridgeStatus);
+  const statusState = flowStatus === "pass" || bridgeStatus === "online"
+    ? "success"
     : flowStatus === "fail"
-      ? "FAIL"
-      : bridgeStatus === "online"
-        ? "ONLINE"
-        : bridgeStatus === "checking"
-          ? "VERIFICANDO"
-          : "OFFLINE";
-
-  const canActivate = bridgeStatus === "offline" && flowStatus !== "waking" && flowStatus !== "testing";
-  const canTestDirectly = bridgeStatus === "online" && flowStatus !== "testing" && !loadingPrinters;
+      ? "error"
+      : "pending";
 
   return (
     <div className="page-stack">
       <PageHeader
-        title="Diagnóstico Android"
-        description="Spike isolado para acordar a ponte local a partir de uma página HTTPS."
+        title={isInstallLanding ? "Aplicativo de impressão necessário" : "Diagnóstico Android"}
+        description={isInstallLanding
+          ? "Instale o WebCRM Print Companion para enviar pedidos diretamente à impressora térmica."
+          : "Harness de aceitação do companion Android v1."}
       />
 
       <Card className="android-wake-card">
-        <div className="android-wake-status" data-state={flowStatus === "pass" || bridgeStatus === "online" ? "success" : flowStatus === "fail" ? "error" : "pending"} role="status" aria-live="polite">
+        <div className="android-wake-status" data-state={statusState} role="status" aria-live="polite">
           <Badge>{statusLabel}</Badge>
           <strong>{message}</strong>
           {errorMessage && <span className="error-text">{errorMessage}</span>}
         </div>
 
-        <div className="android-wake-details">
-          <span>Ponte: http://127.0.0.1:17890</span>
-          <span>Impressora: {defaultPrinter?.name ?? "nenhuma padrão ativa"}</span>
-        </div>
+        {!isInstallLanding && (
+          <div className="android-wake-details">
+            <span>Companion: {health ? "ONLINE" : "verificando"}</span>
+            <span>Pairing: {authenticated ? "authenticated" : health?.paired ? "paired" : "não confirmado"}</span>
+            <span>API: {health?.apiVersion ?? "—"}</span>
+            <span>App: {health?.appVersion ?? "—"}</span>
+            <span>Capabilities: {health?.capabilities.join(", ") ?? "—"}</span>
+            <span>Impressora: {defaultPrinter?.name ?? "nenhuma padrão ativa"}</span>
+          </div>
+        )}
 
         <div className="android-wake-actions">
-          {canActivate && (
-            <Button type="button" onClick={activateCompanion}>
-              Ativar companion e testar
+          {showDownload && (
+            <a className="button button-primary" href={PRINT_COMPANION_DOWNLOAD_URL}>
+              {downloadLabel}
+            </a>
+          )}
+          {flowStatus === "fail" && (
+            <Button type="button" variant="secondary" onClick={retry}>
+              Tentar novamente
             </Button>
           )}
-          {canTestDirectly && (
-            <Button type="button" variant="secondary" onClick={testDirectly}>
-              Executar /v1/test diretamente
-            </Button>
-          )}
-          {(flowStatus === "waking" || flowStatus === "testing" || bridgeStatus === "checking") && (
-            <span className="muted-text">Aguarde o resultado do teste.</span>
+          {(flowStatus === "preparing" || flowStatus === "configuring" || flowStatus === "testing" || bridgeStatus === "checking") && (
+            <span className="muted-text">Aguarde o resultado do diagnóstico.</span>
           )}
         </div>
 
-        <p className="muted-text">
-          O spike não chama <code>window.print()</code> e /v1/test apenas abre e fecha a conexão TCP; a impressão física permanece fora deste fluxo.
-        </p>
+        {isInstallLanding && showDownload && (
+          <p className="muted-text">
+            Após instalar, volte ao sistema e toque em “Tentar novamente”.
+          </p>
+        )}
+        {!isInstallLanding && (
+          <p className="muted-text">
+            O teste abre e fecha a conexão TCP sem enviar bytes ESC/POS; a impressão física permanece fora deste fluxo.
+          </p>
+        )}
       </Card>
 
-      {printersError && <p className="error-text">{printersError}</p>}
+      {printersError && <p className="error-text">Não foi possível carregar a configuração das impressoras.</p>}
       {!loadingPrinters && !defaultPrinter && (
-        <p className="muted-text">Defina uma impressora TCP ativa como padrão para habilitar /v1/test.</p>
+        <p className="muted-text">Defina uma impressora TCP ativa como padrão para habilitar o diagnóstico.</p>
       )}
     </div>
   );

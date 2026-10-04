@@ -8,5 +8,15 @@
         "61:84:2E:7C:36:35:E5:23:1B:6E:87:BA:BD:68:05:87:9D:6E:D7:1F:26:5C:12:E0:EA:37:9C:D1:D8:EF:50:93"
       ]
     }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.webcrm.printcompanion",
+      "sha256_cert_fingerprints": [
+        "6A:0F:47:21:B0:FA:0B:02:57:51:AE:C6:B1:9F:41:C9:65:D7:B5:38:E0:EE:08:F9:F4:FD:8D:EE:4B:56:0E:AC"
+      ]
+    }
   }
 ]
