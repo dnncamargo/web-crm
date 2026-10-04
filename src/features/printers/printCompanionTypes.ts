@@ -5,6 +5,7 @@ export const PRINT_COMPANION_APP_LINK =
 export const PRINT_COMPANION_DOWNLOAD_URL = "/downloads/print-companion";
 
 export type PrintCompanionCapability = string;
+export type PrintCompanionIntent = "test" | "print";
 
 export interface PrintCompanionHealth {
   ok: true;

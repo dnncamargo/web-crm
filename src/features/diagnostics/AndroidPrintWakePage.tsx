@@ -27,6 +27,7 @@ function getErrorDetails(error: unknown) {
     return {
       message: "Não foi possível preparar o aplicativo de impressão.",
       showDownload: true,
+      showPair: false,
       downloadLabel: "Baixar aplicativo para Android",
     };
   }
@@ -35,7 +36,17 @@ function getErrorDetails(error: unknown) {
     return {
       message: "O aplicativo de impressão precisa ser atualizado.",
       showDownload: true,
+      showPair: false,
       downloadLabel: "Atualizar aplicativo",
+    };
+  }
+
+  if (error.code === "pairing_required" || error.code === "invalid_token") {
+    return {
+      message: "Pareie o companion para continuar.",
+      showDownload: false,
+      showPair: true,
+      downloadLabel: "Baixar aplicativo para Android",
     };
   }
 
@@ -43,6 +54,7 @@ function getErrorDetails(error: unknown) {
     return {
       message: "Companion não disponível neste dispositivo.",
       showDownload: true,
+      showPair: false,
       downloadLabel: "Baixar aplicativo para Android",
     };
   }
@@ -51,6 +63,7 @@ function getErrorDetails(error: unknown) {
     return {
       message: "O aplicativo instalado não oferece a capacidade necessária.",
       showDownload: true,
+      showPair: false,
       downloadLabel: "Atualizar aplicativo",
     };
   }
@@ -59,6 +72,7 @@ function getErrorDetails(error: unknown) {
     return {
       message: "Não foi possível estabelecer conexão com a impressora.",
       showDownload: false,
+      showPair: false,
       downloadLabel: "Baixar aplicativo para Android",
     };
   }
@@ -66,6 +80,7 @@ function getErrorDetails(error: unknown) {
   return {
     message: "Não foi possível concluir o diagnóstico do companion.",
     showDownload: false,
+    showPair: false,
     downloadLabel: "Baixar aplicativo para Android",
   };
 }
@@ -106,24 +121,28 @@ export function AndroidPrintWakePage() {
     [defaultPrinterId, printers],
   );
   const isInstallLanding = window.location.pathname === "/android-print-bridge/activate";
+  const hasPendingWake = Boolean(loadPendingPrintCompanionWake());
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("checking");
   const [flowStatus, setFlowStatus] = useState<FlowStatus>(() =>
-    loadPendingPrintCompanionWake() ? "preparing" : "idle",
+    hasPendingWake ? "preparing" : "idle",
   );
   const [message, setMessage] = useState(() =>
-    loadPendingPrintCompanionWake()
+    hasPendingWake
       ? "Retomando a ativação do aplicativo de impressão…"
-      : "Preparando o diagnóstico…",
+      : isInstallLanding
+        ? "Instale o aplicativo e toque em abrir aplicativo para iniciar o pareamento."
+        : "Clique em ativar para abrir o aplicativo de impressão.",
   );
   const [errorMessage, setErrorMessage] = useState("");
-  const [showDownload, setShowDownload] = useState(false);
+  const [showDownload, setShowDownload] = useState(isInstallLanding && !hasPendingWake);
+  const [showPair, setShowPair] = useState(false);
   const [downloadLabel, setDownloadLabel] = useState("Baixar aplicativo para Android");
   const [health, setHealth] = useState<PrintCompanionHealth | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const runningRef = useRef(false);
 
-  const runAcceptance = useCallback(async () => {
-    if (loadingPrinters || !defaultPrinter || runningRef.current) {
+  const resumeAcceptance = useCallback(async () => {
+    if (loadingPrinters || runningRef.current || !loadPendingPrintCompanionWake()) {
       return;
     }
 
@@ -133,10 +152,11 @@ export function AndroidPrintWakePage() {
     setMessage("Verificando o companion e preparando o pareamento…");
     setErrorMessage("");
     setShowDownload(false);
+    setShowPair(false);
 
     try {
       const config = loadPrintCompanionConfig();
-      const readyHealth = await companionClient.ensureCompanionReady({
+      const readyHealth = await companionClient.resumePendingWake({
         requiredCapabilities: ["test"],
         config,
       });
@@ -145,6 +165,13 @@ export function AndroidPrintWakePage() {
       setBridgeStatus("online");
       setFlowStatus("configuring");
       setMessage(`Companion autenticado; configuração de ${config.idleTimeoutMinutes} min aplicada.`);
+
+      if (!defaultPrinter) {
+        setFlowStatus("fail");
+        setErrorMessage("Defina uma impressora TCP ativa como padrão para executar o teste.");
+        setMessage("O companion foi pareado, mas o teste não foi concluído.");
+        return;
+      }
 
       setFlowStatus("testing");
       setMessage(`Testando a conexão com “${defaultPrinter.name}”…`);
@@ -158,6 +185,7 @@ export function AndroidPrintWakePage() {
       setAuthenticated(false);
       setErrorMessage(details.message);
       setShowDownload(details.showDownload);
+      setShowPair(details.showPair);
       setDownloadLabel(details.downloadLabel);
       setMessage("O diagnóstico não foi concluído.");
     } finally {
@@ -165,18 +193,46 @@ export function AndroidPrintWakePage() {
     }
   }, [defaultPrinter, loadingPrinters]);
 
-  useEffect(() => {
-    if (!loadingPrinters && defaultPrinter) {
-      const timerId = window.setTimeout(() => {
-        void runAcceptance();
-      }, 0);
+  const activateCompanion = useCallback(() => {
+    companionClient.startWakeFromUserGesture("test");
+    setBridgeStatus("checking");
+    setFlowStatus("preparing");
+    setMessage("Abrindo o aplicativo de impressão…");
+    setErrorMessage("");
+    setShowDownload(false);
+    setShowPair(false);
+  }, []);
 
-      return () => window.clearTimeout(timerId);
+  useEffect(() => {
+    if (loadingPrinters) {
+      return undefined;
     }
-  }, [defaultPrinter, loadingPrinters, runAcceptance]);
+
+    const resumeIfPending = () => {
+      if (loadPendingPrintCompanionWake()) {
+        void resumeAcceptance();
+      }
+    };
+    const resumeWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        resumeIfPending();
+      }
+    };
+
+    resumeIfPending();
+    window.addEventListener("pageshow", resumeIfPending);
+    window.addEventListener("focus", resumeIfPending);
+    document.addEventListener("visibilitychange", resumeWhenVisible);
+
+    return () => {
+      window.removeEventListener("pageshow", resumeIfPending);
+      window.removeEventListener("focus", resumeIfPending);
+      document.removeEventListener("visibilitychange", resumeWhenVisible);
+    };
+  }, [defaultPrinter, loadingPrinters, resumeAcceptance]);
 
   function retry() {
-    void runAcceptance();
+    activateCompanion();
   }
 
   const statusLabel = getFlowLabel(flowStatus, bridgeStatus);
@@ -219,9 +275,19 @@ export function AndroidPrintWakePage() {
               {downloadLabel}
             </a>
           )}
-          {flowStatus === "fail" && (
+          {showPair && (flowStatus === "idle" || flowStatus === "fail") && (
+            <Button type="button" variant="primary" onClick={activateCompanion}>
+              PAREAR COMPANION
+            </Button>
+          )}
+          {!showPair && flowStatus === "idle" && (
+            <Button type="button" variant="secondary" onClick={activateCompanion}>
+              {isInstallLanding ? "Tentar abrir aplicativo" : "ATIVAR COMPANION E TESTAR"}
+            </Button>
+          )}
+          {flowStatus === "fail" && !showPair && (
             <Button type="button" variant="secondary" onClick={retry}>
-              Tentar novamente
+              {isInstallLanding ? "Tentar abrir aplicativo" : "Tentar novamente"}
             </Button>
           )}
           {(flowStatus === "preparing" || flowStatus === "configuring" || flowStatus === "testing" || bridgeStatus === "checking") && (
@@ -231,7 +297,7 @@ export function AndroidPrintWakePage() {
 
         {isInstallLanding && showDownload && (
           <p className="muted-text">
-            Após instalar, volte ao sistema e toque em “Tentar novamente”.
+            Após instalar, volte ao sistema e toque em “Tentar abrir aplicativo”.
           </p>
         )}
         {!isInstallLanding && (
