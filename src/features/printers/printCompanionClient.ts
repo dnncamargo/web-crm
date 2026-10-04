@@ -57,7 +57,7 @@ export interface PrintCompanionWakeIntent {
   nonce: string;
   intentUrl: string;
   fallbackUrl: string;
-  pending: PendingPrintCompanionWake;
+  pending: Omit<PendingPrintCompanionWake, "createdAt">;
 }
 
 export interface PrintCompanionClient {
@@ -378,14 +378,18 @@ export function createPrintCompanionClient(
 
   function prepareWakeIntent(intent: PrintCompanionIntent = "test"): PrintCompanionWakeIntent {
     const nonce = createNonce();
-    const pending = { nonce, createdAt: Date.now(), intent };
+    const pending = { nonce, intent };
     const fallbackUrl = PRINT_COMPANION_APP_LINK;
     const intentUrl = `intent://deliciasdoporto.vercel.app/android-print-bridge/activate?nonce=${encodeURIComponent(nonce)}#Intent;scheme=https;package=${PRINT_COMPANION_PACKAGE};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`;
     return { nonce, intentUrl, fallbackUrl, pending };
   }
 
   function activatePreparedWake(wakeIntent: PrintCompanionWakeIntent) {
-    savePendingPrintCompanionWake(wakeIntent.pending, sessionStorage);
+    savePendingPrintCompanionWake({
+      nonce: wakeIntent.nonce,
+      createdAt: Date.now(),
+      intent: wakeIntent.pending.intent,
+    }, sessionStorage);
   }
 
   function startWakeFromUserGesture(intent: PrintCompanionIntent = "test") {

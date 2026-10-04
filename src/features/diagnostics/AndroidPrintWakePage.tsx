@@ -182,7 +182,7 @@ export function AndroidPrintWakePage() {
   );
   const isInstallLanding = window.location.pathname === "/android-print-bridge/activate";
   const isProduction = isAndroidPrintDiagnosticProduction(window.location.origin);
-  const [wakeIntent] = useState(() => companionClient.prepareWakeIntent("test"));
+  const [wakeIntent, setWakeIntent] = useState(() => companionClient.prepareWakeIntent("test"));
   const hasPendingWake = isProduction && Boolean(loadPendingPrintCompanionWake());
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("unknown");
   const [flowStatus, setFlowStatus] = useState<FlowStatus>(() =>
@@ -297,6 +297,7 @@ export function AndroidPrintWakePage() {
 
     companionClient.activatePreparedWake(wakeIntent);
     window.setTimeout(() => {
+      setWakeIntent(companionClient.prepareWakeIntent("test"));
       void resumeAcceptance();
     }, 0);
     setAttemptStartedAt(Date.now());
