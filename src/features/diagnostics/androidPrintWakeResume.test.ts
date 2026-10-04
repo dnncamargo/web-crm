@@ -4,6 +4,7 @@ import {
   createWakeResumeController,
   POLL_INTERVAL_MS,
   WAKE_TIMEOUT_MS,
+  type WakePollProgress,
 } from "./androidPrintWakeResume";
 
 async function settle() {
@@ -15,6 +16,7 @@ function createHarness(options: {
   pending?: boolean;
   health: () => Promise<boolean>;
   runTest?: () => Promise<void>;
+  onPollAttempt?: (progress: WakePollProgress) => void;
 }) {
   let pending = options.pending ?? true;
   const clearPendingWake = vi.fn(() => {
@@ -31,6 +33,7 @@ function createHarness(options: {
     runPendingTest,
     onInitialHealth,
     onWakeTimeout,
+    onPollAttempt: options.onPollAttempt,
   });
 
   return {
@@ -83,6 +86,27 @@ describe("Android wake resume controller", () => {
 
     expect(health).toHaveBeenCalledTimes(1);
     expect(harness.runPendingTest).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports each real health poll with attempt and elapsed time", async () => {
+    vi.useFakeTimers();
+    const progress: WakePollProgress[] = [];
+    const harness = createHarness({
+      health: vi.fn()
+        .mockResolvedValueOnce(false)
+        .mockResolvedValueOnce(true),
+      onPollAttempt: (value) => progress.push(value),
+    });
+
+    harness.controller.beginPendingWake();
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    await settle();
+
+    expect(progress).toEqual([
+      { attempt: 1, elapsedMs: 0 },
+      { attempt: 2, elapsedMs: POLL_INTERVAL_MS },
+    ]);
   });
 
   it("fails and clears the pending wake when the finite timeout expires", async () => {
