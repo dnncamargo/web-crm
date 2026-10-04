@@ -54,6 +54,11 @@ export interface PrintCompanionReadyOptions {
   onPollAttempt?: (progress: WakePollProgress) => void;
   onPollResult?: (result: WakePollResult) => void;
   onStageChange?: (stage: "health" | "pair" | "config") => void;
+  onStageResult?: (
+    stage: "pair" | "config",
+    result: "success" | "failure",
+    publicCode?: string,
+  ) => void;
   onHealthReady?: (health: PrintCompanionHealth) => void;
 }
 
@@ -124,6 +129,14 @@ function sanitizeMessage(message: string, secrets: string[]) {
   }
 
   return sanitized.replace(/(bearer\s+|token\s*[=:]\s*|nonce\s*[=:]\s*)[^\s,;]+/gi, "$1[redacted]");
+}
+
+function getPublicErrorCode(error: unknown) {
+  if (error instanceof PrintCompanionError) {
+    return error.companionCode ?? error.code;
+  }
+
+  return "unknown_error";
 }
 
 function mapCompanionCode(code: string, status?: number) {
@@ -311,7 +324,12 @@ export function createPrintCompanionClient(
       const message = error instanceof DOMException && error.name === "AbortError"
         ? "O companion excedeu o tempo limite."
         : "O companion está offline.";
-      throw new PrintCompanionError("companion_offline", message, { cause: error });
+      throw new PrintCompanionError("companion_offline", message, {
+        cause: error,
+        companionCode: error instanceof DOMException && error.name === "AbortError"
+          ? "local_timeout"
+          : undefined,
+      });
     } finally {
       clearTimeout(timeoutId);
     }
@@ -506,12 +524,24 @@ export function createPrintCompanionClient(
 
         if (!loadPrintCompanionToken(localStorage)) {
           readyOptions.onStageChange?.("pair");
-          await pair(pendingWake.nonce, false);
+          try {
+            await pair(pendingWake.nonce, false);
+            readyOptions.onStageResult?.("pair", "success");
+          } catch (error) {
+            readyOptions.onStageResult?.("pair", "failure", getPublicErrorCode(error));
+            throw error;
+          }
         }
 
         if (readyOptions.config) {
           readyOptions.onStageChange?.("config");
-          await requestConfigWithRecovery(readyOptions.config);
+          try {
+            await requestConfigWithRecovery(readyOptions.config);
+            readyOptions.onStageResult?.("config", "success");
+          } catch (error) {
+            readyOptions.onStageResult?.("config", "failure", getPublicErrorCode(error));
+            throw error;
+          }
         }
 
         clearPendingPrintCompanionWake(sessionStorage);

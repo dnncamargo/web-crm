@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { createPrintCompanionClient } from "../printers/printCompanionClient";
@@ -19,8 +20,22 @@ import {
   getProductionDiagnosticUrl,
   isAndroidPrintDiagnosticProduction,
 } from "./androidPrintDiagnostic";
-import type { WakePollProgress, WakePollResult } from "./androidPrintWakeResume";
+import {
+  POLL_INTERVAL_MS,
+  WAKE_HEALTH_REQUEST_TIMEOUT_MS,
+  WAKE_TIMEOUT_MS,
+  type WakePollProgress,
+  type WakePollResult,
+} from "./androidPrintWakeResume";
 import { getAndroidPrintWakeErrorDetails } from "./androidPrintWakeErrors";
+import {
+  appendAndroidDiagnosticLog,
+  createInitialAndroidDiagnosticLog,
+  formatAndroidDiagnosticLog,
+  formatAndroidDiagnosticLogEntry,
+  type AndroidDiagnosticLogEntry,
+  type AndroidDiagnosticLogStage,
+} from "./androidPrintWakeLog";
 import { usePrinters } from "../printers/usePrinters";
 import { resolveDefaultPrinter } from "../printers/printerUtils";
 
@@ -72,12 +87,6 @@ function formatElapsed(elapsedMs: number) {
 
 function monotonicNow() {
   return typeof performance === "undefined" ? Date.now() : performance.now();
-}
-
-function formatLogTime() {
-  const wallTime = new Date().toLocaleTimeString("pt-BR", { hour12: false });
-  const tenths = Math.floor((monotonicNow() % 1000) / 100);
-  return `${wallTime},${tenths}`;
 }
 
 function getStageLabel(stage: DiagnosticStage) {
@@ -137,26 +146,54 @@ export function AndroidPrintWakePage() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [currentStage, setCurrentStage] = useState<DiagnosticStage>(hasPendingWake ? "health" : "idle");
   const [lastPublicErrorCode, setLastPublicErrorCode] = useState<string | null>(null);
-  const [stageLog, setStageLog] = useState<string[]>([]);
+  const [diagnosticLog, setDiagnosticLog] = useState<AndroidDiagnosticLogEntry[]>(() =>
+    createInitialAndroidDiagnosticLog(isProduction),
+  );
+  const [attemptNumber, setAttemptNumber] = useState(0);
+  const [copyMessage, setCopyMessage] = useState("");
   const attemptStartedAtRef = useRef<number | null>(null);
   const attemptStartedPerformanceAtRef = useRef<number | null>(null);
+  const attemptNumberRef = useRef(0);
+  const pollAttemptCountRef = useRef(0);
   const runningRef = useRef(false);
 
-  const appendStageLog = useCallback((event: string) => {
-    setStageLog((current) => [...current, `${formatLogTime()} ${event}`].slice(-20));
+  const appendDiagnosticLog = useCallback((
+    stage: AndroidDiagnosticLogStage,
+    event: string,
+    details?: string,
+  ) => {
+    const startedAt = attemptStartedPerformanceAtRef.current;
+    setDiagnosticLog((current) => appendAndroidDiagnosticLog(current, {
+      at: Date.now(),
+      elapsedMs: startedAt === null ? undefined : Math.max(0, monotonicNow() - startedAt),
+      stage,
+      event,
+      details,
+    }));
   }, []);
 
   const resetAttemptMetrics = useCallback((startedAt: number, stage: DiagnosticStage) => {
     const elapsedBeforeResume = Math.max(0, Date.now() - startedAt);
+    const nextAttemptNumber = attemptNumberRef.current + 1;
     attemptStartedAtRef.current = startedAt;
     attemptStartedPerformanceAtRef.current = monotonicNow() - elapsedBeforeResume;
+    attemptNumberRef.current = nextAttemptNumber;
     setAttemptStartedAt(startedAt);
+    setAttemptNumber(nextAttemptNumber);
     setAttemptActive(true);
+    pollAttemptCountRef.current = 0;
     setPollAttemptCount(0);
     setElapsedMs(elapsedBeforeResume);
     setCurrentStage(stage);
     setLastPublicErrorCode(null);
-    setStageLog([]);
+    if (nextAttemptNumber > 1) {
+      setDiagnosticLog((current) => appendAndroidDiagnosticLog(current, {
+        at: Date.now(),
+        elapsedMs: 0,
+        stage: "idle",
+        event: `--- Nova tentativa #${nextAttemptNumber} ---`,
+      }));
+    }
   }, []);
 
   const updateElapsed = useCallback(() => {
@@ -183,20 +220,50 @@ export function AndroidPrintWakePage() {
 
   const handlePollAttempt = useCallback(({ attempt, elapsedMs: nextElapsedMs }: WakePollProgress) => {
     setCurrentStage("health");
+    pollAttemptCountRef.current = attempt;
     setPollAttemptCount(attempt);
     setElapsedMs(nextElapsedMs);
-    appendStageLog(`health #${attempt} iniciado`);
-  }, [appendStageLog]);
+    appendDiagnosticLog("health", `probe #${attempt} iniciado`);
+  }, [appendDiagnosticLog]);
 
-  const handlePollResult = useCallback(({ attempt, status }: WakePollResult) => {
-    appendStageLog(`health #${attempt} ${status === "online" ? "respondeu" : "sem resposta"}`);
-  }, [appendStageLog]);
+  const handlePollResult = useCallback(({ attempt, status, errorCode, httpStatus, timedOut }: WakePollResult) => {
+    if (timedOut) {
+      appendDiagnosticLog("health", `probe #${attempt} timeout local`);
+    } else if (httpStatus !== undefined) {
+      appendDiagnosticLog("health", `probe #${attempt} HTTP ${httpStatus}`, errorCode);
+    } else if (status === "online" && errorCode === undefined) {
+      appendDiagnosticLog("health", `probe #${attempt} respondeu`);
+    } else if (errorCode !== undefined) {
+      appendDiagnosticLog("health", `probe #${attempt} falhou`, errorCode);
+    } else {
+      appendDiagnosticLog("health", `probe #${attempt} sem resposta`, errorCode);
+    }
+  }, [appendDiagnosticLog]);
 
   const handleHealthReady = useCallback((nextHealth: PrintCompanionHealth) => {
     setHealth(nextHealth);
     setBridgeStatus("online");
     setCurrentStage("pair");
     setMessage("Companion respondeu. Verificando pareamento…");
+    appendDiagnosticLog(
+      "health",
+      "companion detectado",
+      `app=${nextHealth.appVersion} code=${nextHealth.appVersionCode} api=${nextHealth.apiVersion} paired=${nextHealth.paired}`,
+    );
+    appendDiagnosticLog("health", "capabilities", nextHealth.capabilities.join(", "));
+  }, [appendDiagnosticLog]);
+
+  const handleStageResult = useCallback((
+    stage: "pair" | "config",
+    result: "success" | "failure",
+    publicCode?: string,
+  ) => {
+    appendDiagnosticLog(stage, result === "success" ? "sucesso" : "falha", publicCode);
+  }, [appendDiagnosticLog]);
+
+  const getCurrentElapsedMs = useCallback(() => {
+    const startedAt = attemptStartedPerformanceAtRef.current;
+    return startedAt === null ? 0 : Math.max(0, monotonicNow() - startedAt);
   }, []);
 
   const handleStageChange = useCallback((stage: "health" | "pair" | "config") => {
@@ -204,15 +271,15 @@ export function AndroidPrintWakePage() {
     if (stage === "pair") {
       setFlowStatus("preparing");
       setMessage("Companion respondeu. Pareando…");
-      appendStageLog("pair iniciado");
+      appendDiagnosticLog("pair", "início");
     } else if (stage === "config") {
       setFlowStatus("configuring");
       setMessage("Companion respondeu. Aplicando configuração…");
-      appendStageLog("config iniciado");
+      appendDiagnosticLog("config", "início");
     } else {
       setMessage("Aguardando o companion responder…");
     }
-  }, [appendStageLog]);
+  }, [appendDiagnosticLog]);
 
   const resumeAcceptance = useCallback(async () => {
     const pendingWake = loadPendingPrintCompanionWake();
@@ -222,7 +289,7 @@ export function AndroidPrintWakePage() {
 
     if (attemptStartedAtRef.current === null) {
       resetAttemptMetrics(pendingWake.createdAt, "health");
-      appendStageLog("wake retomado");
+      appendDiagnosticLog("wake", "tentativa retomada");
     }
 
     runningRef.current = true;
@@ -242,6 +309,7 @@ export function AndroidPrintWakePage() {
         onPollAttempt: handlePollAttempt,
         onPollResult: handlePollResult,
         onStageChange: handleStageChange,
+        onStageResult: handleStageResult,
         onHealthReady: handleHealthReady,
       });
       setHealth(readyHealth);
@@ -260,7 +328,15 @@ export function AndroidPrintWakePage() {
       setCurrentStage("test");
       setFlowStatus("testing");
       setMessage(`Testando a conexão com “${defaultPrinter.name}”…`);
-      await companionClient.testPrinter(defaultPrinter);
+      appendDiagnosticLog("test", "início");
+      try {
+        await companionClient.testPrinter(defaultPrinter);
+        appendDiagnosticLog("test", "sucesso");
+      } catch (error) {
+        const publicCode = getAndroidPrintWakeErrorDetails(error).publicCode;
+        appendDiagnosticLog("test", "falha", publicCode);
+        throw error;
+      }
       setFlowStatus("pass");
       setMessage(`Conexão com “${defaultPrinter.name}” estabelecida. Nenhuma impressão física foi realizada.`);
     } catch (error) {
@@ -274,12 +350,18 @@ export function AndroidPrintWakePage() {
       setShowPair(details.showPair);
       setDownloadLabel(details.downloadLabel);
       setMessage("O diagnóstico não foi concluído.");
-      appendStageLog(`erro ${details.publicCode}`);
+      if (details.publicCode === "wake_timeout") {
+        appendDiagnosticLog(
+          "health",
+          "wake_timeout",
+          `probes=${pollAttemptCountRef.current} elapsed=${Math.round(getCurrentElapsedMs())} ms`,
+        );
+      }
     } finally {
       finishAttempt();
       runningRef.current = false;
     }
-  }, [appendStageLog, defaultPrinter, finishAttempt, handleHealthReady, handlePollAttempt, handlePollResult, handleStageChange, isProduction, loadingPrinters, resetAttemptMetrics]);
+  }, [appendDiagnosticLog, defaultPrinter, finishAttempt, getCurrentElapsedMs, handleHealthReady, handlePollAttempt, handlePollResult, handleStageChange, handleStageResult, isProduction, loadingPrinters, resetAttemptMetrics]);
 
   const handleWakeClick = useCallback(() => {
     if (!isProduction) {
@@ -289,7 +371,9 @@ export function AndroidPrintWakePage() {
     const clickTimestamp = Date.now();
     companionClient.activatePreparedWake(wakeIntent);
     resetAttemptMetrics(clickTimestamp, "wake");
-    appendStageLog("wake enviado");
+    appendDiagnosticLog("wake", "nova tentativa iniciada");
+    appendDiagnosticLog("wake", "pending salvo");
+    appendDiagnosticLog("intent", "solicitação enviada ao Android");
     window.setTimeout(() => {
       setWakeIntent(companionClient.prepareWakeIntent("test"));
       void resumeAcceptance();
@@ -300,7 +384,7 @@ export function AndroidPrintWakePage() {
     setErrorMessage("");
     setShowDownload(false);
     setShowPair(false);
-  }, [appendStageLog, isProduction, resetAttemptMetrics, resumeAcceptance, wakeIntent]);
+  }, [appendDiagnosticLog, isProduction, resetAttemptMetrics, resumeAcceptance, wakeIntent]);
 
   useEffect(() => {
     if (!isProduction || loadingPrinters) {
@@ -333,6 +417,27 @@ export function AndroidPrintWakePage() {
   function retry() {
     handleWakeClick();
   }
+
+  const logText = formatAndroidDiagnosticLog({
+    diagnosticVersion: ANDROID_PRINT_DIAGNOSTIC_VERSION,
+    companionVersion: EXPECTED_COMPANION_APP_VERSION,
+    companionVersionCode: EXPECTED_COMPANION_VERSION_CODE,
+    environment: isProduction ? "PRODUÇÃO" : "NÃO SUPORTADO",
+    origin: window.location.origin,
+    wakeDeadlineMs: WAKE_TIMEOUT_MS,
+    healthProbeTimeoutMs: WAKE_HEALTH_REQUEST_TIMEOUT_MS,
+    pollIntervalMs: POLL_INTERVAL_MS,
+    attemptNumber,
+  }, diagnosticLog);
+
+  const copyLog = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(logText);
+      setCopyMessage("Log copiado.");
+    } catch {
+      setCopyMessage("Não foi possível copiar o log.");
+    }
+  }, [logText]);
 
   const statusLabel = !isProduction
     ? "AMBIENTE NÃO SUPORTADO"
@@ -380,15 +485,6 @@ export function AndroidPrintWakePage() {
           {lastPublicErrorCode && <span>Código: {lastPublicErrorCode}</span>}
         </div>
 
-        {stageLog.length > 0 && (
-          <div className="muted-text">
-            <span>Etapas recentes:</span>
-            <ul>
-              {stageLog.map((entry, index) => <li key={`${entry}-${index}`}>{entry}</li>)}
-            </ul>
-          </div>
-        )}
-
         <div className="android-wake-actions">
           {!isProduction && (
             <>
@@ -433,6 +529,29 @@ export function AndroidPrintWakePage() {
             O teste abre e fecha a conexão TCP sem enviar bytes ESC/POS; a impressão física permanece fora deste fluxo.
           </p>
         )}
+      </Card>
+
+      <Card className="android-wake-log">
+        <div className="panel-section-title">Log do diagnóstico</div>
+        <div className="android-wake-details">
+          <span>Diagnóstico: v{ANDROID_PRINT_DIAGNOSTIC_VERSION}</span>
+          <span>Companion esperado: v{EXPECTED_COMPANION_APP_VERSION} (code {EXPECTED_COMPANION_VERSION_CODE})</span>
+          <span>Ambiente: {isProduction ? "PRODUÇÃO" : "NÃO SUPORTADO"}</span>
+          <span>Origin: {window.location.origin}</span>
+          <span>Wake deadline: {WAKE_TIMEOUT_MS / 1000} s</span>
+          <span>Health probe timeout: {WAKE_HEALTH_REQUEST_TIMEOUT_MS / 1000} s</span>
+          <span>Poll interval: {POLL_INTERVAL_MS} ms</span>
+        </div>
+        <pre>{diagnosticLog.map(formatAndroidDiagnosticLogEntry).join("\n")}</pre>
+        <div className="android-wake-actions">
+          <Button type="button" variant="secondary" onClick={() => setDiagnosticLog([])}>
+            LIMPAR LOG
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => void copyLog()}>
+            COPIAR LOG
+          </Button>
+          {copyMessage && <span className="muted-text">{copyMessage}</span>}
+        </div>
       </Card>
 
       {printersError && <p className="error-text">Não foi possível carregar a configuração das impressoras.</p>}

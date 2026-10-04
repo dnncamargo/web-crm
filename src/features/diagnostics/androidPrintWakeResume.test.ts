@@ -4,6 +4,7 @@ import {
   createWakeResumeController,
   POLL_INTERVAL_MS,
   WAKE_TIMEOUT_MS,
+  waitForWakeResume,
   type WakePollResult,
   type WakePollProgress,
 } from "./androidPrintWakeResume";
@@ -111,6 +112,31 @@ describe("Android wake resume controller", () => {
     expect(progress).toEqual([
       { attempt: 1, elapsedMs: 0 },
       { attempt: 2, elapsedMs: POLL_INTERVAL_MS },
+    ]);
+  });
+
+  it("reports local timeout, HTTP failure, and valid health responses distinctly", async () => {
+    vi.useFakeTimers();
+    const results: WakePollResult[] = [];
+    const health = vi.fn<() => Promise<{ ready: boolean }>>()
+      .mockRejectedValueOnce(Object.assign(new Error("timeout"), { companionCode: "local_timeout" }))
+      .mockRejectedValueOnce(Object.assign(new Error("unavailable"), { companionCode: "http_503", status: 503 }))
+      .mockResolvedValueOnce({ ready: true });
+    const resumePromise = waitForWakeResume(
+      health,
+      (value) => value.ready,
+      { onPollResult: (result) => results.push(result) },
+    );
+
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+
+    await expect(resumePromise).resolves.toEqual({ ready: true });
+    expect(results).toMatchObject([
+      { status: "unavailable", timedOut: true, errorCode: "local_timeout" },
+      { status: "unavailable", httpStatus: 503, errorCode: "http_503" },
+      { status: "online" },
     ]);
   });
 

@@ -11,6 +11,15 @@ export interface WakePollResult {
   attempt: number;
   elapsedMs: number;
   status: "online" | "unavailable";
+  errorCode?: string;
+  httpStatus?: number;
+  timedOut?: boolean;
+}
+
+interface WakePollErrorDetails {
+  errorCode?: string;
+  httpStatus?: number;
+  timedOut?: boolean;
 }
 
 interface WakeResumeControllerOptions {
@@ -25,6 +34,7 @@ interface WakeResumeControllerOptions {
   onPollAttempt?: (progress: WakePollProgress) => void;
   onPollResult?: (result: WakePollResult) => void;
   startedAt?: number;
+  getLastPollError?: () => WakePollErrorDetails | undefined;
 }
 
 export interface WakeResumeController {
@@ -42,6 +52,28 @@ export interface WaitForWakeResumeOptions {
   startedAt?: number;
 }
 
+function getWakePollErrorDetails(error: unknown): WakePollErrorDetails {
+  if (error instanceof Error && error.name === "AbortError") {
+    return { timedOut: true };
+  }
+
+  if (error !== null && typeof error === "object") {
+    const candidate = error as Record<string, unknown>;
+    const errorCode = typeof candidate.companionCode === "string"
+      ? candidate.companionCode
+      : typeof candidate.code === "string"
+        ? candidate.code
+        : "unknown_error";
+    return {
+      errorCode,
+      httpStatus: typeof candidate.status === "number" ? candidate.status : undefined,
+      timedOut: candidate.companionCode === "local_timeout",
+    };
+  }
+
+  return { errorCode: "unknown_error" };
+}
+
 export async function waitForWakeResume<T>(
   checkHealth: () => Promise<T>,
   isReady: (value: T) => boolean,
@@ -54,6 +86,7 @@ export async function waitForWakeResume<T>(
   let settled = false;
   let hasFatalError = false;
   let fatalError: unknown;
+  let lastPollError: WakePollErrorDetails | undefined;
 
   const result = new Promise<T>((resolve, reject) => {
     resolveResult = resolve;
@@ -66,11 +99,13 @@ export async function waitForWakeResume<T>(
       pending = false;
     },
     checkHealth: async () => {
+      lastPollError = undefined;
       try {
         const value = await checkHealth();
         latestValue = value;
         return isReady(value);
       } catch (error) {
+        lastPollError = getWakePollErrorDetails(error);
         if (options.isTransientError && !options.isTransientError(error)) {
           hasFatalError = true;
           fatalError = error;
@@ -100,6 +135,7 @@ export async function waitForWakeResume<T>(
     onPollAttempt: options.onPollAttempt,
     onPollResult: options.onPollResult,
     startedAt: options.startedAt,
+    getLastPollError: () => lastPollError,
   });
 
   function resume() {
@@ -193,6 +229,7 @@ export function createWakeResumeController(
       attempt: pollAttempt,
       elapsedMs: elapsedSinceWake(),
       status: online ? "online" : "unavailable",
+      ...options.getLastPollError?.(),
     });
 
     if (disposed || !polling || currentGeneration !== generation) {
