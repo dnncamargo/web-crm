@@ -143,6 +143,86 @@ describe("PrintCompanionClient", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it("starts the wake window at activation instead of preparation", () => {
+    vi.useFakeTimers();
+    const sessionStorage = new MemoryStorage();
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl: vi.fn<typeof fetch>(),
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+
+    const wake = client.prepareWakeIntent("test");
+    expect(sessionStorage.getItem("web-crm.print-companion.wake.v1")).toBeNull();
+
+    vi.advanceTimersByTime(60_000);
+    const clickTimestamp = Date.now();
+    client.activatePreparedWake(wake);
+
+    expect(JSON.parse(sessionStorage.getItem("web-crm.print-companion.wake.v1") as string)).toEqual({
+      nonce: wake.nonce,
+      createdAt: clickTimestamp,
+      intent: "test",
+    });
+  });
+
+  it("uses a new nonce and timestamp for each explicit retry", () => {
+    vi.useFakeTimers();
+    const sessionStorage = new MemoryStorage();
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl: vi.fn<typeof fetch>(),
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+
+    const firstWake = client.prepareWakeIntent("test");
+    client.activatePreparedWake(firstWake);
+    const firstPending = JSON.parse(sessionStorage.getItem("web-crm.print-companion.wake.v1") as string) as {
+      nonce: string;
+      createdAt: number;
+    };
+
+    vi.advanceTimersByTime(60_000);
+    const retryWake = client.prepareWakeIntent("test");
+    client.activatePreparedWake(retryWake);
+    const retryPending = JSON.parse(sessionStorage.getItem("web-crm.print-companion.wake.v1") as string) as {
+      nonce: string;
+      createdAt: number;
+    };
+
+    expect(retryWake.nonce).not.toBe(firstWake.nonce);
+    expect(retryPending.nonce).toBe(retryWake.nonce);
+    expect(retryPending.createdAt).toBeGreaterThan(firstPending.createdAt);
+  });
+
+  it("starts polling normally after a delayed click instead of expiring immediately", async () => {
+    vi.useFakeTimers();
+    const sessionStorage = new MemoryStorage();
+    const localStorage = new MemoryStorage();
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl: vi.fn<typeof fetch>()
+        .mockRejectedValueOnce(new TypeError("offline"))
+        .mockResolvedValueOnce(response(health()))
+        .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }))
+        .mockResolvedValueOnce(response({ ok: true })),
+      localStorage,
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+
+    const wake = client.prepareWakeIntent("test");
+    vi.advanceTimersByTime(60_000);
+    client.activatePreparedWake(wake);
+
+    const resumePromise = client.resumePendingWake({ config: { idleTimeoutMinutes: 15 } });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    await expect(resumePromise).resolves.toMatchObject({ appVersion: "1.0.0" });
+  });
+
   it("keeps the compatibility wake API synchronous with the explicit Intent URI", () => {
     const assign = vi.fn();
     const client = createPrintCompanionClient({
