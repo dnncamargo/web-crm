@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   clearPrintCompanionToken,
+  clearPendingPrintCompanionWakeIfMatches,
+  inspectFreshPendingPrintCompanionWake,
   loadPrintCompanionConfig,
   loadPrintCompanionToken,
+  savePendingPrintCompanionWake,
   savePrintCompanionConfig,
   savePrintCompanionToken,
 } from "./printCompanionStorage";
@@ -55,5 +58,30 @@ describe("Print Companion local storage", () => {
     savePrintCompanionConfig({ idleTimeoutMinutes: 30 }, storage);
     expect(loadPrintCompanionConfig(storage)).toEqual({ idleTimeoutMinutes: 30 });
     expect(() => savePrintCompanionConfig({ idleTimeoutMinutes: 0 }, storage)).toThrow();
+  });
+
+  it("discards stale pending wake and preserves a replacement", () => {
+    const storage = new MemoryStorage();
+    savePendingPrintCompanionWake({
+      attemptId: "attempt-a",
+      nonce: "nonce-a",
+      createdAt: 1_000,
+      intent: "test",
+    }, storage);
+
+    const stale = inspectFreshPendingPrintCompanionWake(storage, 16_001);
+
+    expect(stale.pending).toBeNull();
+    expect(stale.staleAgeMs).toBe(15_001);
+    expect(storage.getItem("web-crm.print-companion.wake.v1")).toBeNull();
+
+    savePendingPrintCompanionWake({
+      attemptId: "attempt-b",
+      nonce: "nonce-b",
+      createdAt: 16_001,
+      intent: "test",
+    }, storage);
+    expect(clearPendingPrintCompanionWakeIfMatches("attempt-a", storage)).toBe(false);
+    expect(inspectFreshPendingPrintCompanionWake(storage, 16_002).pending?.attemptId).toBe("attempt-b");
   });
 });

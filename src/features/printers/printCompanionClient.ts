@@ -1,8 +1,9 @@
 import type { PrinterConfiguration } from "./printerTypes";
 import type { PendingPrintCompanionWake } from "./printCompanionStorage";
 import {
-  clearPendingPrintCompanionWake,
+  clearPendingPrintCompanionWakeIfMatches,
   clearPrintCompanionToken,
+  loadFreshPendingPrintCompanionWake,
   loadPendingPrintCompanionWake,
   loadPrintCompanionConfig,
   loadPrintCompanionToken,
@@ -63,6 +64,7 @@ export interface PrintCompanionReadyOptions {
 }
 
 export interface PrintCompanionWakeIntent {
+  attemptId: string;
   nonce: string;
   intentUrl: string;
   fallbackUrl: string;
@@ -73,6 +75,7 @@ export interface PrintCompanionClient {
   health(timeoutMs?: number): Promise<PrintCompanionHealth>;
   prepareWakeIntent(intent?: PrintCompanionIntent): PrintCompanionWakeIntent;
   activatePreparedWake(wakeIntent: PrintCompanionWakeIntent): void;
+  invalidatePendingWakeResume(): void;
   startWakeFromUserGesture(intent?: PrintCompanionIntent): { nonce: string; url: string };
   resumePendingWake(options?: PrintCompanionReadyOptions): Promise<PrintCompanionHealth>;
   wake(): { nonce: string; url: string };
@@ -202,6 +205,16 @@ function createNonce() {
     .replace(/=+$/, "");
 }
 
+function createAttemptId() {
+  if (typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 export function createPrintJobId() {
   if (typeof globalThis.crypto.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -274,22 +287,29 @@ export function createPrintCompanionClient(
       window.location.assign(url);
     }
   });
-  let resumePromise: Promise<PrintCompanionHealth> | null = null;
+  interface ResumeOperation {
+    attemptId: string;
+    abortController: AbortController;
+    promise: Promise<PrintCompanionHealth>;
+  }
+
+  let resumeOperation: ResumeOperation | null = null;
 
   if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs <= 0) {
     throw new Error("O timeout do companion deve ser um inteiro positivo.");
   }
 
   function getFreshPendingWake() {
-    const pendingWake = loadPendingPrintCompanionWake(sessionStorage);
-    if (!pendingWake || Date.now() - pendingWake.createdAt > WAKE_TIMEOUT_MS) {
-      if (pendingWake) {
-        clearPendingPrintCompanionWake(sessionStorage);
-      }
-      return null;
-    }
+    return loadFreshPendingPrintCompanionWake(sessionStorage);
+  }
 
-    return pendingWake;
+  function invalidatePendingWakeResume() {
+    const previous = resumeOperation;
+    resumeOperation = null;
+    if (previous) {
+      previous.abortController.abort();
+      void previous.promise.catch(() => undefined);
+    }
   }
 
   async function request(
@@ -298,9 +318,18 @@ export function createPrintCompanionClient(
     token?: string,
     extraSecrets: string[] = [],
     timeoutMs = requestTimeoutMs,
+    externalSignal?: AbortSignal,
   ): Promise<unknown> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const abortFromExternal = () => controller.abort(externalSignal?.reason);
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort(externalSignal.reason);
+      } else {
+        externalSignal.addEventListener("abort", abortFromExternal, { once: true });
+      }
+    }
     const headers = new Headers(init.headers);
     headers.set("Accept", "application/json");
 
@@ -332,6 +361,7 @@ export function createPrintCompanionClient(
       });
     } finally {
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener("abort", abortFromExternal);
     }
 
     let body: unknown;
@@ -387,8 +417,8 @@ export function createPrintCompanionClient(
     }
   }
 
-  async function health(timeoutMs = requestTimeoutMs) {
-    const body = await request("/v1/health", { method: "GET" }, undefined, [], timeoutMs);
+  async function health(timeoutMs = requestTimeoutMs, signal?: AbortSignal) {
+    const body = await request("/v1/health", { method: "GET" }, undefined, [], timeoutMs, signal);
     if (!isValidHealth(body)) {
       throw new PrintCompanionError(
         "protocol_error",
@@ -400,15 +430,18 @@ export function createPrintCompanionClient(
   }
 
   function prepareWakeIntent(intent: PrintCompanionIntent = "test"): PrintCompanionWakeIntent {
+    const attemptId = createAttemptId();
     const nonce = createNonce();
-    const pending = { nonce, intent };
+    const pending = { attemptId, nonce, intent };
     const fallbackUrl = PRINT_COMPANION_APP_LINK;
     const intentUrl = `intent://deliciasdoporto.vercel.app/android-print-bridge/activate?nonce=${encodeURIComponent(nonce)}#Intent;scheme=https;package=${PRINT_COMPANION_PACKAGE};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`;
-    return { nonce, intentUrl, fallbackUrl, pending };
+    return { attemptId, nonce, intentUrl, fallbackUrl, pending };
   }
 
   function activatePreparedWake(wakeIntent: PrintCompanionWakeIntent) {
+    invalidatePendingWakeResume();
     savePendingPrintCompanionWake({
+      attemptId: wakeIntent.attemptId,
       nonce: wakeIntent.nonce,
       createdAt: Date.now(),
       intent: wakeIntent.pending.intent,
@@ -455,7 +488,10 @@ export function createPrintCompanionClient(
     };
     savePrintCompanionToken(pairedToken, localStorage);
     if (clearPending) {
-      clearPendingPrintCompanionWake(sessionStorage);
+      const pendingWake = loadPendingPrintCompanionWake(sessionStorage);
+      if (pendingWake?.nonce === nonce) {
+        clearPendingPrintCompanionWakeIfMatches(pendingWake.attemptId, sessionStorage);
+      }
     }
     return pairedToken;
   }
@@ -479,27 +515,38 @@ export function createPrintCompanionClient(
     return healthResult;
   }
 
-  async function resumePendingWake(readyOptions: PrintCompanionReadyOptions = {}) {
-    if (resumePromise) {
-      return resumePromise;
+  function resumePendingWake(readyOptions: PrintCompanionReadyOptions = {}) {
+    const pendingWake = getFreshPendingWake();
+    if (!pendingWake) {
+      return Promise.reject(new PrintCompanionError(
+        "pairing_expired",
+        "A ativação do companion expirou.",
+        { companionCode: "wake_timeout" },
+      ));
     }
 
-    resumePromise = (async () => {
-      try {
-        const pendingWake = getFreshPendingWake();
-        if (!pendingWake) {
-          throw new PrintCompanionError(
-            "pairing_expired",
-            "A ativação do companion expirou.",
-            { companionCode: "wake_timeout" },
-          );
-        }
+    if (resumeOperation?.attemptId === pendingWake.attemptId) {
+      return resumeOperation.promise;
+    }
 
+    invalidatePendingWakeResume();
+    const abortController = new AbortController();
+    const attemptId = pendingWake.attemptId;
+    let resolveOperation: (value: PrintCompanionHealth) => void = () => undefined;
+    let rejectOperation: (reason: unknown) => void = () => undefined;
+    const promise = new Promise<PrintCompanionHealth>((resolve, reject) => {
+      resolveOperation = resolve;
+      rejectOperation = reject;
+    });
+    resumeOperation = { attemptId, abortController, promise };
+
+    void (async () => {
+      try {
         readyOptions.onStageChange?.("health");
         const healthResult = await waitForWakeResume(
           async () => {
             const remainingMs = Math.max(1, pendingWake.createdAt + WAKE_TIMEOUT_MS - Date.now());
-            const value = await health(Math.min(WAKE_HEALTH_REQUEST_TIMEOUT_MS, remainingMs));
+            const value = await health(Math.min(WAKE_HEALTH_REQUEST_TIMEOUT_MS, remainingMs), abortController.signal);
             if (value.apiVersion !== PRINT_COMPANION_API_VERSION) {
               throw new PrintCompanionError(
                 "companion_incompatible",
@@ -513,12 +560,16 @@ export function createPrintCompanionClient(
             clearPendingWakeOnSuccess: false,
             onPollAttempt: readyOptions.onPollAttempt,
             onPollResult: readyOptions.onPollResult,
+            signal: abortController.signal,
             startedAt: pendingWake.createdAt,
             isTransientError: (error) =>
               !(error instanceof PrintCompanionError &&
                 (error.code === "protocol_error" || error.code === "companion_incompatible")),
           },
         );
+        if (resumeOperation?.attemptId !== attemptId) {
+          throw new DOMException("Wake resume substituído.", "AbortError");
+        }
         readyOptions.onHealthReady?.(healthResult);
         validateHealth(healthResult, readyOptions.requiredCapabilities ?? []);
 
@@ -526,6 +577,9 @@ export function createPrintCompanionClient(
           readyOptions.onStageChange?.("pair");
           try {
             await pair(pendingWake.nonce, false);
+            if (resumeOperation?.attemptId !== attemptId) {
+              throw new DOMException("Wake resume substituído.", "AbortError");
+            }
             readyOptions.onStageResult?.("pair", "success");
           } catch (error) {
             readyOptions.onStageResult?.("pair", "failure", getPublicErrorCode(error));
@@ -537,6 +591,9 @@ export function createPrintCompanionClient(
           readyOptions.onStageChange?.("config");
           try {
             await requestConfigWithRecovery(readyOptions.config);
+            if (resumeOperation?.attemptId !== attemptId) {
+              throw new DOMException("Wake resume substituído.", "AbortError");
+            }
             readyOptions.onStageResult?.("config", "success");
           } catch (error) {
             readyOptions.onStageResult?.("config", "failure", getPublicErrorCode(error));
@@ -544,24 +601,28 @@ export function createPrintCompanionClient(
           }
         }
 
-        clearPendingPrintCompanionWake(sessionStorage);
-        return healthResult;
+        clearPendingPrintCompanionWakeIfMatches(attemptId, sessionStorage);
+        resolveOperation(healthResult);
       } catch (error) {
-        clearPendingPrintCompanionWake(sessionStorage);
+        clearPendingPrintCompanionWakeIfMatches(attemptId, sessionStorage);
         if (error instanceof Error && error.message === "A ativação do companion expirou.") {
-          throw new PrintCompanionError(
+          rejectOperation(new PrintCompanionError(
             "pairing_expired",
             "A ativação do companion expirou.",
             { cause: error, companionCode: "wake_timeout" },
-          );
+          ));
+        } else {
+          rejectOperation(error);
         }
-        throw error;
       } finally {
-        resumePromise = null;
+        if (resumeOperation?.attemptId === attemptId) {
+          resumeOperation = null;
+        }
       }
     })();
 
-    return resumePromise;
+    void promise.catch(() => undefined);
+    return promise;
   }
 
   async function withAuthRecovery<T>(operation: (token: string) => Promise<T>) {
@@ -604,6 +665,7 @@ export function createPrintCompanionClient(
     health,
     prepareWakeIntent,
     activatePreparedWake,
+    invalidatePendingWakeResume,
     startWakeFromUserGesture,
     resumePendingWake,
     wake,

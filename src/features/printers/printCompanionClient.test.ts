@@ -5,7 +5,11 @@ import {
   encodePrintCompanionBase64,
   sha256Hex,
 } from "./printCompanionClient";
-import { savePendingPrintCompanionWake, savePrintCompanionToken } from "./printCompanionStorage";
+import {
+  loadPendingPrintCompanionWake,
+  savePendingPrintCompanionWake,
+  savePrintCompanionToken,
+} from "./printCompanionStorage";
 import { PrintCompanionError } from "./printCompanionTypes";
 import type { PrinterConfiguration } from "./printerTypes";
 import {
@@ -184,6 +188,7 @@ describe("PrintCompanionClient", () => {
     client.activatePreparedWake(wake);
 
     expect(JSON.parse(sessionStorage.getItem("web-crm.print-companion.wake.v1") as string)).toEqual({
+      attemptId: wake.attemptId,
       nonce: wake.nonce,
       createdAt: clickTimestamp,
       intent: "test",
@@ -218,6 +223,63 @@ describe("PrintCompanionClient", () => {
     expect(retryWake.nonce).not.toBe(firstWake.nonce);
     expect(retryPending.nonce).toBe(retryWake.nonce);
     expect(retryPending.createdAt).toBeGreaterThan(firstPending.createdAt);
+  });
+
+  it("reuses the resume promise for one attempt and scopes it by attemptId", async () => {
+    const sessionStorage = new MemoryStorage();
+    const localStorage = new MemoryStorage();
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(health()))
+      .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }));
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl,
+      localStorage,
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+    const wake = client.prepareWakeIntent("test");
+    client.activatePreparedWake(wake);
+
+    const first = client.resumePendingWake();
+    const reused = client.resumePendingWake();
+
+    expect(reused).toBe(first);
+    await expect(first).resolves.toMatchObject({ appVersion: "1.0.0" });
+  });
+
+  it("does not let an invalidated attempt clear a replacement pending wake", async () => {
+    const sessionStorage = new MemoryStorage();
+    let firstSignal: AbortSignal | undefined;
+    const fetchImpl = vi.fn<typeof fetch>((_input, init) => {
+      if (fetchImpl.mock.calls.length === 1) {
+        firstSignal = init?.signal ?? undefined;
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        });
+      }
+
+      return Promise.resolve(response(health()));
+    });
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl,
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+    const firstWake = client.prepareWakeIntent("test");
+    client.activatePreparedWake(firstWake);
+    const firstResume = client.resumePendingWake();
+    await Promise.resolve();
+
+    const secondWake = client.prepareWakeIntent("test");
+    client.activatePreparedWake(secondWake);
+    expect(firstSignal?.aborted).toBe(true);
+    expect(loadPendingPrintCompanionWake(sessionStorage)?.attemptId).toBe(secondWake.attemptId);
+    await expect(firstResume).rejects.toBeDefined();
+    expect(loadPendingPrintCompanionWake(sessionStorage)?.attemptId).toBe(secondWake.attemptId);
   });
 
   it("starts polling normally after a delayed click instead of expiring immediately", async () => {
@@ -285,7 +347,7 @@ describe("PrintCompanionClient", () => {
 
   it("reuses the pending wake nonce after returning from the App Link", async () => {
     const sessionStorage = new MemoryStorage();
-    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    savePendingPrintCompanionWake({ attemptId: "attempt-a", nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response(health()))
       .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }));
@@ -341,7 +403,7 @@ describe("PrintCompanionClient", () => {
   it("keeps pending through offline polling and completes pair, config, and test", async () => {
     vi.useFakeTimers();
     const sessionStorage = new MemoryStorage();
-    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    savePendingPrintCompanionWake({ attemptId: "attempt-a", nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
     const localStorage = new MemoryStorage();
     const fetchImpl = vi.fn<typeof fetch>()
       .mockRejectedValueOnce(new TypeError("offline"))
@@ -377,7 +439,7 @@ describe("PrintCompanionClient", () => {
   it("clears pending and reports pairing expiration only after the finite timeout", async () => {
     vi.useFakeTimers();
     const sessionStorage = new MemoryStorage();
-    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    savePendingPrintCompanionWake({ attemptId: "attempt-a", nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
     const client = createPrintCompanionClient({
       bridgeUrl: "http://127.0.0.1:17891",
       fetchImpl: vi.fn<typeof fetch>().mockRejectedValue(new TypeError("offline")),
@@ -396,7 +458,7 @@ describe("PrintCompanionClient", () => {
 
   it("clears pending immediately for a definitive health protocol error", async () => {
     const sessionStorage = new MemoryStorage();
-    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    savePendingPrintCompanionWake({ attemptId: "attempt-a", nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
     const client = createPrintCompanionClient({
       bridgeUrl: "http://127.0.0.1:17891",
       fetchImpl: vi.fn<typeof fetch>().mockResolvedValue(response({ ok: true })),
@@ -412,7 +474,7 @@ describe("PrintCompanionClient", () => {
 
   it("resumes pairing and applies config after returning from the App Link", async () => {
     const sessionStorage = new MemoryStorage();
-    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    savePendingPrintCompanionWake({ attemptId: "attempt-a", nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response(health()))
       .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }))
@@ -439,7 +501,7 @@ describe("PrintCompanionClient", () => {
 
   it("reports the first health result before starting pairing", async () => {
     const sessionStorage = new MemoryStorage();
-    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    savePendingPrintCompanionWake({ attemptId: "attempt-a", nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
     const localStorage = new MemoryStorage();
     const events: string[] = [];
     const fetchImpl = vi.fn<typeof fetch>()

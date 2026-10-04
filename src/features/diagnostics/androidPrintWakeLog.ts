@@ -1,10 +1,13 @@
 export type AndroidDiagnosticLogStage =
   | "idle"
+  | "pending"
+  | "resume"
   | "wake"
   | "intent"
   | "health"
   | "pair"
   | "config"
+  | "diagnostic"
   | "test";
 
 export interface AndroidDiagnosticLogEntry {
@@ -16,6 +19,10 @@ export interface AndroidDiagnosticLogEntry {
 }
 
 export const ANDROID_DIAGNOSTIC_LOG_MAX_ENTRIES = 50;
+
+export function shortenAndroidDiagnosticAttemptId(attemptId: string) {
+  return attemptId.slice(0, 8);
+}
 
 export function createInitialAndroidDiagnosticLog(
   isProduction: boolean,

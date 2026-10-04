@@ -49,6 +49,7 @@ export interface WaitForWakeResumeOptions {
   isTransientError?: (error: unknown) => boolean;
   onPollAttempt?: (progress: WakePollProgress) => void;
   onPollResult?: (result: WakePollResult) => void;
+  signal?: AbortSignal;
   startedAt?: number;
 }
 
@@ -151,11 +152,27 @@ export async function waitForWakeResume<T>(
     document.addEventListener("visibilitychange", onVisibilityChange);
   }
 
+  const abort = () => {
+    if (!settled) {
+      settled = true;
+      rejectResult(options.signal?.reason ?? new DOMException("Wake resume cancelado.", "AbortError"));
+    }
+    controller.dispose();
+  };
+  if (options.signal) {
+    if (options.signal.aborted) {
+      abort();
+    } else {
+      options.signal.addEventListener("abort", abort, { once: true });
+    }
+  }
+
   controller.start();
 
   try {
     return await result;
   } finally {
+    options.signal?.removeEventListener("abort", abort);
     controller.dispose();
     if (typeof window !== "undefined" && typeof document !== "undefined") {
       window.removeEventListener("pageshow", resume);
@@ -214,7 +231,7 @@ export function createWakeResumeController(
       return;
     }
 
-    if (wakeTimedOut()) {
+    if (wakeTimedOut() && pollAttemptCount > 0) {
       handleWakeTimeout();
       return;
     }

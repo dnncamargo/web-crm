@@ -6,7 +6,7 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { createPrintCompanionClient } from "../printers/printCompanionClient";
 import {
-  loadPendingPrintCompanionWake,
+  inspectFreshPendingPrintCompanionWake,
   loadPrintCompanionConfig,
 } from "../printers/printCompanionStorage";
 import {
@@ -33,6 +33,7 @@ import {
   createInitialAndroidDiagnosticLog,
   formatAndroidDiagnosticLog,
   formatAndroidDiagnosticLogEntry,
+  shortenAndroidDiagnosticAttemptId,
   type AndroidDiagnosticLogEntry,
   type AndroidDiagnosticLogStage,
 } from "./androidPrintWakeLog";
@@ -119,8 +120,12 @@ export function AndroidPrintWakePage() {
   );
   const isInstallLanding = window.location.pathname === "/android-print-bridge/activate";
   const isProduction = isAndroidPrintDiagnosticProduction(window.location.origin);
+  const [initialPendingState] = useState(() => isProduction
+    ? inspectFreshPendingPrintCompanionWake()
+    : { pending: null });
+  const initialPendingWake = initialPendingState.pending;
   const [wakeIntent, setWakeIntent] = useState(() => companionClient.prepareWakeIntent("test"));
-  const hasPendingWake = isProduction && Boolean(loadPendingPrintCompanionWake());
+  const hasPendingWake = isProduction && Boolean(initialPendingWake);
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("unknown");
   const [flowStatus, setFlowStatus] = useState<FlowStatus>(() =>
     hasPendingWake ? "preparing" : "idle",
@@ -146,16 +151,26 @@ export function AndroidPrintWakePage() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [currentStage, setCurrentStage] = useState<DiagnosticStage>(hasPendingWake ? "health" : "idle");
   const [lastPublicErrorCode, setLastPublicErrorCode] = useState<string | null>(null);
-  const [diagnosticLog, setDiagnosticLog] = useState<AndroidDiagnosticLogEntry[]>(() =>
-    createInitialAndroidDiagnosticLog(isProduction),
-  );
+  const [diagnosticLog, setDiagnosticLog] = useState<AndroidDiagnosticLogEntry[]>(() => {
+    const initialLog = createInitialAndroidDiagnosticLog(isProduction);
+    return initialPendingState.staleAgeMs === undefined
+      ? initialLog
+      : appendAndroidDiagnosticLog(initialLog, {
+        at: Date.now(),
+        stage: "pending",
+        event: "stale descartado",
+        details: `age=${initialPendingState.staleAgeMs} ms`,
+      });
+  });
   const [attemptNumber, setAttemptNumber] = useState(0);
   const [copyMessage, setCopyMessage] = useState("");
   const attemptStartedAtRef = useRef<number | null>(null);
   const attemptStartedPerformanceAtRef = useRef<number | null>(null);
   const attemptNumberRef = useRef(0);
   const pollAttemptCountRef = useRef(0);
-  const runningRef = useRef(false);
+  const currentAttemptIdRef = useRef<string | null>(initialPendingWake?.attemptId ?? null);
+  const resumeAttemptIdRef = useRef<string | null>(null);
+  const staleAttemptLogRef = useRef(new Set<string>());
 
   const appendDiagnosticLog = useCallback((
     stage: AndroidDiagnosticLogStage,
@@ -171,6 +186,28 @@ export function AndroidPrintWakePage() {
       details,
     }));
   }, []);
+
+  const appendAttemptDiagnosticLog = useCallback((
+    attemptId: string,
+    stage: AndroidDiagnosticLogStage,
+    event: string,
+    details?: string,
+  ) => {
+    if (currentAttemptIdRef.current !== attemptId) {
+      if (!staleAttemptLogRef.current.has(attemptId)) {
+        staleAttemptLogRef.current.add(attemptId);
+        appendDiagnosticLog(
+          "diagnostic",
+          "resultado stale ignorado",
+          `id=${shortenAndroidDiagnosticAttemptId(attemptId)}`,
+        );
+      }
+      return false;
+    }
+
+    appendDiagnosticLog(stage, event, details);
+    return true;
+  }, [appendDiagnosticLog]);
 
   const resetAttemptMetrics = useCallback((startedAt: number, stage: DiagnosticStage) => {
     const elapsedBeforeResume = Math.max(0, Date.now() - startedAt);
@@ -218,100 +255,121 @@ export function AndroidPrintWakePage() {
     return () => window.clearInterval(heartbeat);
   }, [attemptActive, updateElapsed]);
 
-  const handlePollAttempt = useCallback(({ attempt, elapsedMs: nextElapsedMs }: WakePollProgress) => {
+  const handlePollAttempt = useCallback((attemptId: string, { attempt, elapsedMs: nextElapsedMs }: WakePollProgress) => {
+    if (!appendAttemptDiagnosticLog(attemptId, "health", `probe #${attempt} iniciado`)) {
+      return;
+    }
     setCurrentStage("health");
     pollAttemptCountRef.current = attempt;
     setPollAttemptCount(attempt);
     setElapsedMs(nextElapsedMs);
-    appendDiagnosticLog("health", `probe #${attempt} iniciado`);
-  }, [appendDiagnosticLog]);
+  }, [appendAttemptDiagnosticLog]);
 
-  const handlePollResult = useCallback(({ attempt, status, errorCode, httpStatus, timedOut }: WakePollResult) => {
+  const handlePollResult = useCallback((attemptId: string, { attempt, status, errorCode, httpStatus, timedOut }: WakePollResult) => {
+    let event = "probe sem resposta";
+    const details = errorCode;
     if (timedOut) {
-      appendDiagnosticLog("health", `probe #${attempt} timeout local`);
+      event = `probe #${attempt} timeout local`;
     } else if (httpStatus !== undefined) {
-      appendDiagnosticLog("health", `probe #${attempt} HTTP ${httpStatus}`, errorCode);
+      event = `probe #${attempt} HTTP ${httpStatus}`;
     } else if (status === "online" && errorCode === undefined) {
-      appendDiagnosticLog("health", `probe #${attempt} respondeu`);
+      event = `probe #${attempt} respondeu`;
     } else if (errorCode !== undefined) {
-      appendDiagnosticLog("health", `probe #${attempt} falhou`, errorCode);
-    } else {
-      appendDiagnosticLog("health", `probe #${attempt} sem resposta`, errorCode);
+      event = `probe #${attempt} falhou`;
     }
-  }, [appendDiagnosticLog]);
+    appendAttemptDiagnosticLog(attemptId, "health", event, details);
+  }, [appendAttemptDiagnosticLog]);
 
-  const handleHealthReady = useCallback((nextHealth: PrintCompanionHealth) => {
+  const handleHealthReady = useCallback((attemptId: string, nextHealth: PrintCompanionHealth) => {
+    if (!appendAttemptDiagnosticLog(attemptId, "health", "companion detectado", `app=${nextHealth.appVersion} code=${nextHealth.appVersionCode} api=${nextHealth.apiVersion} paired=${nextHealth.paired}`)) {
+      return;
+    }
     setHealth(nextHealth);
     setBridgeStatus("online");
     setCurrentStage("pair");
     setMessage("Companion respondeu. Verificando pareamento…");
-    appendDiagnosticLog(
-      "health",
-      "companion detectado",
-      `app=${nextHealth.appVersion} code=${nextHealth.appVersionCode} api=${nextHealth.apiVersion} paired=${nextHealth.paired}`,
-    );
-    appendDiagnosticLog("health", "capabilities", nextHealth.capabilities.join(", "));
-  }, [appendDiagnosticLog]);
+    appendAttemptDiagnosticLog(attemptId, "health", "capabilities", nextHealth.capabilities.join(", "));
+  }, [appendAttemptDiagnosticLog]);
 
   const handleStageResult = useCallback((
+    attemptId: string,
     stage: "pair" | "config",
     result: "success" | "failure",
     publicCode?: string,
   ) => {
-    appendDiagnosticLog(stage, result === "success" ? "sucesso" : "falha", publicCode);
-  }, [appendDiagnosticLog]);
+    appendAttemptDiagnosticLog(attemptId, stage, result === "success" ? "sucesso" : "falha", publicCode);
+  }, [appendAttemptDiagnosticLog]);
 
   const getCurrentElapsedMs = useCallback(() => {
     const startedAt = attemptStartedPerformanceAtRef.current;
     return startedAt === null ? 0 : Math.max(0, monotonicNow() - startedAt);
   }, []);
 
-  const handleStageChange = useCallback((stage: "health" | "pair" | "config") => {
+  const handleStageChange = useCallback((attemptId: string, stage: "health" | "pair" | "config") => {
+    if (currentAttemptIdRef.current !== attemptId) {
+      appendAttemptDiagnosticLog(attemptId, "resume", "resultado stale ignorado");
+      return;
+    }
     setCurrentStage(stage);
     if (stage === "pair") {
       setFlowStatus("preparing");
       setMessage("Companion respondeu. Pareando…");
-      appendDiagnosticLog("pair", "início");
+      appendAttemptDiagnosticLog(attemptId, "pair", "início");
     } else if (stage === "config") {
       setFlowStatus("configuring");
       setMessage("Companion respondeu. Aplicando configuração…");
-      appendDiagnosticLog("config", "início");
+      appendAttemptDiagnosticLog(attemptId, "config", "início");
     } else {
       setMessage("Aguardando o companion responder…");
     }
-  }, [appendDiagnosticLog]);
+  }, [appendAttemptDiagnosticLog]);
 
   const resumeAcceptance = useCallback(async () => {
-    const pendingWake = loadPendingPrintCompanionWake();
-    if (!isProduction || loadingPrinters || runningRef.current || !pendingWake) {
+    const freshPending = inspectFreshPendingPrintCompanionWake();
+    if (!isProduction || loadingPrinters || !freshPending.pending) {
       return;
     }
+    const pendingWake = freshPending.pending;
+    const attemptId = pendingWake.attemptId;
+    const alreadyResuming = resumeAttemptIdRef.current === attemptId;
 
-    if (attemptStartedAtRef.current === null) {
+    if (currentAttemptIdRef.current !== attemptId) {
+      currentAttemptIdRef.current = attemptId;
       resetAttemptMetrics(pendingWake.createdAt, "health");
-      appendDiagnosticLog("wake", "tentativa retomada");
+      appendDiagnosticLog("resume", "início", `id=${shortenAndroidDiagnosticAttemptId(attemptId)}`);
+    } else if (attemptStartedAtRef.current === null) {
+      resetAttemptMetrics(pendingWake.createdAt, "health");
+      appendDiagnosticLog("resume", "início", `id=${shortenAndroidDiagnosticAttemptId(attemptId)}`);
+    } else if (alreadyResuming) {
+      appendDiagnosticLog("resume", "reutilizado", `id=${shortenAndroidDiagnosticAttemptId(attemptId)}`);
     }
 
-    runningRef.current = true;
-    setCurrentStage("health");
-    setBridgeStatus("checking");
-    setFlowStatus("preparing");
-    setMessage("Aguardando o companion responder…");
-    setErrorMessage("");
-    setShowDownload(false);
-    setShowPair(false);
+    resumeAttemptIdRef.current = attemptId;
+    if (!alreadyResuming) {
+      setCurrentStage("health");
+      setBridgeStatus("checking");
+      setFlowStatus("preparing");
+      setMessage("Aguardando o companion responder…");
+      setErrorMessage("");
+      setShowDownload(false);
+      setShowPair(false);
+    }
 
     try {
       const config = loadPrintCompanionConfig();
       const readyHealth = await companionClient.resumePendingWake({
         requiredCapabilities: ["test"],
         config,
-        onPollAttempt: handlePollAttempt,
-        onPollResult: handlePollResult,
-        onStageChange: handleStageChange,
-        onStageResult: handleStageResult,
-        onHealthReady: handleHealthReady,
+        onPollAttempt: (progress) => handlePollAttempt(attemptId, progress),
+        onPollResult: (result) => handlePollResult(attemptId, result),
+        onStageChange: (stage) => handleStageChange(attemptId, stage),
+        onStageResult: (stage, result, publicCode) => handleStageResult(attemptId, stage, result, publicCode),
+        onHealthReady: (nextHealth) => handleHealthReady(attemptId, nextHealth),
       });
+      if (currentAttemptIdRef.current !== attemptId) {
+        appendAttemptDiagnosticLog(attemptId, "resume", "resultado stale ignorado");
+        return;
+      }
       setHealth(readyHealth);
       setAuthenticated(true);
       setBridgeStatus("online");
@@ -328,18 +386,26 @@ export function AndroidPrintWakePage() {
       setCurrentStage("test");
       setFlowStatus("testing");
       setMessage(`Testando a conexão com “${defaultPrinter.name}”…`);
-      appendDiagnosticLog("test", "início");
+      appendAttemptDiagnosticLog(attemptId, "test", "início");
       try {
         await companionClient.testPrinter(defaultPrinter);
-        appendDiagnosticLog("test", "sucesso");
+        appendAttemptDiagnosticLog(attemptId, "test", "sucesso");
       } catch (error) {
         const publicCode = getAndroidPrintWakeErrorDetails(error).publicCode;
-        appendDiagnosticLog("test", "falha", publicCode);
+        appendAttemptDiagnosticLog(attemptId, "test", "falha", publicCode);
         throw error;
+      }
+      if (currentAttemptIdRef.current !== attemptId) {
+        appendAttemptDiagnosticLog(attemptId, "resume", "resultado stale ignorado");
+        return;
       }
       setFlowStatus("pass");
       setMessage(`Conexão com “${defaultPrinter.name}” estabelecida. Nenhuma impressão física foi realizada.`);
     } catch (error) {
+      if (currentAttemptIdRef.current !== attemptId) {
+        appendAttemptDiagnosticLog(attemptId, "resume", "resultado stale ignorado");
+        return;
+      }
       const details = getAndroidPrintWakeErrorDetails(error);
       setBridgeStatus("offline");
       setFlowStatus("fail");
@@ -351,30 +417,62 @@ export function AndroidPrintWakePage() {
       setDownloadLabel(details.downloadLabel);
       setMessage("O diagnóstico não foi concluído.");
       if (details.publicCode === "wake_timeout") {
-        appendDiagnosticLog(
-          "health",
-          "wake_timeout",
-          `probes=${pollAttemptCountRef.current} elapsed=${Math.round(getCurrentElapsedMs())} ms`,
-        );
+        const elapsed = Math.round(getCurrentElapsedMs());
+        if (pollAttemptCountRef.current === 0 && elapsed < WAKE_TIMEOUT_MS) {
+          setErrorMessage("O diagnóstico encontrou um estado inválido antes do primeiro health probe.");
+          setLastPublicErrorCode("diagnostic_state_error");
+          setShowDownload(false);
+          appendAttemptDiagnosticLog(
+            attemptId,
+            "diagnostic",
+            "timeout inválido antes do primeiro probe",
+            `probes=0 elapsed=${elapsed} ms`,
+          );
+        } else {
+          appendAttemptDiagnosticLog(
+            attemptId,
+            "health",
+            "wake_timeout",
+            `probes=${pollAttemptCountRef.current} elapsed=${elapsed} ms`,
+          );
+        }
       }
     } finally {
-      finishAttempt();
-      runningRef.current = false;
+      if (currentAttemptIdRef.current === attemptId) {
+        finishAttempt();
+      }
+      if (resumeAttemptIdRef.current === attemptId) {
+        resumeAttemptIdRef.current = null;
+      }
     }
-  }, [appendDiagnosticLog, defaultPrinter, finishAttempt, getCurrentElapsedMs, handleHealthReady, handlePollAttempt, handlePollResult, handleStageChange, handleStageResult, isProduction, loadingPrinters, resetAttemptMetrics]);
+  }, [appendAttemptDiagnosticLog, appendDiagnosticLog, defaultPrinter, finishAttempt, getCurrentElapsedMs, handleHealthReady, handlePollAttempt, handlePollResult, handleStageChange, handleStageResult, isProduction, loadingPrinters, resetAttemptMetrics]);
 
   const handleWakeClick = useCallback(() => {
     if (!isProduction) {
       return;
     }
 
+    const previousAttemptId = currentAttemptIdRef.current;
+    if (previousAttemptId !== null && resumeAttemptIdRef.current !== null && previousAttemptId !== wakeIntent.attemptId) {
+      appendDiagnosticLog(
+        "resume",
+        "tentativa anterior invalidada",
+        `id=${shortenAndroidDiagnosticAttemptId(previousAttemptId)}`,
+      );
+    }
     const clickTimestamp = Date.now();
     companionClient.activatePreparedWake(wakeIntent);
+    currentAttemptIdRef.current = wakeIntent.attemptId;
     resetAttemptMetrics(clickTimestamp, "wake");
     appendDiagnosticLog("wake", "nova tentativa iniciada");
     appendDiagnosticLog("wake", "pending salvo");
     appendDiagnosticLog("intent", "solicitação enviada ao Android");
+    appendDiagnosticLog("pending", "tentativa criada", `id=${shortenAndroidDiagnosticAttemptId(wakeIntent.attemptId)}`);
     window.setTimeout(() => {
+      if (currentAttemptIdRef.current !== wakeIntent.attemptId) {
+        appendDiagnosticLog("resume", "resultado stale ignorado", `id=${shortenAndroidDiagnosticAttemptId(wakeIntent.attemptId)}`);
+        return;
+      }
       setWakeIntent(companionClient.prepareWakeIntent("test"));
       void resumeAcceptance();
     }, 0);
@@ -392,8 +490,11 @@ export function AndroidPrintWakePage() {
     }
 
     const resumeIfPending = () => {
-      if (loadPendingPrintCompanionWake()) {
+      const freshPending = inspectFreshPendingPrintCompanionWake();
+      if (freshPending.pending) {
         void resumeAcceptance();
+      } else if (freshPending.staleAgeMs !== undefined) {
+        appendDiagnosticLog("pending", "stale descartado", `age=${freshPending.staleAgeMs} ms`);
       }
     };
     const resumeWhenVisible = () => {
@@ -412,7 +513,7 @@ export function AndroidPrintWakePage() {
       window.removeEventListener("focus", resumeIfPending);
       document.removeEventListener("visibilitychange", resumeWhenVisible);
     };
-  }, [defaultPrinter, isProduction, loadingPrinters, resumeAcceptance]);
+  }, [appendDiagnosticLog, defaultPrinter, isProduction, loadingPrinters, resumeAcceptance]);
 
   function retry() {
     handleWakeClick();
