@@ -364,9 +364,12 @@ describe("PrintCompanionClient", () => {
     await client.resumePendingWake({ requiredCapabilities: ["test"] });
 
     expect(assign).not.toHaveBeenCalled();
-    expect(JSON.parse((fetchImpl.mock.calls[1]?.[1] as RequestInit).body as string)).toMatchObject({
-      nonce: "pending-nonce",
-    });
+    const request = fetchImpl.mock.calls[1]?.[1] as RequestInit;
+    const headers = new Headers(request.headers);
+    expect(JSON.parse(request.body as string)).toEqual({ nonce: "pending-nonce" });
+    expect(headers.get("Origin")).toBeNull();
+    expect(headers.get("Content-Type")).toBe("application/json");
+    expect(headers.get("Accept")).toBe("application/json");
   });
 
   it("arms resume after App Link navigation without waiting for lifecycle events", async () => {
@@ -407,7 +410,7 @@ describe("PrintCompanionClient", () => {
     const localStorage = new MemoryStorage();
     const fetchImpl = vi.fn<typeof fetch>()
       .mockRejectedValueOnce(new TypeError("offline"))
-      .mockResolvedValueOnce(response(health()))
+      .mockResolvedValueOnce(response(health({ paired: false })))
       .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }))
       .mockResolvedValueOnce(response({ ok: true }))
       .mockResolvedValueOnce(response(health()))
@@ -430,6 +433,9 @@ describe("PrintCompanionClient", () => {
     await resumePromise;
 
     expect(fetchImpl).toHaveBeenCalledTimes(4);
+    const pairRequest = fetchImpl.mock.calls[2]?.[1] as RequestInit;
+    expect(JSON.parse(pairRequest.body as string)).toEqual({ nonce: "pending-nonce" });
+    expect(new Headers(pairRequest.headers).get("Origin")).toBeNull();
     expect(sessionStorage.getItem("web-crm.print-companion.wake.v1")).toBeNull();
     await client.testPrinter(printer);
     expect(fetchImpl).toHaveBeenCalledTimes(6);
@@ -522,6 +528,34 @@ describe("PrintCompanionClient", () => {
 
     expect(events).toEqual(["health", "health:1.0.0", "pair"]);
     expect(fetchImpl.mock.calls[1]?.[0]).toBe("http://127.0.0.1:17891/v1/pair");
+  });
+
+  it("classifies invalid_request as a protocol error and preserves the companion code", async () => {
+    const sessionStorage = new MemoryStorage();
+    savePendingPrintCompanionWake({ attemptId: "attempt-a", nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(health({ paired: false })))
+      .mockResolvedValueOnce(response({ ok: false, code: "invalid_request", message: "Requisição inválida." }, 400));
+    const stageResults: Array<[string, string, string | undefined]> = [];
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl,
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+
+    const error = await client.resumePendingWake({
+      onStageResult: (stage, result, publicCode) => stageResults.push([stage, result, publicCode]),
+    }).catch((value: unknown) => value);
+
+    expect(error).toMatchObject<Partial<PrintCompanionError>>({
+      code: "protocol_error",
+      companionCode: "invalid_request",
+      status: 400,
+    });
+    expect(stageResults).toEqual([["pair", "failure", "invalid_request"]]);
+    expect((error as Error).message).not.toContain("pending-nonce");
+    expect((error as Error).message).not.toContain("token");
   });
 
   it("sends test with the canonical printer destination and bearer token", async () => {
