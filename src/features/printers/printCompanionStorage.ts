@@ -1,5 +1,6 @@
 import type {
   PrintCompanionConfig,
+  PrintCompanionIntent,
   PrintCompanionToken,
 } from "./printCompanionTypes";
 import { PRINT_COMPANION_API_VERSION } from "./printCompanionTypes";
@@ -13,6 +14,7 @@ const DEFAULT_IDLE_TIMEOUT_MINUTES = 15;
 export interface PendingPrintCompanionWake {
   nonce: string;
   createdAt: number;
+  intent: PrintCompanionIntent;
 }
 
 function getStorage(
@@ -151,7 +153,12 @@ export function loadPendingPrintCompanionWake(storage?: Storage): PendingPrintCo
     return null;
   }
 
-  return value as PendingPrintCompanionWake;
+  const intent = (value as Record<string, unknown>).intent;
+  return {
+    nonce: (value as Record<string, unknown>).nonce as string,
+    createdAt: (value as Record<string, unknown>).createdAt as number,
+    intent: intent === "print" ? "print" : "test",
+  };
 }
 
 export function savePendingPrintCompanionWake(

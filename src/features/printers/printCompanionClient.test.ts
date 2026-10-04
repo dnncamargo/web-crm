@@ -107,24 +107,27 @@ describe("PrintCompanionClient", () => {
 
   it("creates a 32-byte URL-safe wake nonce and opens the exact App Link", () => {
     const assign = vi.fn();
+    const sessionStorage = new MemoryStorage();
+    const fetchImpl = vi.fn<typeof fetch>();
     const client = createPrintCompanionClient({
       bridgeUrl: "http://127.0.0.1:17891",
-      fetchImpl: vi.fn<typeof fetch>(),
-      sessionStorage: new MemoryStorage(),
-      locationAssign: assign,
+      fetchImpl,
+      sessionStorage,
+      locationAssign: (url) => {
+        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(sessionStorage.getItem("web-crm.print-companion.wake.v1")).toContain("test");
+        assign(url);
+      },
     });
 
-    const wake = client.wake();
+    const wake = client.startWakeFromUserGesture("test");
     expect(wake.nonce).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(assign).toHaveBeenCalledWith(wake.url);
     expect(wake.url).toContain("https://deliciasdoporto.vercel.app/android-print-bridge/activate?nonce=");
   });
 
-  it("pairs only after a new wake when the companion is online without a local token", async () => {
-    const fetchImpl = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(response(health()))
-      .mockResolvedValueOnce(response(health()))
-      .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }));
+  it("requires an explicit wake when the companion is online without a local token", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValueOnce(response(health()));
     const assign = vi.fn();
     const localStorage = new MemoryStorage();
     const client = createPrintCompanionClient({
@@ -135,19 +138,18 @@ describe("PrintCompanionClient", () => {
       locationAssign: assign,
     });
 
-    await client.ensureCompanionReady();
+    await expect(client.ensureCompanionReady()).rejects.toMatchObject<Partial<PrintCompanionError>>({
+      code: "pairing_required",
+    });
 
-    expect(assign).toHaveBeenCalledTimes(1);
-    expect(fetchImpl.mock.calls[2]?.[1]).toEqual(expect.objectContaining({ method: "POST" }));
-    expect(localStorage.getItem("web-crm.print-companion.auth.v1")).toContain("new-token");
-    const pairBody = JSON.parse((fetchImpl.mock.calls[2]?.[1] as RequestInit).body as string) as { nonce: string; origin: string };
-    expect(pairBody.origin).toBe("https://deliciasdoporto.vercel.app");
-    expect(pairBody.nonce).toHaveLength(43);
+    expect(assign).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("web-crm.print-companion.auth.v1")).toBeNull();
   });
 
   it("reuses the pending wake nonce after returning from the App Link", async () => {
     const sessionStorage = new MemoryStorage();
-    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now() }, sessionStorage);
+    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response(health()))
       .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }));
@@ -161,12 +163,39 @@ describe("PrintCompanionClient", () => {
       locationAssign: assign,
     });
 
-    await client.ensureCompanionReady();
+    await client.resumePendingWake({ requiredCapabilities: ["test"] });
 
     expect(assign).not.toHaveBeenCalled();
     expect(JSON.parse((fetchImpl.mock.calls[1]?.[1] as RequestInit).body as string)).toMatchObject({
       nonce: "pending-nonce",
     });
+  });
+
+  it("resumes pairing and applies config after returning from the App Link", async () => {
+    const sessionStorage = new MemoryStorage();
+    savePendingPrintCompanionWake({ nonce: "pending-nonce", createdAt: Date.now(), intent: "test" }, sessionStorage);
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(health()))
+      .mockResolvedValueOnce(response({ ok: true, token: "new-token", apiVersion: "1" }))
+      .mockResolvedValueOnce(response({ ok: true }));
+    const localStorage = new MemoryStorage();
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl,
+      localStorage,
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+
+    await client.resumePendingWake({
+      requiredCapabilities: ["test"],
+      config: { idleTimeoutMinutes: 15 },
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(fetchImpl.mock.calls[2]?.[0]).toBe("http://127.0.0.1:17891/v1/config");
+    expect(sessionStorage.getItem("web-crm.print-companion.wake.v1")).toBeNull();
+    expect(localStorage.getItem("web-crm.print-companion.auth.v1")).toContain("new-token");
   });
 
   it("sends test with the canonical printer destination and bearer token", async () => {
@@ -208,27 +237,23 @@ describe("PrintCompanionClient", () => {
     });
   });
 
-  it("recovers exactly once from 401 and retries the same logical print", async () => {
+  it("requires a new explicit pairing after a 401", async () => {
     const localStorage = new MemoryStorage();
     savePrintCompanionToken({ token: "stale-token", apiVersion: "1" }, localStorage);
     const fetchImpl = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(response(health()))
       .mockResolvedValueOnce(response({ ok: true }))
-      .mockResolvedValueOnce(response({ ok: false, code: "invalid_token", message: "token=stale-token" }, 401))
-      .mockResolvedValueOnce(response(health()))
-      .mockResolvedValueOnce(response({ ok: true, token: "fresh-token", apiVersion: "1" }))
-      .mockResolvedValueOnce(response({ ok: true }))
-      .mockResolvedValueOnce(response({ ok: true, jobId: "job-2" }));
+      .mockResolvedValueOnce(response({ ok: false, code: "invalid_token", message: "token=stale-token" }, 401));
     const { client } = createClient(fetchImpl, localStorage);
 
-    await client.print(printer, new Uint8Array([1, 2, 3]), "job-2");
+    await expect(client.print(printer, new Uint8Array([1, 2, 3]), "job-2")).rejects.toMatchObject<Partial<PrintCompanionError>>({
+      code: "pairing_required",
+    });
 
     const firstPrint = JSON.parse((fetchImpl.mock.calls[2]?.[1] as RequestInit).body as string) as { jobId: string };
-    const retryPrint = JSON.parse((fetchImpl.mock.calls[6]?.[1] as RequestInit).body as string) as { jobId: string };
     expect(firstPrint.jobId).toBe("job-2");
-    expect(retryPrint.jobId).toBe("job-2");
-    expect(fetchImpl).toHaveBeenCalledTimes(7);
-    expect(localStorage.getItem("web-crm.print-companion.auth.v1")).toContain("fresh-token");
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(localStorage.getItem("web-crm.print-companion.auth.v1")).toBeNull();
   });
 
   it("preserves conflict semantics and never exposes a token in the error", async () => {

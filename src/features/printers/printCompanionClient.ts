@@ -16,10 +16,11 @@ import {
   type PrintCompanionCapability,
   type PrintCompanionConfig,
   type PrintCompanionHealth,
+  type PrintCompanionIntent,
   type PrintCompanionOperationResult,
   type PrintCompanionToken,
 } from "./printCompanionTypes";
-import { WAKE_TIMEOUT_MS, waitForWakeResume } from "../diagnostics/androidPrintWakeResume";
+import { WAKE_TIMEOUT_MS } from "../diagnostics/androidPrintWakeResume";
 
 export const DEFAULT_PRINT_COMPANION_URL = "http://127.0.0.1:17890";
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
@@ -46,6 +47,8 @@ export interface PrintCompanionReadyOptions {
 
 export interface PrintCompanionClient {
   health(): Promise<PrintCompanionHealth>;
+  startWakeFromUserGesture(intent?: PrintCompanionIntent): { nonce: string; url: string };
+  resumePendingWake(options?: PrintCompanionReadyOptions): Promise<PrintCompanionHealth>;
   wake(): { nonce: string; url: string };
   pair(nonce: string): Promise<PrintCompanionToken>;
   configure(config?: PrintCompanionConfig): Promise<PrintCompanionOperationResult>;
@@ -221,10 +224,6 @@ function isValidPairResponse(value: unknown): value is { ok: true; token: string
   );
 }
 
-function isOfflineError(error: unknown): error is PrintCompanionError {
-  return error instanceof PrintCompanionError && error.code === "companion_offline";
-}
-
 export function createPrintCompanionClient(
   options: PrintCompanionClientOptions = {},
 ): PrintCompanionClient {
@@ -241,6 +240,7 @@ export function createPrintCompanionClient(
       window.location.assign(url);
     }
   });
+  let resumePromise: Promise<PrintCompanionHealth> | null = null;
 
   if (!Number.isInteger(requestTimeoutMs) || requestTimeoutMs <= 0) {
     throw new Error("O timeout do companion deve ser um inteiro positivo.");
@@ -359,28 +359,16 @@ export function createPrintCompanionClient(
     return body;
   }
 
-  function wake() {
+  function startWakeFromUserGesture(intent: PrintCompanionIntent = "test") {
     const nonce = createNonce();
     const url = `${PRINT_COMPANION_APP_LINK}?nonce=${encodeURIComponent(nonce)}`;
-    savePendingPrintCompanionWake({ nonce, createdAt: Date.now() }, sessionStorage);
+    savePendingPrintCompanionWake({ nonce, createdAt: Date.now(), intent }, sessionStorage);
     locationAssign(url);
     return { nonce, url };
   }
 
-  async function waitForHealthAfterWake() {
-    try {
-      return await waitForWakeResume(
-        async () => health(),
-        (value) => value.apiVersion === PRINT_COMPANION_API_VERSION && value.state === "RUNNING",
-      );
-    } catch (error) {
-      clearPendingPrintCompanionWake(sessionStorage);
-      throw new PrintCompanionError(
-        "pairing_expired",
-        "A ativação do companion expirou.",
-        { cause: error },
-      );
-    }
+  function wake() {
+    return startWakeFromUserGesture("test");
   }
 
   async function pair(nonce: string) {
@@ -415,44 +403,16 @@ export function createPrintCompanionClient(
     return pairedToken;
   }
 
-  async function recoverPairing() {
-    const { nonce } = wake();
-    const healthResult = await waitForHealthAfterWake();
-    validateHealth(healthResult, []);
-    await pair(nonce);
-  }
-
   async function ensureCompanionReady(readyOptions: PrintCompanionReadyOptions = {}) {
     const requiredCapabilities = readyOptions.requiredCapabilities ?? [];
-    let healthResult: PrintCompanionHealth;
-
-    try {
-      healthResult = await health();
-    } catch (error) {
-      if (!isOfflineError(error)) {
-        throw error;
-      }
-
-      const pendingWake = getFreshPendingWake();
-      const { nonce } = pendingWake ?? wake();
-      healthResult = await waitForHealthAfterWake();
-      validateHealth(healthResult, requiredCapabilities);
-
-      if (!loadPrintCompanionToken(localStorage)) {
-        await pair(nonce);
-      }
-    }
-
+    const healthResult = await health();
     validateHealth(healthResult, requiredCapabilities);
 
     if (!loadPrintCompanionToken(localStorage)) {
-      const pendingWake = getFreshPendingWake();
-      const { nonce } = pendingWake ?? wake();
-      if (!pendingWake) {
-        healthResult = await waitForHealthAfterWake();
-        validateHealth(healthResult, requiredCapabilities);
-      }
-      await pair(nonce);
+      throw new PrintCompanionError(
+        "pairing_required",
+        "O companion precisa ser pareado. Toque em ativar para abrir o aplicativo.",
+      );
     }
 
     if (readyOptions.config) {
@@ -460,6 +420,42 @@ export function createPrintCompanionClient(
     }
 
     return healthResult;
+  }
+
+  async function resumePendingWake(readyOptions: PrintCompanionReadyOptions = {}) {
+    if (resumePromise) {
+      return resumePromise;
+    }
+
+    resumePromise = (async () => {
+      try {
+        const pendingWake = getFreshPendingWake();
+        if (!pendingWake) {
+          throw new PrintCompanionError("pairing_expired", "A ativação do companion expirou.");
+        }
+
+        const healthResult = await health();
+        validateHealth(healthResult, readyOptions.requiredCapabilities ?? []);
+
+        if (!loadPrintCompanionToken(localStorage)) {
+          await pair(pendingWake.nonce);
+        }
+
+        if (readyOptions.config) {
+          await requestConfigWithRecovery(readyOptions.config);
+        }
+
+        clearPendingPrintCompanionWake(sessionStorage);
+        return healthResult;
+      } catch (error) {
+        clearPendingPrintCompanionWake(sessionStorage);
+        throw error;
+      } finally {
+        resumePromise = null;
+      }
+    })();
+
+    return resumePromise;
   }
 
   async function withAuthRecovery<T>(operation: (token: string) => Promise<T>) {
@@ -476,12 +472,11 @@ export function createPrintCompanionClient(
       }
 
       clearPrintCompanionToken(localStorage);
-      await recoverPairing();
-      const recoveredToken = loadPrintCompanionToken(localStorage);
-      if (!recoveredToken) {
-        throw new PrintCompanionError("pairing_required", "O pareamento do companion não foi concluído.");
-      }
-      return operation(recoveredToken.token);
+      throw new PrintCompanionError(
+        "pairing_required",
+        "O pareamento do companion expirou. Toque em ativar para parear novamente.",
+        { companionCode: "invalid_token" },
+      );
     }
   }
 
@@ -501,6 +496,8 @@ export function createPrintCompanionClient(
 
   return {
     health,
+    startWakeFromUserGesture,
+    resumePendingWake,
     wake,
     pair,
     async configure(config = loadPrintCompanionConfig(localStorage)) {
