@@ -1,4 +1,5 @@
 import type { PrinterConfiguration } from "./printerTypes";
+import type { PendingPrintCompanionWake } from "./printCompanionStorage";
 import {
   clearPendingPrintCompanionWake,
   clearPrintCompanionToken,
@@ -12,6 +13,7 @@ import {
   PRINT_COMPANION_API_VERSION,
   PRINT_COMPANION_APP_LINK,
   PRINT_COMPANION_ORIGIN,
+  PRINT_COMPANION_PACKAGE,
   PrintCompanionError,
   type PrintCompanionCapability,
   type PrintCompanionConfig,
@@ -45,8 +47,17 @@ export interface PrintCompanionReadyOptions {
   config?: PrintCompanionConfig;
 }
 
+export interface PrintCompanionWakeIntent {
+  nonce: string;
+  intentUrl: string;
+  fallbackUrl: string;
+  pending: PendingPrintCompanionWake;
+}
+
 export interface PrintCompanionClient {
   health(): Promise<PrintCompanionHealth>;
+  prepareWakeIntent(intent?: PrintCompanionIntent): PrintCompanionWakeIntent;
+  activatePreparedWake(wakeIntent: PrintCompanionWakeIntent): void;
   startWakeFromUserGesture(intent?: PrintCompanionIntent): { nonce: string; url: string };
   resumePendingWake(options?: PrintCompanionReadyOptions): Promise<PrintCompanionHealth>;
   wake(): { nonce: string; url: string };
@@ -359,12 +370,23 @@ export function createPrintCompanionClient(
     return body;
   }
 
-  function startWakeFromUserGesture(intent: PrintCompanionIntent = "test") {
+  function prepareWakeIntent(intent: PrintCompanionIntent = "test"): PrintCompanionWakeIntent {
     const nonce = createNonce();
-    const url = `${PRINT_COMPANION_APP_LINK}?nonce=${encodeURIComponent(nonce)}`;
-    savePendingPrintCompanionWake({ nonce, createdAt: Date.now(), intent }, sessionStorage);
-    locationAssign(url);
-    return { nonce, url };
+    const pending = { nonce, createdAt: Date.now(), intent };
+    const fallbackUrl = PRINT_COMPANION_APP_LINK;
+    const intentUrl = `intent://deliciasdoporto.vercel.app/android-print-bridge/activate?nonce=${encodeURIComponent(nonce)}#Intent;scheme=https;package=${PRINT_COMPANION_PACKAGE};S.browser_fallback_url=${encodeURIComponent(fallbackUrl)};end`;
+    return { nonce, intentUrl, fallbackUrl, pending };
+  }
+
+  function activatePreparedWake(wakeIntent: PrintCompanionWakeIntent) {
+    savePendingPrintCompanionWake(wakeIntent.pending, sessionStorage);
+  }
+
+  function startWakeFromUserGesture(intent: PrintCompanionIntent = "test") {
+    const wakeIntent = prepareWakeIntent(intent);
+    activatePreparedWake(wakeIntent);
+    locationAssign(wakeIntent.intentUrl);
+    return { nonce: wakeIntent.nonce, url: wakeIntent.intentUrl };
   }
 
   function wake() {
@@ -523,6 +545,8 @@ export function createPrintCompanionClient(
 
   return {
     health,
+    prepareWakeIntent,
+    activatePreparedWake,
     startWakeFromUserGesture,
     resumePendingWake,
     wake,
