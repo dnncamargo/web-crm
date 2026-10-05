@@ -10,7 +10,9 @@ export const PRINT_COMPANION_TOKEN_STORAGE_KEY = "web-crm.print-companion.auth.v
 export const PRINT_COMPANION_CONFIG_STORAGE_KEY = "web-crm.print-companion.config.v1";
 export const PRINT_COMPANION_WAKE_SESSION_KEY = "web-crm.print-companion.wake.v1";
 
-const DEFAULT_IDLE_TIMEOUT_MINUTES = 15;
+export const DEFAULT_IDLE_TIMEOUT_MINUTES = 15 as const;
+export const MIN_IDLE_TIMEOUT_MINUTES = 1 as const;
+export const MAX_IDLE_TIMEOUT_MINUTES = 120 as const;
 
 export interface PendingPrintCompanionWake {
   attemptId: string;
@@ -114,8 +116,8 @@ export function isValidPrintCompanionConfig(value: unknown): value is PrintCompa
   return (
     typeof idleTimeoutMinutes === "number" &&
     Number.isInteger(idleTimeoutMinutes) &&
-    idleTimeoutMinutes > 0 &&
-    idleTimeoutMinutes <= 24 * 60
+    idleTimeoutMinutes >= MIN_IDLE_TIMEOUT_MINUTES &&
+    idleTimeoutMinutes <= MAX_IDLE_TIMEOUT_MINUTES
   );
 }
 

@@ -7,6 +7,7 @@ import {
 } from "./printCompanionClient";
 import {
   loadPendingPrintCompanionWake,
+  savePrintCompanionConfig,
   savePendingPrintCompanionWake,
   savePrintCompanionToken,
 } from "./printCompanionStorage";
@@ -595,6 +596,24 @@ describe("PrintCompanionClient", () => {
       data: encodePrintCompanionBase64(bytes),
       sha256: await sha256Hex(bytes),
     });
+  });
+
+  it("uses the persisted companion config before sending a print", async () => {
+    const localStorage = new MemoryStorage();
+    savePrintCompanionToken({ token: "valid-token", apiVersion: "1" }, localStorage);
+    savePrintCompanionConfig({ idleTimeoutMinutes: 60 }, localStorage);
+    const fetchImpl = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(response(health()))
+      .mockResolvedValueOnce(response({ ok: true }))
+      .mockResolvedValueOnce(response({ ok: true, jobId: "job-config" }));
+    const { client } = createClient(fetchImpl, localStorage);
+
+    await client.print(printer, new Uint8Array([1, 2, 3]), "job-config");
+
+    expect(JSON.parse((fetchImpl.mock.calls[1]?.[1] as RequestInit).body as string)).toEqual({
+      idleTimeoutMinutes: 60,
+    });
+    expect(fetchImpl.mock.calls[2]?.[0]).toBe("http://127.0.0.1:17891/v1/print");
   });
 
   it("requires a new explicit pairing after a 401", async () => {
