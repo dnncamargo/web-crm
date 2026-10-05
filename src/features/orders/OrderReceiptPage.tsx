@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Button } from "../../components/ui/Button";
+import { createPrintJobId } from "../printers/printCompanionClient";
 import { useProducts } from "../products/useProducts";
 import { encodePrintJob } from "../printers/escposEncoder";
 import { getPrintColumnsForPaperWidth } from "../printers/printJobLayout";
@@ -13,6 +14,11 @@ import { OrderReceipt } from "./components/OrderReceipt";
 import { ORDER_RECEIPT_BRAND_NAME, ORDER_RECEIPT_LOGO_SRC } from "./orderReceiptBrand";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
 import { createOrderReceiptPrintJob } from "./orderReceiptPrintJob";
+import {
+  ORDER_RECEIPT_PRINT_BUSY_LABEL,
+  ORDER_RECEIPT_PRINT_LABEL,
+  printReceiptAutomatically,
+} from "./orderPrintFlow";
 import { useOrders } from "./useOrders";
 
 function getErrorMessage(error: unknown) {
@@ -31,6 +37,7 @@ export function OrderReceiptPage() {
     defaultPrinterId,
     loading: loadingPrinters,
     printersError,
+    testPrinterConnection,
     printToPrinter,
   } = usePrinters();
   const [thermalPrintBusy, setThermalPrintBusy] = useState(false);
@@ -41,8 +48,8 @@ export function OrderReceiptPage() {
   const loading = loadingOrders || loadingProducts;
   const defaultPrinter = resolveDefaultPrinter(printers, defaultPrinterId);
 
-  async function handleThermalPrint() {
-    if (!order || !defaultPrinter || loadingPrinters || printersError || thermalPrintBusy) {
+  async function handlePrint() {
+    if (!order || thermalPrintBusy) {
       return;
     }
 
@@ -51,24 +58,35 @@ export function OrderReceiptPage() {
     setThermalPrintBusy(true);
 
     try {
-      const document = createOrderReceiptDocument(order, products);
-      let logo: PrintJobRaster | undefined;
+      const printer = loadingPrinters || printersError ? null : defaultPrinter;
+      const result = await printReceiptAutomatically({
+        printer,
+        createJobId: createPrintJobId,
+        preflight: testPrinterConnection,
+        prepareBytes: async () => {
+          const document = createOrderReceiptDocument(order, products);
+          let logo: PrintJobRaster | undefined;
 
-      try {
-        logo = await loadPrintRaster(ORDER_RECEIPT_LOGO_SRC);
-      } catch {
-        logo = undefined;
-      }
+          try {
+            logo = await loadPrintRaster(ORDER_RECEIPT_LOGO_SRC);
+          } catch {
+            logo = undefined;
+          }
 
-      const job = createOrderReceiptPrintJob(document, {
-        columns: getPrintColumnsForPaperWidth(defaultPrinter.paperWidthMm),
-        brandName: ORDER_RECEIPT_BRAND_NAME,
-        logo,
+          const job = createOrderReceiptPrintJob(document, {
+            columns: getPrintColumnsForPaperWidth(printer?.paperWidthMm ?? 80),
+            brandName: ORDER_RECEIPT_BRAND_NAME,
+            logo,
+          });
+          return encodePrintJob(job);
+        },
+        print: printToPrinter,
+        browserPrint: () => window.print(),
       });
-      const bytes = encodePrintJob(job);
 
-      await printToPrinter(defaultPrinter, bytes);
-      setThermalPrintSuccess(`Recibo enviado para “${defaultPrinter.name}”.`);
+      if (result.route === "thermal") {
+        setThermalPrintSuccess(`Recibo enviado para “${printer?.name ?? "impressora"}”.`);
+      }
     } catch (error) {
       setThermalPrintError(getErrorMessage(error));
     } finally {
@@ -78,21 +96,9 @@ export function OrderReceiptPage() {
 
   const thermalPrintStatus = thermalPrintError
     ? { message: thermalPrintError, error: true }
-    : printersError
-      ? {
-          message: "A configuração da impressora não pôde ser carregada. A impressão térmica está indisponível; use a impressão pelo navegador.",
-          error: true,
-        }
-      : loadingPrinters
-        ? { message: "Carregando a configuração da impressora térmica...", error: false }
-        : !defaultPrinter
-          ? {
-              message: "A impressão térmica exige uma impressora padrão ativa configurada.",
-              error: true,
-            }
-          : thermalPrintSuccess
-            ? { message: thermalPrintSuccess, error: false }
-            : null;
+    : thermalPrintSuccess
+      ? { message: thermalPrintSuccess, error: false }
+      : null;
 
   return (
     <main className="receipt-page">
@@ -101,11 +107,8 @@ export function OrderReceiptPage() {
           <Button type="button" variant="secondary" onClick={() => navigate("/pedidos")}>
             Voltar
           </Button>
-          <Button type="button" onClick={handleThermalPrint} disabled={loadingPrinters || Boolean(printersError) || !defaultPrinter || thermalPrintBusy}>
-            Imprimir na térmica
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => window.print()}>
-            Imprimir pelo navegador
+          <Button type="button" onClick={handlePrint} disabled={thermalPrintBusy}>
+            {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
           </Button>
         </div>
       )}

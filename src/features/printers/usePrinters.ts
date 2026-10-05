@@ -12,25 +12,18 @@ import type {
   PrinterConfiguration,
   UpdatePrinterConfigurationData,
 } from "./printerTypes";
-import { createLoopbackPrinterTransport } from "./loopbackPrinterTransport";
 import { encodePrintJob } from "./escposEncoder";
 import { createPrinterIntegrityTestJob } from "./printerIntegrityPrintJob";
 import { createPrintCompanionClient, createPrintJobId } from "./printCompanionClient";
 
-const printerTransport = createLoopbackPrinterTransport();
 const printCompanionClient = createPrintCompanionClient();
 
 export async function printToPrinter(
   printer: PrinterConfiguration,
   bytes: Uint8Array,
+  jobId?: string,
 ) {
-  await printerTransport.print(
-    {
-      host: printer.host,
-      port: printer.port,
-    },
-    bytes,
-  );
+  await printCompanionClient.print(printer, bytes, jobId);
 }
 
 export function usePrinters() {
