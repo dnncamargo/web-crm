@@ -10,6 +10,8 @@ import { useProducts } from "../../features/products/useProducts";
 import { getOrderItemProductName } from "../../features/orders/orderUtils";
 import { useTags } from "../../features/tags/useTags";
 import { formatCurrencyBR } from "../../utils/money";
+import { useAuth } from "../../features/auth/useAuth";
+import { Button } from "../ui/Button";
 
 const navItems = [
   { to: "/", label: "Hoje", end: true },
@@ -35,6 +37,7 @@ function includesSearch(searchableValue: string, query: string) {
 }
 
 export function AppShell() {
+  const { user, logout } = useAuth();
   const [globalSearch, setGlobalSearch] = useState("");
   const { clients, loading: loadingClients } = useClients();
   const { products, loadingProducts } = useProducts();
@@ -181,6 +184,18 @@ export function AppShell() {
             <Settings2 size={18} aria-hidden="true" />
             <span>Configurações</span>
           </NavLink>
+
+          <div className="auth-identity" title={user?.email ?? undefined}>
+            <span className="auth-identity-name">{user?.displayName || user?.email}</span>
+            <Button
+              className="auth-logout"
+              variant="ghost"
+              type="button"
+              onClick={() => void logout()}
+            >
+              Sair
+            </Button>
+          </div>
         </header>
 
         <section className="content-area">
