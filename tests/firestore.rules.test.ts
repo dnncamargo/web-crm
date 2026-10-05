@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { getFirestore } from "firebase/firestore";
 import {
   assertFails,
   assertSucceeds,
@@ -10,7 +9,7 @@ import {
 } from "@firebase/rules-unit-testing";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
-const projectId = "web-crm-firestore-rules-test";
+const projectId = "demo-web-crm-firestore-rules-test";
 const testEnvironment: RulesTestEnvironment = await initializeTestEnvironment({
   projectId,
   firestore: {
@@ -27,13 +26,12 @@ describe("Firestore authenticated boundary", () => {
   });
 
   it("denies anonymous reads and writes", async () => {
-    const authenticatedContext = testEnvironment.authenticatedContext("seed-user");
-    const authenticatedDb = getFirestore(authenticatedContext.app);
+    const authenticatedDb = testEnvironment.authenticatedContext("seed-user").firestore();
     await authenticatedDb.doc("appSettings/theme").set({ accent: "#b87945" });
     await authenticatedDb.doc("appSettings/printing").set({ defaultPrinterId: null });
     await authenticatedDb.doc("clients/client-1").set({ name: "Cliente de teste" });
 
-    const anonymousDb = getFirestore(testEnvironment.unauthenticatedContext().app);
+    const anonymousDb = testEnvironment.unauthenticatedContext().firestore();
     await assertFails(anonymousDb.doc("appSettings/theme").get());
     await assertFails(anonymousDb.doc("appSettings/printing").get());
     await assertFails(anonymousDb.doc("clients/client-1").get());
@@ -41,7 +39,7 @@ describe("Firestore authenticated boundary", () => {
   });
 
   it("allows authenticated global settings and CRM reads/writes", async () => {
-    const authenticatedDb = getFirestore(testEnvironment.authenticatedContext("crm-user").app);
+    const authenticatedDb = testEnvironment.authenticatedContext("crm-user").firestore();
 
     await assertSucceeds(authenticatedDb.doc("appSettings/theme").set({ accent: "#123456" }));
     await assertSucceeds(authenticatedDb.doc("clients/client-1").set({ name: "Cliente" }));
