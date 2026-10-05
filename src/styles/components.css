@@ -186,6 +186,94 @@
   color: var(--text);
 }
 
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: min(100%, 410px);
+  display: grid;
+  gap: 24px;
+}
+
+.auth-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.auth-header img {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.auth-header h1,
+.auth-header p {
+  margin: 0;
+}
+
+.auth-header h1 {
+  font-size: 1.45rem;
+  font-weight: 400;
+}
+
+.auth-header p,
+.auth-state p {
+  color: var(--muted);
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-field {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-field label {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.auth-field input {
+  min-height: 42px;
+  border: var(--border-base);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+}
+
+.auth-field input:focus {
+  border-color: var(--border-focus);
+  box-shadow: var(--focus-ring);
+}
+
+.auth-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.86rem;
+}
+
+.auth-state {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-state p {
+  margin: 0;
+}
+
 .android-wake-card {
   display: grid;
   gap: 18px;

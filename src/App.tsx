@@ -14,17 +14,35 @@ import { ColorPage } from "./features/color/ColorPage";
 import { PrintersPage } from "./features/printers/PrintersPage";
 import { AndroidPrintWakePage } from "./features/diagnostics/AndroidPrintWakePage";
 import { SettingsPage } from "./features/settings/SettingsPage";
+import { AuthProvider } from "./features/auth/AuthProvider";
+import { LoginPage } from "./features/auth/LoginPage";
+import { RequireAuth } from "./features/auth/RequireAuth";
+import {
+  loadFreshPendingPrintCompanionWake,
+} from "./features/printers/printCompanionStorage";
+import { loadFreshOrderPrintAttempt } from "./features/orders/orderPrintAttempt";
+import { getPendingPrintResumeRoute } from "./features/diagnostics/androidPrintActivation";
 
-export default function App() {
+function AuthenticatedContent() {
+  const pendingWake = loadFreshPendingPrintCompanionWake();
+  const pendingPrintAttempt = loadFreshOrderPrintAttempt();
 
+  const resumeRoute = getPendingPrintResumeRoute(pendingWake, pendingPrintAttempt);
+  if (resumeRoute) {
+    return <Navigate to={resumeRoute} replace />;
+  }
+
+  return <AndroidPrintWakePage />;
+}
+
+function ProtectedRoutes() {
   useRemoteAccentColor();
-
   return (
     <Routes>
       <Route path="pedidos/:orderId/via" element={<OrderReceiptPage />} />
       <Route element={<AppShell />}>
         <Route path={APP_ROUTES.legacyDiagnostic} element={<Navigate to={APP_ROUTES.diagnostic} replace />} />
-        <Route path={APP_ROUTES.companionActivation} element={<AndroidPrintWakePage />} />
+        <Route path={APP_ROUTES.companionActivation} element={<AuthenticatedContent />} />
         <Route path={APP_ROUTES.diagnostic} element={<AndroidPrintWakePage />} />
         <Route index element={<TodayPage />} />
         <Route path="clientes" element={<ClientsPage />} />
@@ -39,5 +57,18 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <Routes>
+        <Route path={APP_ROUTES.login} element={<LoginPage />} />
+        <Route element={<RequireAuth />}>
+          <Route path="*" element={<ProtectedRoutes />} />
+        </Route>
+      </Routes>
+    </AuthProvider>
   );
 }

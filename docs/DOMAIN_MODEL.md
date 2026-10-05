@@ -34,6 +34,17 @@ Configuração da aplicação:
 - `appSettings/theme`
 - `appSettings/printing`
 
+### Fronteira de autenticação
+
+O Firebase Authentication identifica os usuários da aplicação por Email/Password.
+Usuários autenticados compartilham os mesmos dados de negócio do CRM; autenticação
+não representa propriedade por `uid` e não implica autorização, papéis, claims ou
+ACL. Usuários não autenticados não acessam as coleções ou configurações do
+Firestore do CRM.
+
+O futuro Store Profile será uma configuração global compartilhada, não um perfil
+escopado por usuário.
+
 Os serviços usam listeners em tempo real com `onSnapshot`.
 
 ## 3. Convenções de entidade
