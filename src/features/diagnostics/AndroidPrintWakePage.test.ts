@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { PrintCompanionError } from "../printers/printCompanionTypes";
-import { getAndroidPrintWakeErrorDetails } from "./androidPrintWakeErrors";
+import { getFlowLabel } from "./androidPrintDiagnosticUi";
 
-describe("Android print wake diagnostics", () => {
-  it("publishes wake_timeout instead of pairing_expired", () => {
-    const details = getAndroidPrintWakeErrorDetails(new PrintCompanionError(
-      "pairing_expired",
-      "A ativação do companion expirou.",
-      { companionCode: "wake_timeout" },
-    ));
-
-    expect(details.publicCode).toBe("wake_timeout");
-    expect(details.message).toBe("O companion não respondeu ao health dentro de 15 segundos.");
-    expect(details.showDownload).toBe(true);
+describe("Android diagnostic status labels", () => {
+  it("uses sentence case without a badge-style status token", () => {
+    expect(getFlowLabel("idle", "unknown", "idle")).toBe("Aguardando ativação");
+    expect(getFlowLabel("preparing", "checking", "health")).toBe("Conectando");
+    expect(getFlowLabel("configuring", "online", "config")).toBe("Configurando");
+    expect(getFlowLabel("testing", "online", "test")).toBe("Testando");
+    expect(getFlowLabel("pass", "online", "test")).toBe("Pronto");
+    expect(getFlowLabel("fail", "offline", "test")).toBe("Falha");
+    expect(getFlowLabel("idle", "unknown", "idle")).not.toContain("#");
   });
 });

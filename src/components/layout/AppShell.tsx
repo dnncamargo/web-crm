@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Settings2 } from "lucide-react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 
+import { APP_ROUTES } from "../../appRoutes";
 import { useClients } from "../../features/clients/useClients";
 import { useOrders } from "../../features/orders/useOrders";
 import { formatDateTimeBR } from "../../features/orders/orderUtils";
@@ -17,7 +18,7 @@ const navItems = [
   { to: "/produtos", label: "Produtos" },
   { to: "/tarefas", label: "Tarefas" },
   { to: "/etiquetas", label: "Etiquetas" },
-  { to: "/configuracoes/impressoras", label: "Configurações" },
+  { to: APP_ROUTES.settings, label: "Configurações" },
 ];
 
 function normalizeSearchValue(value: string) {
@@ -173,7 +174,7 @@ export function AppShell() {
             className={({ isActive }) =>
               isActive ? "mobile-settings-link active" : "mobile-settings-link"
             }
-            to="/configuracoes/impressoras"
+            to={APP_ROUTES.settings}
             aria-label="Configurações"
             title="Configurações"
           >

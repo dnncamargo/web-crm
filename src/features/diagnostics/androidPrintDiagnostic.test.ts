@@ -10,7 +10,7 @@ import {
 
 describe("Android print diagnostic metadata", () => {
   it("keeps the diagnostic and companion baselines explicit", () => {
-    expect(ANDROID_PRINT_DIAGNOSTIC_VERSION).toBe("1.0.7");
+    expect(ANDROID_PRINT_DIAGNOSTIC_VERSION).toBe("1.0.8");
     expect(EXPECTED_COMPANION_APP_VERSION).toBe("1.0.0");
     expect(EXPECTED_COMPANION_VERSION_CODE).toBe(1);
   });
@@ -22,6 +22,6 @@ describe("Android print diagnostic metadata", () => {
   });
 
   it("builds the canonical production diagnostic URL", () => {
-    expect(getProductionDiagnosticUrl()).toBe("https://deliciasdoporto.vercel.app/diagnostics/android-print-wake");
+    expect(getProductionDiagnosticUrl()).toBe("https://deliciasdoporto.vercel.app/configuracoes/impressoras/diagnostico");
   });
 });
