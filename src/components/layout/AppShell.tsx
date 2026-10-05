@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { Settings2 } from "lucide-react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 
 import { APP_ROUTES } from "../../appRoutes";
@@ -11,7 +10,7 @@ import { getOrderItemProductName } from "../../features/orders/orderUtils";
 import { useTags } from "../../features/tags/useTags";
 import { formatCurrencyBR } from "../../utils/money";
 import { useAuth } from "../../features/auth/useAuth";
-import { Button } from "../ui/Button";
+import { UserIdentityMenu } from "./UserIdentityMenu";
 
 const navItems = [
   { to: "/", label: "Hoje", end: true },
@@ -173,32 +172,7 @@ export function AppShell() {
             )}
           </div>
 
-          <NavLink
-            className={({ isActive }) =>
-              isActive ? "mobile-settings-link active" : "mobile-settings-link"
-            }
-            to={APP_ROUTES.settings}
-            aria-label="Configurações"
-            title="Configurações"
-          >
-            <Settings2 size={18} aria-hidden="true" />
-            <span>Configurações</span>
-          </NavLink>
-
-          <div className="auth-identity" title={user?.email ?? undefined}>
-            {user?.photoURL && (
-              <img className="auth-identity-avatar" src={user.photoURL} alt="" aria-hidden="true" />
-            )}
-            <span className="auth-identity-name">{user?.displayName || user?.email || "Usuário"}</span>
-            <Button
-              className="auth-logout"
-              variant="ghost"
-              type="button"
-              onClick={() => void logout()}
-            >
-              Sair
-            </Button>
-          </div>
+          {user && <UserIdentityMenu user={user} logout={logout} />}
         </header>
 
         <section className="content-area">
