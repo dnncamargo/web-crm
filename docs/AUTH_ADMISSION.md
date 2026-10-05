@@ -76,6 +76,7 @@ com contexto administrativo do emulador. Eles provam que:
 - outra identidade Google é negada;
 - e-mail permitido não verificado é negado;
 - e-mail permitido com provider diferente de Google é negado;
+- configuração ausente nega leitura e escrita para todos;
 - clientes não leem nem alteram a configuração da allowlist.
 
 Execute:
@@ -92,22 +93,32 @@ npm run css:unused
 ## Configuração de produção, ainda não executada
 
 Para evitar o estado inseguro “Google habilitado + `request.auth != null`”, use esta
-ordem:
+ordem de cutover:
 
 1. Manter o projeto no Firebase Spark.
-2. Criar `config/authAdmission` pela operação administrativa do Firestore com os
-   dois e-mails Google exatos, normalizados em minúsculas.
-3. Publicar as regras restritivas do Firestore e confirmar no emulador/console que
-   a configuração existe e que as regras não são permissivas.
-4. Adicionar `deliciasdoporto.vercel.app` aos Authorized domains do Firebase Auth.
-5. Habilitar o provider Google.
-6. Publicar o cliente web Google.
-7. Testar a conta permitida.
-8. Testar uma conta Google não permitida e confirmar a mensagem de bloqueio.
-9. Confirmar que usuários anônimos e não admitidos não leem nem escrevem.
-10. Confirmar leitura e escrita normais pela conta admitida.
-11. Validar persistência e autologin.
-12. Executar a regressão física de impressão no Android.
+2. Adicionar `deliciasdoporto.vercel.app` aos Authorized domains do Firebase Auth.
+   Isso, isoladamente, não concede autenticação nem acesso ao Firestore.
+3. Fazer merge/publicar o cliente Google quando estiver pronto para a manutenção;
+   o provider Google permanece desabilitado neste momento.
+4. Publicar as regras finais restritivas do Firestore enquanto
+   `config/authAdmission` ainda não existe. O CRM fica intencionalmente fechado
+   durante esse intervalo de manutenção.
+5. Confirmar que o acesso anônimo e o acesso de clientes estão negados.
+6. Criar `config/authAdmission` ADMINISTRATIVAMENTE, com os dois e-mails Google
+   exatos e normalizados em minúsculas. Nunca usar o cliente web.
+7. Confirmar que clientes não leem nem modificam `config/authAdmission`.
+8. Habilitar o provider Google no Firebase Authentication.
+9. Testar a conta Google permitida.
+10. Testar uma conta Google não permitida e confirmar a mensagem de bloqueio.
+11. Confirmar leitura e escrita normais pela conta admitida.
+12. Confirmar persistência e autologin.
+13. Confirmar logout e seleção explícita de outra conta Google.
+14. Executar a regressão física de impressão no Android.
+
+Nenhum estado de produção pode conter valores reais em `config/authAdmission`
+enquanto regras permissivas estiverem ativas. A ausência do documento deve negar
+intencionalmente todos os acessos; o intervalo de manutenção fechado é esperado e
+mais seguro que uma transição com acesso inseguro.
 
 Nenhuma etapa de produção foi executada nesta sessão. Não há dependência de billing,
 Blaze, Identity Platform, Cloud Functions ou Secret Manager.

@@ -74,6 +74,20 @@ describe("Firestore authenticated boundary", () => {
     expect(snapshot.data()).toMatchObject({ name: "Cliente", active: true });
   });
 
+  it("fails closed when the admission config is missing", async () => {
+    await testEnvironment.withSecurityRulesDisabled(async (context) => {
+      await context.firestore().doc("config/authAdmission").delete();
+    });
+
+    const authenticatedDb = testEnvironment.authenticatedContext(
+      "missing-config-user",
+      allowedGoogleToken,
+    ).firestore();
+
+    await assertFails(authenticatedDb.doc("clients/client-1").get());
+    await assertFails(authenticatedDb.doc("clients/client-1").set({ name: "Sem acesso" }));
+  });
+
   it("normalizes mixed-case Google token emails before matching the allowlist", async () => {
     const mixedCaseDb = testEnvironment.authenticatedContext("mixed-case-google", {
       ...allowedGoogleToken,
