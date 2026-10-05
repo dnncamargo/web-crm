@@ -18,6 +18,9 @@ coverage/
 .env
 .env.local
 *.local
+functions/.env.*
+functions/.secret.local
+functions/lib/
 
 # Editor directories and files
 .vscode/*

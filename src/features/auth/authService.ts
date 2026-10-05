@@ -1,8 +1,9 @@
 import {
   browserLocalPersistence,
+  GoogleAuthProvider,
   onAuthStateChanged,
   setPersistence,
-  signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   type Unsubscribe,
   type User,
@@ -20,8 +21,8 @@ export function subscribeToAuthState(
   return onAuthStateChanged(auth, onChange, onError);
 }
 
-export async function loginWithEmailAndPassword(email: string, password: string) {
-  await signInWithEmailAndPassword(auth, email, password);
+export async function loginWithGoogle() {
+  await signInWithPopup(auth, new GoogleAuthProvider());
 }
 
 export function logout() {

@@ -3,7 +3,7 @@ import type { User } from "firebase/auth";
 
 import {
   configureAuthPersistence,
-  loginWithEmailAndPassword,
+  loginWithGoogle,
   logout,
   subscribeToAuthState,
 } from "./authService";
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     resolving,
     loading: resolving,
-    login: loginWithEmailAndPassword,
+    login: loginWithGoogle,
     logout,
   }), [resolving, user]);
 

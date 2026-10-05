@@ -186,7 +186,10 @@ export function AppShell() {
           </NavLink>
 
           <div className="auth-identity" title={user?.email ?? undefined}>
-            <span className="auth-identity-name">{user?.displayName || user?.email}</span>
+            {user?.photoURL && (
+              <img className="auth-identity-avatar" src={user.photoURL} alt="" aria-hidden="true" />
+            )}
+            <span className="auth-identity-name">{user?.displayName || user?.email || "Usuário"}</span>
             <Button
               className="auth-logout"
               variant="ghost"

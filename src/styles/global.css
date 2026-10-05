@@ -311,6 +311,14 @@ textarea:focus {
   flex: 0 0 auto;
 }
 
+.auth-identity-avatar {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .auth-identity-name {
   max-width: 180px;
   overflow: hidden;

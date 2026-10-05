@@ -36,11 +36,13 @@ Configuração da aplicação:
 
 ### Fronteira de autenticação
 
-O Firebase Authentication identifica os usuários da aplicação por Email/Password.
-Usuários autenticados compartilham os mesmos dados de negócio do CRM; autenticação
-não representa propriedade por `uid` e não implica autorização, papéis, claims ou
-ACL. Usuários não autenticados não acessam as coleções ou configurações do
-Firestore do CRM.
+O Firebase Authentication identifica os usuários da aplicação pelo provedor Google,
+com persistência local da sessão. Usuários autenticados compartilham os mesmos dados
+de negócio do CRM; autenticação não representa propriedade por `uid` e não implica
+autorização, papéis, claims ou ACL. Usuários não autenticados não acessam as coleções
+ou configurações do Firestore do CRM. A admissão segura de uma allowlist de
+identidades pertence à fronteira do provedor de autenticação, não ao cliente nem às
+regras de dados; ela ainda requer uma decisão de configuração do projeto.
 
 O futuro Store Profile será uma configuração global compartilhada, não um perfil
 escopado por usuário.
