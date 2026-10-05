@@ -16,7 +16,7 @@ import { encodePrintJob } from "./escposEncoder";
 import { createPrinterIntegrityTestJob } from "./printerIntegrityPrintJob";
 import { createPrintCompanionClient, createPrintJobId } from "./printCompanionClient";
 
-const printCompanionClient = createPrintCompanionClient();
+export const printCompanionClient = createPrintCompanionClient();
 
 export async function printToPrinter(
   printer: PrinterConfiguration,

@@ -72,8 +72,10 @@ Neste checkpoint, as ações de teste da configuração de impressoras e o botã
 ## Recibo do pedido
 
 O recibo usa uma única ação explícita. Após um preflight sem envio de bytes, ele
-segue para a impressora padrão ativa pelo companion; se o preflight ou a
-preparação falhar, usa a impressão do navegador:
+segue para a impressora padrão ativa pelo companion. A aplicação congela antes
+do preflight o `jobId`, o snapshot imutável da impressora e os bytes ESC/POS
+codificados em um snapshot transitório de `sessionStorage` quando houver
+possibilidade de round-trip Android:
 
 ```text
 Order + Products
@@ -86,8 +88,10 @@ Order + Products
 → TCP printer
 ```
 
-`Imprimir` chama `window.print()` somente quando não há rota térmica válida, o
-preflight falha ou os bytes não podem ser preparados antes do envio. Depois que
+`Imprimir` chama `window.print()` somente quando não há rota térmica válida, os
+bytes não podem ser preparados ou um preflight não recuperável falha. Um
+`companion_offline`, `pairing_required` ou `service_stopping` inicia o caminho
+explícito de wake descrito abaixo. Depois que
 `PrintCompanionClient.print()` começa, qualquer erro é exibido e nunca dispara
 fallback, evitando impressão duplicada. O caminho direto atualmente suporta apenas o
 contrato estabelecido de papel de 80 mm com 48 colunas. O BMP da marca é
@@ -111,6 +115,36 @@ one PrintJob
 → TCP printer
 → one partial cut
 ```
+
+Há dois caminhos térmicos distintos:
+
+- companion `RUNNING`: `Imprimir` faz o preflight e chama o companion
+  diretamente, com um único `jobId` e uma única impressão;
+- companion parado ou ainda exigindo pareamento: o preflight classifica
+  `companion_offline`, `pairing_required` ou `service_stopping` como estado
+  recuperável. O próprio `Imprimir` usa um link Android preparado e ativa o
+  wake durante o gesto original; não chama `window.print()`. Ao retornar à
+  mesma página, o fluxo retoma o mesmo snapshot, os mesmos bytes e o mesmo
+  `jobId`, faz health/pair/config, preflight da mesma impressora e envia o
+  trabalho uma única vez. Não há uma segunda ação de continuação.
+
+O snapshot é estado transitório da sessão, usa o mesmo TTL/stale do wake e é
+removido após sucesso, expiração ou substituição por uma nova intenção de
+impressão. Alterações posteriores no pedido, nos produtos ou na impressora
+padrão não podem retargetear ou regenerar essa tentativa.
+
+Falhas que não são recuperáveis antes do envio preservam o fallback explícito
+do navegador. Depois que `PrintCompanionClient.print()` começa, nenhum erro
+dispara fallback automático — inclusive timeout, erro de rede, fila, conflito
+de `jobId`, autenticação, protocolo ou impressora. O usuário recebe um estado
+recuperável para tentar novamente; o diálogo A4/PDF nunca aparece como
+surpresa.
+
+A página mantém um status live discreto de uma linha para a tentativa atual,
+sem expor nonce, token, destino da impressora, `jobId`, hash, bytes ou conteúdo
+do recibo. Após uma falha térmica terminal, o link secundário `Diagnóstico`
+apenas aponta para o diagnóstico da impressora tentada; a navegação não é
+automática e não assume a propriedade da tentativa pendente.
 
 ## Diagnóstico físico
 

@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createPrintCompanionResumeOwner } from "../printers/printCompanionResumeOwner";
+import { PrintCompanionError } from "../printers/printCompanionTypes";
 import type { PrinterConfiguration } from "../printers/printerTypes";
 import {
   ORDER_RECEIPT_PRINT_BUSY_LABEL,
   ORDER_RECEIPT_PRINT_LABEL,
+  resumeFrozenOrderPrint,
   printReceiptAutomatically,
 } from "./orderPrintFlow";
+import { createOrderPrintAttempt } from "./orderPrintAttempt";
 
 const printer: PrinterConfiguration = {
   id: "printer-1",
@@ -21,6 +25,7 @@ const printer: PrinterConfiguration = {
 
 function createOptions(overrides: Partial<Parameters<typeof printReceiptAutomatically>[0]> = {}) {
   return {
+    orderId: "order-1",
     printer,
     createJobId: vi.fn(() => "job-1"),
     preflight: vi.fn(async () => undefined),
@@ -56,6 +61,40 @@ describe("order print cutover", () => {
     await expect(printReceiptAutomatically(options)).resolves.toMatchObject({ route: "browser" });
     expect(options.browserPrint).toHaveBeenCalledTimes(1);
     expect(options.print).not.toHaveBeenCalled();
+  });
+
+  it("does not open browser printing for a recoverable offline companion", async () => {
+    const onRecoverableCompanion = vi.fn();
+    const options = createOptions({
+      preflight: vi.fn(async () => {
+        throw new PrintCompanionError("companion_offline", "offline");
+      }),
+      onRecoverableCompanion,
+    });
+
+    await expect(printReceiptAutomatically(options)).resolves.toMatchObject({ route: "wake", jobId: "job-1" });
+    expect(options.browserPrint).not.toHaveBeenCalled();
+    expect(options.print).not.toHaveBeenCalled();
+    expect(onRecoverableCompanion).toHaveBeenCalledTimes(1);
+    expect(onRecoverableCompanion.mock.calls[0]?.[0]).toMatchObject({
+      intent: "print",
+      jobId: "job-1",
+      printer,
+    });
+  });
+
+  it("uses the same explicit recovery path for pairing_required", async () => {
+    const onRecoverableCompanion = vi.fn();
+    const options = createOptions({
+      preflight: vi.fn(async () => {
+        throw new PrintCompanionError("pairing_required", "pairing required");
+      }),
+      onRecoverableCompanion,
+    });
+
+    await expect(printReceiptAutomatically(options)).resolves.toMatchObject({ route: "wake" });
+    expect(onRecoverableCompanion).toHaveBeenCalledTimes(1);
+    expect(options.browserPrint).not.toHaveBeenCalled();
   });
 
   it("falls back before print when the printer preflight fails", async () => {
@@ -108,6 +147,124 @@ describe("order print cutover", () => {
 
     await expect(printReceiptAutomatically(options)).rejects.toThrow("print rejected after send started");
     expect(options.browserPrint).not.toHaveBeenCalled();
+  });
+
+  it("resumes with the frozen printer, bytes and original job id", async () => {
+    const attempt = createOrderPrintAttempt({
+      attemptId: "attempt-1",
+      orderId: "order-1",
+      jobId: "job-1",
+      printer,
+      bytes: new Uint8Array([0, 27, 255]),
+    });
+    const owner = createPrintCompanionResumeOwner();
+    const resumeCompanion = vi.fn(async () => undefined);
+    const preflight = vi.fn(async () => undefined);
+    const print = vi.fn(async () => undefined);
+    const onSuccess = vi.fn();
+    const result = await resumeFrozenOrderPrint({
+      attempt,
+      owner,
+      isCurrentAttempt: () => true,
+      resumeCompanion,
+      preflight,
+      print,
+      onSuccess,
+    });
+
+    expect(result).toBe("printed");
+    expect(resumeCompanion).toHaveBeenCalledTimes(1);
+    expect(preflight).toHaveBeenCalledWith(expect.objectContaining({ host: printer.host, port: printer.port }));
+    expect(print).toHaveBeenCalledWith(
+      expect.objectContaining({ host: printer.host, port: printer.port }),
+      new Uint8Array([0, 27, 255]),
+      "job-1",
+    );
+    expect(onSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it("cannot print a stale attempt after it is replaced", async () => {
+    const attempt = createOrderPrintAttempt({
+      attemptId: "attempt-old",
+      orderId: "order-1",
+      jobId: "job-old",
+      printer,
+      bytes: new Uint8Array([1]),
+    });
+    const print = vi.fn(async () => undefined);
+
+    const result = await resumeFrozenOrderPrint({
+      attempt,
+      owner: createPrintCompanionResumeOwner(),
+      isCurrentAttempt: () => false,
+      resumeCompanion: vi.fn(async () => undefined),
+      preflight: vi.fn(async () => undefined),
+      print,
+      onSuccess: vi.fn(),
+    });
+
+    expect(result).toBe("ignored");
+    expect(print).not.toHaveBeenCalled();
+  });
+
+  it("cannot double-print when a lifecycle callback arrives during resume", async () => {
+    const attempt = createOrderPrintAttempt({
+      attemptId: "attempt-1",
+      orderId: "order-1",
+      jobId: "job-1",
+      printer,
+      bytes: new Uint8Array([1, 2]),
+    });
+    const owner = createPrintCompanionResumeOwner();
+    let resolveResume: (() => void) | undefined;
+    const resumeCompanion = vi.fn(() => new Promise<void>((resolve) => {
+      resolveResume = resolve;
+    }));
+    const print = vi.fn(async () => undefined);
+    const options = {
+      attempt,
+      owner,
+      isCurrentAttempt: () => true,
+      resumeCompanion,
+      preflight: vi.fn(async () => undefined),
+      print,
+      onSuccess: vi.fn(),
+    };
+
+    const first = resumeFrozenOrderPrint(options);
+    const second = resumeFrozenOrderPrint(options);
+    resolveResume?.();
+    await Promise.all([first, second]);
+
+    expect(resumeCompanion).toHaveBeenCalledTimes(1);
+    expect(print).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not expose browser printing when resume fails after a wake", async () => {
+    const attempt = createOrderPrintAttempt({
+      attemptId: "attempt-1",
+      orderId: "order-1",
+      jobId: "job-1",
+      printer,
+      bytes: new Uint8Array([1]),
+    });
+    const print = vi.fn(async () => undefined);
+    const browserPrint = vi.fn();
+
+    await expect(resumeFrozenOrderPrint({
+      attempt,
+      owner: createPrintCompanionResumeOwner(),
+      isCurrentAttempt: () => true,
+      resumeCompanion: vi.fn(async () => {
+        throw new PrintCompanionError("companion_offline", "offline after wake");
+      }),
+      preflight: vi.fn(async () => undefined),
+      print,
+      onSuccess: vi.fn(),
+    })).rejects.toThrow("offline after wake");
+
+    expect(browserPrint).not.toHaveBeenCalled();
+    expect(print).not.toHaveBeenCalled();
   });
 
   it("keeps printing when logo preparation degrades to a job without a logo", async () => {

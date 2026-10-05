@@ -1,8 +1,19 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
+import { getDiagnosticRoute } from "../../appRoutes";
 import { Button } from "../../components/ui/Button";
-import { createPrintJobId } from "../printers/printCompanionClient";
+import {
+  clearPendingPrintCompanionWakeIfMatches,
+  loadFreshPendingPrintCompanionWake,
+  loadPrintCompanionConfig,
+  loadPendingPrintCompanionWake,
+} from "../printers/printCompanionStorage";
+import {
+  createPrintJobId,
+  type PrintCompanionWakeIntent,
+} from "../printers/printCompanionClient";
+import { createPrintCompanionResumeOwner } from "../printers/printCompanionResumeOwner";
 import { useProducts } from "../products/useProducts";
 import { encodePrintJob } from "../printers/escposEncoder";
 import { getPrintColumnsForPaperWidth } from "../printers/printJobLayout";
@@ -18,13 +29,37 @@ import {
   ORDER_RECEIPT_PRINT_BUSY_LABEL,
   ORDER_RECEIPT_PRINT_LABEL,
   printReceiptAutomatically,
+  resumeFrozenOrderPrint,
 } from "./orderPrintFlow";
+import {
+  clearOrderPrintAttemptIfMatches,
+  createOrderPrintAttempt,
+  loadFreshOrderPrintAttempt,
+  saveOrderPrintAttempt,
+  type OrderPrintAttempt,
+} from "./orderPrintAttempt";
+import type { Order } from "./orderTypes";
+import {
+  getOrderPrintActionMode,
+  getShortOrderPrintError,
+  type CompanionReadiness,
+} from "./orderPrintStatus";
+import type { Product } from "../products/productTypes";
+import type { PrinterConfiguration } from "../printers/printerTypes";
+import { printCompanionClient } from "../printers/usePrinters";
 import { useOrders } from "./useOrders";
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error
     ? error.message
     : "Não foi possível enviar o recibo para a impressora térmica.";
+}
+
+interface PreparedReceipt {
+  order: Order;
+  products: Product[];
+  printer: PrinterConfiguration;
+  bytes: Uint8Array;
 }
 
 export function OrderReceiptPage() {
@@ -42,63 +77,379 @@ export function OrderReceiptPage() {
   } = usePrinters();
   const [thermalPrintBusy, setThermalPrintBusy] = useState(false);
   const [thermalPrintError, setThermalPrintError] = useState("");
-  const [thermalPrintSuccess, setThermalPrintSuccess] = useState("");
+  const [initialPendingPrintAttempt] = useState(() => {
+    const attempt = loadFreshOrderPrintAttempt();
+    return attempt?.orderId === orderId ? attempt : null;
+  });
+  const [companionReadiness, setCompanionReadiness] = useState<CompanionReadiness>(
+    initialPendingPrintAttempt ? "wake-required" : "unknown",
+  );
+  const [printStatus, setPrintStatus] = useState(
+    initialPendingPrintAttempt ? "Aguardando serviço de impressão…" : "Verificando serviço de impressão…",
+  );
+  const [preparedReceipt, setPreparedReceipt] = useState<PreparedReceipt | null>(null);
+  const [lastAttemptPrinter, setLastAttemptPrinter] = useState<PrinterConfiguration | null>(null);
+  const [pendingPrintAttempt, setPendingPrintAttempt] = useState<OrderPrintAttempt | null>(initialPendingPrintAttempt);
+  const [wakeIntent, setWakeIntent] = useState<PrintCompanionWakeIntent | null>(() =>
+    printCompanionClient.prepareWakeIntent("print", initialPendingPrintAttempt?.attemptId),
+  );
+  const currentAttemptIdRef = useRef<string | null>(initialPendingPrintAttempt?.attemptId ?? null);
+  const resumeOwnerRef = useRef(createPrintCompanionResumeOwner());
+  const printStatusOwnerRef = useRef(initialPendingPrintAttempt ? 1 : 0);
 
   const order = orders.find((candidate) => candidate.id === orderId);
   const loading = loadingOrders || loadingProducts;
   const defaultPrinter = resolveDefaultPrinter(printers, defaultPrinterId);
+
+  const prepareReceiptBytes = useCallback(async (
+    receiptOrder: Order,
+    receiptProducts: Product[],
+    printer: PrinterConfiguration,
+  ) => {
+    const document = createOrderReceiptDocument(receiptOrder, receiptProducts);
+    let logo: PrintJobRaster | undefined;
+
+    try {
+      logo = await loadPrintRaster(ORDER_RECEIPT_LOGO_SRC);
+    } catch {
+      logo = undefined;
+    }
+
+    const job = createOrderReceiptPrintJob(document, {
+      columns: getPrintColumnsForPaperWidth(printer.paperWidthMm),
+      brandName: ORDER_RECEIPT_BRAND_NAME,
+      logo,
+    });
+    return encodePrintJob(job);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!order || loading || loadingPrinters || printersError || !defaultPrinter) {
+      return undefined;
+    }
+
+    void prepareReceiptBytes(order, products, defaultPrinter).then((bytes) => {
+      if (cancelled) {
+        return;
+      }
+
+      setPreparedReceipt({ order, products, printer: defaultPrinter, bytes });
+      if (printStatusOwnerRef.current === 0) {
+        setPrintStatus("Pronto para imprimir.");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [defaultPrinter, loading, loadingPrinters, order, prepareReceiptBytes, printersError, products]);
+
+  const refreshCompanionReadiness = useCallback(async () => {
+    try {
+      await printCompanionClient.ensureCompanionReady({ requiredCapabilities: ["config", "print"] });
+      if (printStatusOwnerRef.current !== 0) {
+        return;
+      }
+      setCompanionReadiness("ready");
+      if (printStatusOwnerRef.current === 0) {
+        setPrintStatus("Pronto para imprimir.");
+      }
+    } catch {
+      if (printStatusOwnerRef.current !== 0) {
+        return;
+      }
+      setCompanionReadiness("wake-required");
+      if (printStatusOwnerRef.current === 0) {
+        setPrintStatus("Pronto para imprimir.");
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const initialReadinessTimer = window.setTimeout(() => {
+      void refreshCompanionReadiness();
+    }, 0);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible" && printStatusOwnerRef.current === 0) {
+        void refreshCompanionReadiness();
+      }
+    };
+    const readinessHeartbeat = window.setInterval(() => {
+      if (printStatusOwnerRef.current === 0) {
+        void refreshCompanionReadiness();
+      }
+    }, 5_000);
+
+    window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("pageshow", refreshWhenVisible);
+    return () => {
+      window.clearTimeout(initialReadinessTimer);
+      window.clearInterval(readinessHeartbeat);
+      window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("pageshow", refreshWhenVisible);
+    };
+  }, [refreshCompanionReadiness]);
+
+  const resumePendingPrint = useCallback(async () => {
+    const attempt = loadFreshOrderPrintAttempt();
+    const pendingWake = loadFreshPendingPrintCompanionWake();
+
+    if (!attempt || !pendingWake || pendingWake.intent !== "print") {
+      if (!attempt && pendingWake?.intent === "print") {
+        clearPendingPrintCompanionWakeIfMatches(pendingWake.attemptId);
+      }
+      return;
+    }
+
+    if (attempt.orderId !== orderId) {
+      return;
+    }
+
+    if (attempt.attemptId !== pendingWake.attemptId) {
+      clearPendingPrintCompanionWakeIfMatches(pendingWake.attemptId);
+      return;
+    }
+
+    if (resumeOwnerRef.current.getActiveAttemptId() === attempt.attemptId) {
+      return;
+    }
+
+    currentAttemptIdRef.current = attempt.attemptId;
+    setPendingPrintAttempt(attempt);
+    setCompanionReadiness("wake-required");
+    setPrintStatus("Aguardando serviço de impressão…");
+    setThermalPrintError("");
+    setThermalPrintBusy(true);
+
+    try {
+      const result = await resumeFrozenOrderPrint({
+        attempt,
+        owner: resumeOwnerRef.current,
+        isCurrentAttempt: () => currentAttemptIdRef.current === attempt.attemptId,
+        resumeCompanion: async () => {
+          await printCompanionClient.resumePendingWake({
+            requiredCapabilities: ["config", "print"],
+            config: loadPrintCompanionConfig(),
+            onStageChange: (stage) => {
+              if (currentAttemptIdRef.current !== attempt.attemptId) {
+                return;
+              }
+              setPrintStatus(
+                stage === "health"
+                  ? "Aguardando serviço de impressão…"
+                  : stage === "pair"
+                    ? "Ativando serviço de impressão…"
+                    : "Configurando serviço de impressão…",
+              );
+            },
+          });
+        },
+        preflight: async (printer) => {
+          if (currentAttemptIdRef.current === attempt.attemptId) {
+            setPrintStatus("Conectando à impressora…");
+          }
+          await testPrinterConnection(printer);
+        },
+        print: async (printer, bytes, jobId) => {
+          if (currentAttemptIdRef.current === attempt.attemptId) {
+            setPrintStatus("Enviando cupom…");
+          }
+          await printToPrinter(printer, bytes, jobId);
+        },
+        onSuccess: () => {
+          clearOrderPrintAttemptIfMatches(attempt.attemptId);
+          clearPendingPrintCompanionWakeIfMatches(attempt.attemptId);
+          setPendingPrintAttempt(null);
+          setWakeIntent(printCompanionClient.prepareWakeIntent("print"));
+          printStatusOwnerRef.current = 0;
+          setCompanionReadiness("ready");
+          setPrintStatus("Cupom enviado.");
+        },
+      });
+
+      if (result === "ignored" || currentAttemptIdRef.current !== attempt.attemptId) {
+        return;
+      }
+    } catch (error) {
+      if (currentAttemptIdRef.current !== attempt.attemptId) {
+        return;
+      }
+
+      setThermalPrintError(getErrorMessage(error));
+      setPrintStatus(`Não foi possível imprimir: ${getShortOrderPrintError(error)}`);
+      setCompanionReadiness("wake-required");
+      setWakeIntent(printCompanionClient.prepareWakeIntent("print", attempt.attemptId));
+    } finally {
+      if (currentAttemptIdRef.current === attempt.attemptId) {
+        setThermalPrintBusy(false);
+      }
+    }
+  }, [orderId, printToPrinter, testPrinterConnection]);
+
+  useEffect(() => {
+    const resumeIfPending = () => {
+      const pendingWake = loadFreshPendingPrintCompanionWake();
+      const pendingAttempt = loadFreshOrderPrintAttempt();
+      if (pendingWake?.intent === "print" && pendingAttempt && pendingAttempt.orderId === orderId && pendingWake.attemptId === pendingAttempt.attemptId) {
+        void resumePendingPrint();
+      }
+    };
+    const resumeWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        resumeIfPending();
+      }
+    };
+
+    resumeIfPending();
+    window.addEventListener("pageshow", resumeIfPending);
+    window.addEventListener("focus", resumeIfPending);
+    document.addEventListener("visibilitychange", resumeWhenVisible);
+
+    return () => {
+      window.removeEventListener("pageshow", resumeIfPending);
+      window.removeEventListener("focus", resumeIfPending);
+      document.removeEventListener("visibilitychange", resumeWhenVisible);
+    };
+  }, [orderId, resumePendingPrint]);
+
+  const invalidatePendingPrint = useCallback(() => {
+    printCompanionClient.invalidatePendingWakeResume();
+    const previousAttempt = loadFreshOrderPrintAttempt();
+    if (previousAttempt) {
+      clearOrderPrintAttemptIfMatches(previousAttempt.attemptId);
+    }
+    const previousWake = loadPendingPrintCompanionWake();
+    if (previousWake) {
+      clearPendingPrintCompanionWakeIfMatches(previousWake.attemptId);
+    }
+    currentAttemptIdRef.current = null;
+    setPendingPrintAttempt(null);
+    setWakeIntent(null);
+  }, []);
 
   async function handlePrint() {
     if (!order || thermalPrintBusy) {
       return;
     }
 
+    const statusOwner = printStatusOwnerRef.current + 1;
+    printStatusOwnerRef.current = statusOwner;
+    invalidatePendingPrint();
     setThermalPrintError("");
-    setThermalPrintSuccess("");
+    setPrintStatus("Preparando impressão…");
     setThermalPrintBusy(true);
 
     try {
       const printer = loadingPrinters || printersError ? null : defaultPrinter;
+      setLastAttemptPrinter(printer);
       const result = await printReceiptAutomatically({
+        orderId: orderId ?? "",
         printer,
         createJobId: createPrintJobId,
-        preflight: testPrinterConnection,
-        prepareBytes: async () => {
-          const document = createOrderReceiptDocument(order, products);
-          let logo: PrintJobRaster | undefined;
-
-          try {
-            logo = await loadPrintRaster(ORDER_RECEIPT_LOGO_SRC);
-          } catch {
-            logo = undefined;
+        preflight: async (attemptPrinter) => {
+          if (printStatusOwnerRef.current === statusOwner) {
+            setPrintStatus("Conectando à impressora…");
           }
-
-          const job = createOrderReceiptPrintJob(document, {
-            columns: getPrintColumnsForPaperWidth(printer?.paperWidthMm ?? 80),
-            brandName: ORDER_RECEIPT_BRAND_NAME,
-            logo,
-          });
-          return encodePrintJob(job);
+          await testPrinterConnection(attemptPrinter);
         },
-        print: printToPrinter,
+        prepareBytes: async () => {
+          if (!printer) {
+            throw new Error("Nenhuma impressora térmica ativa foi selecionada.");
+          }
+          return prepareReceiptBytes(order, products, printer);
+        },
+        print: async (attemptPrinter, bytes, jobId) => {
+          if (printStatusOwnerRef.current === statusOwner) {
+            setPrintStatus("Enviando cupom…");
+          }
+          await printToPrinter(attemptPrinter, bytes, jobId);
+        },
         browserPrint: () => window.print(),
+        onRecoverableCompanion: (attempt) => {
+          saveOrderPrintAttempt(attempt);
+          currentAttemptIdRef.current = attempt.attemptId;
+          setPendingPrintAttempt(attempt);
+          setWakeIntent(printCompanionClient.prepareWakeIntent("print", attempt.attemptId));
+          setCompanionReadiness("wake-required");
+          if (printStatusOwnerRef.current === statusOwner) {
+            setPrintStatus("Aguardando serviço de impressão…");
+          }
+        },
       });
 
       if (result.route === "thermal") {
-        setThermalPrintSuccess(`Recibo enviado para “${printer?.name ?? "impressora"}”.`);
+        setLastAttemptPrinter(null);
+        printStatusOwnerRef.current = 0;
+        setWakeIntent(printCompanionClient.prepareWakeIntent("print"));
+        setPrintStatus("Cupom enviado.");
+      } else if (result.route === "wake") {
+        setPrintStatus("Aguardando serviço de impressão…");
+      } else {
+        printStatusOwnerRef.current = 0;
+        setWakeIntent(printCompanionClient.prepareWakeIntent("print"));
+        setPrintStatus("Impressão do navegador aberta.");
       }
     } catch (error) {
       setThermalPrintError(getErrorMessage(error));
+      setPrintStatus(`Não foi possível imprimir: ${getShortOrderPrintError(error)}`);
     } finally {
       setThermalPrintBusy(false);
     }
   }
 
+  function handleWakePrint(event: MouseEvent<HTMLAnchorElement>) {
+    if (thermalPrintBusy || !wakeIntent || !order || !orderId) {
+      event.preventDefault();
+      return;
+    }
+
+    const currentPreparedReceipt = preparedReceipt && preparedReceipt.order === order && preparedReceipt.products === products && preparedReceipt.printer.id === defaultPrinter?.id
+      ? preparedReceipt
+      : null;
+    const attempt = pendingPrintAttempt?.attemptId === wakeIntent.attemptId
+      ? pendingPrintAttempt
+      : currentPreparedReceipt
+        ? createOrderPrintAttempt({
+          attemptId: wakeIntent.attemptId,
+          orderId,
+          jobId: createPrintJobId(),
+          printer: currentPreparedReceipt.printer,
+          bytes: currentPreparedReceipt.bytes,
+        })
+        : null;
+
+    if (!attempt) {
+      event.preventDefault();
+      setPrintStatus("Preparando impressão…");
+      return;
+    }
+
+    saveOrderPrintAttempt(attempt);
+    currentAttemptIdRef.current = attempt.attemptId;
+    setPendingPrintAttempt(attempt);
+    setLastAttemptPrinter(attempt.printer);
+    setCompanionReadiness("wake-required");
+    setThermalPrintError("");
+    setPrintStatus("Ativando serviço de impressão…");
+    setThermalPrintBusy(true);
+    printCompanionClient.activatePreparedWake(wakeIntent);
+  }
+
   const thermalPrintStatus = thermalPrintError
     ? { message: thermalPrintError, error: true }
-    : thermalPrintSuccess
-      ? { message: thermalPrintSuccess, error: false }
-      : null;
+    : null;
+
+  const currentPreparedReceipt = preparedReceipt && preparedReceipt.order === order && preparedReceipt.products === products && preparedReceipt.printer.id === defaultPrinter?.id
+    ? preparedReceipt
+    : null;
+  const printActionMode = getOrderPrintActionMode({
+    readiness: companionReadiness,
+    busy: thermalPrintBusy,
+    canWake: Boolean(wakeIntent && (pendingPrintAttempt || currentPreparedReceipt)),
+    canUseDirectFallback: !loadingPrinters && Boolean(printersError || !defaultPrinter),
+  });
 
   return (
     <main className="receipt-page">
@@ -107,9 +458,32 @@ export function OrderReceiptPage() {
           <Button type="button" variant="secondary" onClick={() => navigate("/pedidos")}>
             Voltar
           </Button>
-          <Button type="button" onClick={handlePrint} disabled={thermalPrintBusy}>
-            {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
-          </Button>
+          {printActionMode === "wake" && wakeIntent ? (
+            <a className="button button-primary" href={wakeIntent.intentUrl} onClick={handleWakePrint}>
+              {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
+            </a>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => void handlePrint()}
+              disabled={printActionMode === "disabled"}
+            >
+              {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
+            </Button>
+          )}
+          <span
+            className="receipt-print-log"
+            role="status"
+            aria-live="polite"
+            title={printStatus}
+          >
+            {printStatus}
+          </span>
+          {thermalPrintError && lastAttemptPrinter && (
+            <a className="text-link compact-link" href={getDiagnosticRoute(lastAttemptPrinter.id)}>
+              Diagnóstico
+            </a>
+          )}
         </div>
       )}
 
