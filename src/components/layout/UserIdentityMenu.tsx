@@ -28,6 +28,7 @@ function IdentityAvatar({ user }: { user: User }) {
 export function UserIdentityMenu({ defaultOpen = false, user, logout }: UserIdentityMenuProps) {
   const [open, setOpen] = useState(defaultOpen);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const identityLabel = getUserIdentityLabel(user);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export function UserIdentityMenu({ defaultOpen = false, user, logout }: UserIden
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setOpen(false);
+        triggerRef.current?.focus();
       }
     }
 
@@ -64,10 +66,10 @@ export function UserIdentityMenu({ defaultOpen = false, user, logout }: UserIden
   return (
     <div className="auth-identity-menu" ref={menuRef}>
       <button
+        ref={triggerRef}
         className="auth-identity-trigger"
         type="button"
         aria-label="Abrir menu do usuário"
-        aria-haspopup="menu"
         aria-expanded={open}
         aria-controls="auth-identity-menu"
         onClick={() => setOpen((currentOpen) => !currentOpen)}
@@ -77,7 +79,7 @@ export function UserIdentityMenu({ defaultOpen = false, user, logout }: UserIden
       </button>
 
       {open && (
-        <div className="auth-identity-dropdown" id="auth-identity-menu" role="menu">
+        <div className="auth-identity-dropdown" id="auth-identity-menu">
           <div className="auth-identity-menu-header">
             <IdentityAvatar user={user} />
             <span>{identityLabel}</span>
@@ -86,7 +88,6 @@ export function UserIdentityMenu({ defaultOpen = false, user, logout }: UserIden
           <Link
             className="auth-identity-menu-action"
             to={APP_ROUTES.settings}
-            role="menuitem"
             onClick={() => setOpen(false)}
           >
             <Settings2 size={17} aria-hidden="true" />
@@ -97,7 +98,6 @@ export function UserIdentityMenu({ defaultOpen = false, user, logout }: UserIden
             className="auth-identity-menu-action"
             variant="ghost"
             type="button"
-            role="menuitem"
             onClick={handleLogout}
           >
             <LogOut size={17} aria-hidden="true" />

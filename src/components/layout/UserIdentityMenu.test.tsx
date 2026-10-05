@@ -32,7 +32,10 @@ describe("UserIdentityMenu", () => {
     expect(markup).toContain(`href="${APP_ROUTES.settings}"`);
     expect(markup).toContain("Configurações");
     expect(markup).toContain("Sair");
-    expect(markup).toContain('aria-haspopup="menu"');
     expect(markup).toContain('aria-expanded="true"');
+    expect(markup).toContain('aria-controls="auth-identity-menu"');
+    expect(markup).not.toContain('aria-haspopup="menu"');
+    expect(markup).not.toContain('role="menu"');
+    expect(markup).not.toContain('role="menuitem"');
   });
 });
