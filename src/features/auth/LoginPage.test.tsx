@@ -4,14 +4,15 @@ import type { User } from "firebase/auth";
 import { MemoryRouter } from "react-router-dom";
 
 import { AuthContext, type AuthContextValue } from "./authContext";
-import { AuthResolving } from "./RequireAuth";
+import { AuthResolving, RequireAuth } from "./RequireAuth";
 import { LoginPage } from "./LoginPage";
 import { getAuthenticationErrorMessage } from "./authError";
 
-function createAuthValue(user: User | null, resolving = false): AuthContextValue {
+function createAuthValue(user: User | null, resolving = false, crmAccess: AuthContextValue["crmAccess"] = "allowed"): AuthContextValue {
   return {
     user,
     resolving,
+    crmAccess,
     loading: resolving,
     login: async () => undefined,
     logout: async () => undefined,
@@ -52,6 +53,20 @@ describe("Google authentication UI", () => {
     );
 
     expect(markup).toContain("Verificando sessão");
+  });
+
+  it("blocks an authenticated account without CRM admission", () => {
+    const logout = async () => undefined;
+    const markup = renderToStaticMarkup(
+      <MemoryRouter initialEntries={["/"]}>
+        <AuthContext.Provider value={{ ...createAuthValue({ email: "wrong@example.test" } as User), crmAccess: "denied", logout }}>
+          <RequireAuth />
+        </AuthContext.Provider>
+      </MemoryRouter>,
+    );
+
+    expect(markup).toContain("Esta conta não tem acesso ao sistema.");
+    expect(markup).toContain("Sair / trocar conta");
   });
 
   it("maps Google flow failures to actionable messages", () => {

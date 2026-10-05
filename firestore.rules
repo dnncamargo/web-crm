@@ -2,8 +2,23 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isAllowedGoogleUser() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.firebase.sign_in_provider == "google.com"
+        && request.auth.token.email is string
+        && request.auth.token.email in get(
+          /databases/$(database)/documents/config/authAdmission
+        ).data.allowedGoogleEmails;
+    }
+
+    match /config/authAdmission {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if request.path != /databases/$(database)/documents/config/authAdmission
+        && isAllowedGoogleUser();
     }
   }
 }
