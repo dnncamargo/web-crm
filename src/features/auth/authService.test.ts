@@ -4,13 +4,21 @@ const mocks = vi.hoisted(() => ({
   auth: {},
   configurePersistence: vi.fn(),
   onAuthStateChanged: vi.fn(),
+  setCustomParameters: vi.fn(),
   signInWithPopup: vi.fn(),
   signOut: vi.fn(),
 }));
 
 vi.mock("firebase/auth", () => ({
   browserLocalPersistence: "local",
-  GoogleAuthProvider: class GoogleAuthProvider {},
+  GoogleAuthProvider: class GoogleAuthProvider {
+    customParameters?: Record<string, string>;
+
+    setCustomParameters(parameters: Record<string, string>) {
+      mocks.setCustomParameters(parameters);
+      this.customParameters = parameters;
+    }
+  },
   onAuthStateChanged: mocks.onAuthStateChanged,
   setPersistence: mocks.configurePersistence,
   signInWithPopup: mocks.signInWithPopup,
@@ -39,12 +47,18 @@ describe("authentication service", () => {
     expect(mocks.configurePersistence).toHaveBeenCalledWith(mocks.auth, "local");
   });
 
-  it("starts Google authentication without Email/Password credentials", async () => {
+  it("starts Google authentication with explicit account selection", async () => {
     mocks.signInWithPopup.mockResolvedValue(undefined);
 
     await loginWithGoogle();
 
+    expect(mocks.setCustomParameters).toHaveBeenCalledWith({ prompt: "select_account" });
     expect(mocks.signInWithPopup).toHaveBeenCalledWith(mocks.auth, expect.any(Object));
+
+    const provider = mocks.signInWithPopup.mock.calls[0]?.[1] as {
+      customParameters?: Record<string, string>;
+    } | undefined;
+    expect(provider?.customParameters).toEqual({ prompt: "select_account" });
   });
 
   it("subscribes to Firebase state and exposes explicit logout", async () => {

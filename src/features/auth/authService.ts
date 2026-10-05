@@ -22,7 +22,9 @@ export function subscribeToAuthState(
 }
 
 export async function loginWithGoogle() {
-  await signInWithPopup(auth, new GoogleAuthProvider());
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  await signInWithPopup(auth, provider);
 }
 
 export function logout() {
