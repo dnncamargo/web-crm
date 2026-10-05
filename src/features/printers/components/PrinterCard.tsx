@@ -1,3 +1,6 @@
+import { Link } from "react-router-dom";
+
+import { getDiagnosticRoute } from "../../../appRoutes";
 import { Badge } from "../../../components/ui/Badge";
 import { Button } from "../../../components/ui/Button";
 import { Card } from "../../../components/ui/Card";
@@ -57,6 +60,10 @@ export function PrinterCard({
         />
 
         <div className="printer-card-actions">
+          <Link className="button button-ghost" to={getDiagnosticRoute(printer.id)}>
+            Diagnosticar
+          </Link>
+
           <Button type="button" variant="ghost" disabled={busy} onClick={() => onTestConnection(printer)}>
             Testar conexão
           </Button>

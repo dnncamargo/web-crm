@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { PageHeader } from "../../components/ui/PageHeader";
 import {
   DEFAULT_ACCENT_COLOR,
   normalizeAccentColor,
@@ -69,24 +70,16 @@ export function ColorPage() {
 
   return (
     <main className="page-stack color-page">
-      <header className="page-header">
-        <div>
-          <h1>Cor do sistema</h1>
-          <p>
-            Ajuste a cor principal da interface. A configuração será salva
-            remotamente e aplicada para todos os acessos do sistema.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        title="Aparência"
+        description="Ajuste a apresentação visual do sistema."
+      />
 
       <section className="page-section">
         <div className="card color-config-card">
           <div className="panel-section-title">
             <span>Cor principal</span>
-            <small>
-              Esta rota é escondida e não aparece no menu. A cor fica salva no
-              Firebase.
-            </small>
+            <small>A cor fica salva no Firebase.</small>
           </div>
 
           <div className="color-picker-row">

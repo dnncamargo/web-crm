@@ -35,7 +35,7 @@ describe("Android diagnostic visible log", () => {
 
   it("formats a safe copy payload with the diagnostic header", () => {
     const text = formatAndroidDiagnosticLog({
-      diagnosticVersion: "1.0.7",
+      diagnosticVersion: "1.0.8",
       companionVersion: "1.0.0",
       companionVersionCode: 1,
       environment: "PRODUÇÃO",
@@ -52,11 +52,36 @@ describe("Android diagnostic visible log", () => {
       details: "app=1.0.0 code=1 api=1 paired=false",
     }]);
 
-    expect(text).toContain("Diagnóstico Android v1.0.7");
+    expect(text).toContain("Diagnóstico Android v1.0.8");
     expect(text).toContain("Ambiente PRODUÇÃO");
     expect(text).toContain("Tentativa #2");
     expect(text).toContain("[health] probe #1 respondeu");
     expect(text).not.toContain("nonce");
     expect(text).not.toContain("token");
+  });
+
+  it("keeps the selected printer name without adding connection secrets", () => {
+    const text = formatAndroidDiagnosticLog({
+      diagnosticVersion: "1.0.8",
+      companionVersion: "1.0.0",
+      companionVersionCode: 1,
+      environment: "PRODUÇÃO",
+      origin: "https://deliciasdoporto.vercel.app",
+      wakeDeadlineMs: 15_000,
+      healthProbeTimeoutMs: 1_000,
+      pollIntervalMs: 500,
+      attemptNumber: 1,
+    }, [{
+      at: Date.now(),
+      stage: "test",
+      event: "início",
+      details: "printer=Balcão",
+    }]);
+
+    expect(text).toContain("printer=Balcão");
+    expect(text).not.toContain("127.0.0.1");
+    expect(text).not.toContain("17890");
+    expect(text).not.toContain("nonce=");
+    expect(text).not.toContain("token=");
   });
 });

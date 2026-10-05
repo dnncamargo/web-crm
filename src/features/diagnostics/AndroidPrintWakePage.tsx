@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
-import { Badge } from "../../components/ui/Badge";
+import { APP_ROUTES } from "../../appRoutes";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -30,6 +31,12 @@ import {
 import { getAndroidPrintWakeErrorDetails } from "./androidPrintWakeErrors";
 import { createAndroidPrintDiagnosticResumeOwner } from "./androidPrintDiagnosticResumeOwner";
 import {
+  getFlowLabel,
+  type BridgeStatus,
+  type DiagnosticStage,
+  type FlowStatus,
+} from "./androidPrintDiagnosticUi";
+import {
   appendAndroidDiagnosticLog,
   createInitialAndroidDiagnosticLog,
   formatAndroidDiagnosticLog,
@@ -39,49 +46,9 @@ import {
   type AndroidDiagnosticLogStage,
 } from "./androidPrintWakeLog";
 import { usePrinters } from "../printers/usePrinters";
-import { resolveDefaultPrinter } from "../printers/printerUtils";
-
-type BridgeStatus = "unknown" | "checking" | "online" | "offline";
-type FlowStatus = "idle" | "preparing" | "configuring" | "testing" | "pass" | "fail";
-type DiagnosticStage = "idle" | "wake" | "health" | "pair" | "config" | "test";
+import { resolveDiagnosticPrinter } from "../printers/printerUtils";
 
 const companionClient = createPrintCompanionClient();
-
-function getFlowLabel(flowStatus: FlowStatus, bridgeStatus: BridgeStatus, currentStage: DiagnosticStage) {
-  if (flowStatus === "pass") {
-    return "PASS";
-  }
-
-  if (flowStatus === "fail") {
-    return "FAIL";
-  }
-
-  if (flowStatus === "configuring") {
-    return "CONFIGURANDO";
-  }
-
-  if (flowStatus === "testing") {
-    return "TESTANDO";
-  }
-
-  if (flowStatus === "preparing" && currentStage !== "health") {
-    return "PREPARANDO";
-  }
-
-  if (bridgeStatus === "online") {
-    return "ONLINE";
-  }
-
-  if (bridgeStatus === "checking") {
-    return "VERIFICANDO";
-  }
-
-  if (bridgeStatus === "offline") {
-    return "OFFLINE";
-  }
-
-  return "AGUARDANDO AÇÃO";
-}
 
 function formatElapsed(elapsedMs: number) {
   return `${(elapsedMs / 1000).toFixed(1).replace(".", ",")} s`;
@@ -115,11 +82,13 @@ export function AndroidPrintWakePage() {
     loading: loadingPrinters,
     printersError,
   } = usePrinters();
-  const defaultPrinter = useMemo(
-    () => resolveDefaultPrinter(printers, defaultPrinterId),
-    [defaultPrinterId, printers],
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedPrinterId = searchParams.get("printer");
+  const selectedPrinter = useMemo(
+    () => resolveDiagnosticPrinter(printers, defaultPrinterId, requestedPrinterId),
+    [defaultPrinterId, printers, requestedPrinterId],
   );
-  const isInstallLanding = window.location.pathname === "/android-print-bridge/activate";
+  const isInstallLanding = window.location.pathname === APP_ROUTES.companionActivation;
   const isProduction = isAndroidPrintDiagnosticProduction(window.location.origin);
   const [initialPendingState] = useState(() => isProduction
     ? inspectFreshPendingPrintCompanionWake()
@@ -331,6 +300,7 @@ export function AndroidPrintWakePage() {
       return;
     }
     const pendingWake = freshPending.pending;
+    const attemptPrinter = selectedPrinter;
     const attemptId = pendingWake.attemptId;
     const isResumeOwner = resumeOwnerRef.current.claim(attemptId);
 
@@ -376,24 +346,24 @@ export function AndroidPrintWakePage() {
       setBridgeStatus("online");
       setMessage(`Companion respondeu; configuração de ${config.idleTimeoutMinutes} min aplicada.`);
 
-      if (!defaultPrinter) {
+      if (!attemptPrinter) {
         setCurrentStage("test");
         setFlowStatus("fail");
-        setErrorMessage("Defina uma impressora TCP ativa como padrão para executar o teste.");
+        setErrorMessage("Selecione uma impressora para executar o teste.");
         setMessage("O companion foi pareado, mas o teste não foi concluído.");
         return;
       }
 
       setCurrentStage("test");
       setFlowStatus("testing");
-      setMessage(`Testando a conexão com “${defaultPrinter.name}”…`);
-      appendAttemptDiagnosticLog(attemptId, "test", "início");
+      setMessage(`Testando a conexão com “${attemptPrinter.name}”…`);
+      appendAttemptDiagnosticLog(attemptId, "test", "início", `printer=${attemptPrinter.name}`);
       try {
-        await companionClient.testPrinter(defaultPrinter);
-        appendAttemptDiagnosticLog(attemptId, "test", "sucesso");
+        await companionClient.testPrinter(attemptPrinter);
+        appendAttemptDiagnosticLog(attemptId, "test", "sucesso", `printer=${attemptPrinter.name}`);
       } catch (error) {
         const publicCode = getAndroidPrintWakeErrorDetails(error).publicCode;
-        appendAttemptDiagnosticLog(attemptId, "test", "falha", publicCode);
+        appendAttemptDiagnosticLog(attemptId, "test", "falha", `printer=${attemptPrinter.name} code=${publicCode}`);
         throw error;
       }
       if (currentAttemptIdRef.current !== attemptId) {
@@ -401,7 +371,7 @@ export function AndroidPrintWakePage() {
         return;
       }
       setFlowStatus("pass");
-      setMessage(`Conexão com “${defaultPrinter.name}” estabelecida. Nenhuma impressão física foi realizada.`);
+      setMessage(`Conexão com “${attemptPrinter.name}” estabelecida. Nenhuma impressão física foi realizada.`);
     } catch (error) {
       if (currentAttemptIdRef.current !== attemptId) {
         appendAttemptDiagnosticLog(attemptId, "resume", "resultado stale ignorado");
@@ -444,7 +414,7 @@ export function AndroidPrintWakePage() {
       }
       resumeOwnerRef.current.release(attemptId);
     }
-  }, [appendAttemptDiagnosticLog, appendDiagnosticLog, defaultPrinter, finishAttempt, getCurrentElapsedMs, handleHealthReady, handlePollAttempt, handlePollResult, handleStageChange, handleStageResult, isProduction, loadingPrinters, resetAttemptMetrics]);
+  }, [appendAttemptDiagnosticLog, appendDiagnosticLog, finishAttempt, getCurrentElapsedMs, handleHealthReady, handlePollAttempt, handlePollResult, handleStageChange, handleStageResult, isProduction, loadingPrinters, resetAttemptMetrics, selectedPrinter]);
 
   const handleWakeClick = useCallback(() => {
     if (!isProduction) {
@@ -513,7 +483,7 @@ export function AndroidPrintWakePage() {
       window.removeEventListener("focus", resumeIfPending);
       document.removeEventListener("visibilitychange", resumeWhenVisible);
     };
-  }, [appendDiagnosticLog, defaultPrinter, isProduction, loadingPrinters, resumeAcceptance]);
+  }, [appendDiagnosticLog, isProduction, loadingPrinters, resumeAcceptance]);
 
   function retry() {
     handleWakeClick();
@@ -541,7 +511,7 @@ export function AndroidPrintWakePage() {
   }, [logText]);
 
   const statusLabel = !isProduction
-    ? "AMBIENTE NÃO SUPORTADO"
+    ? "Falha"
     : getFlowLabel(flowStatus, bridgeStatus, currentStage);
   const statusState = !isProduction || flowStatus === "fail"
     ? "error"
@@ -552,17 +522,45 @@ export function AndroidPrintWakePage() {
   return (
     <div className="page-stack">
       <PageHeader
-        title={isInstallLanding ? "Aplicativo de impressão necessário" : "Diagnóstico Android"}
+        title={isInstallLanding ? "Aplicativo de impressão necessário" : "Diagnóstico de impressão"}
         description={isInstallLanding
           ? "Instale o WebCRM Print Companion para enviar pedidos diretamente à impressora térmica."
-          : "Harness de aceitação do companion Android v1."}
+          : "Verifique a conexão entre o sistema, o companion Android e a impressora selecionada."}
       />
 
       <Card className="android-wake-card">
         <div className="android-wake-status" data-state={statusState} role="status" aria-live="polite">
-          <Badge>{statusLabel}</Badge>
+          <span className="android-wake-status-label">{statusLabel}</span>
           <strong>{message}</strong>
           {errorMessage && <span className="error-text">{errorMessage}</span>}
+        </div>
+
+        <div className="android-wake-printer-field">
+          <label htmlFor="diagnostic-printer">Impressora</label>
+          <select
+            id="diagnostic-printer"
+            value={selectedPrinter?.id ?? ""}
+            disabled={attemptActive}
+            onChange={(event) => {
+              const nextParams = new URLSearchParams(searchParams);
+              if (event.target.value) {
+                nextParams.set("printer", event.target.value);
+              } else {
+                nextParams.delete("printer");
+              }
+              setSearchParams(nextParams, { replace: true });
+            }}
+          >
+            {!selectedPrinter && <option value="">Nenhuma impressora disponível</option>}
+            {printers.map((printer) => (
+              <option key={printer.id} value={printer.id}>
+                {printer.name}{printer.active ? "" : " (inativa)"}
+              </option>
+            ))}
+          </select>
+          {!loadingPrinters && !selectedPrinter && (
+            <span className="muted-text">Cadastre uma impressora para executar o teste.</span>
+          )}
         </div>
 
         <div className="android-wake-details">
@@ -574,7 +572,7 @@ export function AndroidPrintWakePage() {
           <span>API detectada: {health?.apiVersion ?? "—"}</span>
           <span>Pairing: {authenticated ? "authenticated" : health?.paired ? "paired" : "não confirmado"}</span>
           <span>Capabilities: {health?.capabilities.join(", ") ?? "—"}</span>
-          <span>Impressora: {defaultPrinter?.name ?? "nenhuma padrão ativa"}</span>
+          <span>Impressora: {selectedPrinter?.name ?? "nenhuma selecionada"}</span>
           <span>Etapa: {getStageLabel(currentStage)}</span>
           <span>Tentativa iniciada: {attemptStartedAt ? new Date(attemptStartedAt).toLocaleTimeString("pt-BR") : "—"}</span>
           {isProduction && attemptStartedAt !== null && (
@@ -633,7 +631,18 @@ export function AndroidPrintWakePage() {
       </Card>
 
       <Card className="android-wake-log">
-        <div className="panel-section-title">Log do diagnóstico</div>
+        <div className="android-wake-log-header">
+          <strong>Log do diagnóstico</strong>
+          <div className="android-wake-actions">
+            <Button type="button" variant="ghost" onClick={() => setDiagnosticLog([])}>
+              Limpar log
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => void copyLog()}>
+              Copiar log
+            </Button>
+            {copyMessage && <span className="muted-text">{copyMessage}</span>}
+          </div>
+        </div>
         <div className="android-wake-details">
           <span>Diagnóstico: v{ANDROID_PRINT_DIAGNOSTIC_VERSION}</span>
           <span>Companion esperado: v{EXPECTED_COMPANION_APP_VERSION} (code {EXPECTED_COMPANION_VERSION_CODE})</span>
@@ -643,22 +652,10 @@ export function AndroidPrintWakePage() {
           <span>Health probe timeout: {WAKE_HEALTH_REQUEST_TIMEOUT_MS / 1000} s</span>
           <span>Poll interval: {POLL_INTERVAL_MS} ms</span>
         </div>
-        <pre>{diagnosticLog.map(formatAndroidDiagnosticLogEntry).join("\n")}</pre>
-        <div className="android-wake-actions">
-          <Button type="button" variant="secondary" onClick={() => setDiagnosticLog([])}>
-            Limpar log
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => void copyLog()}>
-            Copiar log
-          </Button>
-          {copyMessage && <span className="muted-text">{copyMessage}</span>}
-        </div>
+        <pre className="android-wake-log-output">{diagnosticLog.map(formatAndroidDiagnosticLogEntry).join("\n")}</pre>
       </Card>
 
       {printersError && <p className="error-text">Não foi possível carregar a configuração das impressoras.</p>}
-      {!loadingPrinters && !defaultPrinter && (
-        <p className="muted-text">Defina uma impressora TCP ativa como padrão para habilitar o diagnóstico.</p>
-      )}
     </div>
   );
 }

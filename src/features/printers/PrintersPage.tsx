@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
+import { APP_ROUTES } from "../../appRoutes";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -13,7 +14,6 @@ import type {
 } from "./printerTypes";
 import { resolveDefaultPrinter } from "./printerUtils";
 import { usePrinters } from "./usePrinters";
-import { ANDROID_PRINT_DIAGNOSTIC_VERSION } from "../diagnostics/androidPrintDiagnostic";
 
 type PrinterPanelState =
   | { type: "create" }
@@ -124,26 +124,20 @@ export function PrintersPage() {
         title="Impressoras"
         description="Configure destinos, teste a conexão e envie uma página de teste pela ponte local."
         action={
-          <Button type="button" onClick={() => setPanel({ type: "create" })}>
-            + Impressora
-          </Button>
+          <div className="header-actions">
+            <Link className="button button-secondary" to={APP_ROUTES.diagnostic}>
+              Diagnóstico
+            </Link>
+            <Button type="button" onClick={() => setPanel({ type: "create" })}>
+              + Impressora
+            </Button>
+          </div>
         }
       />
 
       {printersError && <p className="error-text">{printersError}</p>}
       {actionError && <p className="error-text">{actionError}</p>}
       {actionSuccess && <p className="printer-feedback" aria-live="polite">{actionSuccess}</p>}
-
-      <Card>
-        <div className="panel-block">
-          <strong>Diagnóstico Android</strong>
-          <span>Verifique instalação, ativação, pareamento e conexão do companion Android.</span>
-          <span className="muted-text">Diagnóstico v{ANDROID_PRINT_DIAGNOSTIC_VERSION}</span>
-          <Link className="button button-secondary" to="/diagnostics/android-print-wake">
-            Abrir diagnóstico
-          </Link>
-        </div>
-      </Card>
 
       {loading && <p className="muted-text">Carregando impressoras...</p>}
 
