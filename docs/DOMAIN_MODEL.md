@@ -33,14 +33,18 @@ Configuração da aplicação:
 
 - `appSettings/theme`
 - `appSettings/printing`
+- `config/authAdmission` (documento administrativo, inacessível aos clientes)
 
 ### Fronteira de autenticação
 
-O Firebase Authentication identifica os usuários da aplicação por Email/Password.
-Usuários autenticados compartilham os mesmos dados de negócio do CRM; autenticação
-não representa propriedade por `uid` e não implica autorização, papéis, claims ou
-ACL. Usuários não autenticados não acessam as coleções ou configurações do
-Firestore do CRM.
+O Firebase Authentication identifica os usuários da aplicação pelo provedor Google,
+com persistência local da sessão, e o projeto permanece no plano Firebase Spark.
+As Firestore Security Rules são a fronteira de acesso e admissão aos dados do CRM:
+exigem provider Google, e-mail verificado e correspondência exata na lista de
+identidades admitidas em `config/authAdmission`. Clientes não podem ler ou escrever
+esse documento administrativo. Usuários admitidos compartilham o mesmo banco de
+negócio; autenticação não representa propriedade por `uid` e não implica roles,
+claims, RBAC, ACL ou permissões diferenciadas.
 
 O futuro Store Profile será uma configuração global compartilhada, não um perfil
 escopado por usuário.
