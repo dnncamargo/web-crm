@@ -74,6 +74,16 @@ describe("Firestore authenticated boundary", () => {
     expect(snapshot.data()).toMatchObject({ name: "Cliente", active: true });
   });
 
+  it("normalizes mixed-case Google token emails before matching the allowlist", async () => {
+    const mixedCaseDb = testEnvironment.authenticatedContext("mixed-case-google", {
+      ...allowedGoogleToken,
+      email: "Allowed@Example.Test",
+    }).firestore();
+
+    await assertSucceeds(mixedCaseDb.doc("clients/client-1").set({ name: "Cliente" }));
+    await assertSucceeds(mixedCaseDb.doc("clients/client-1").get());
+  });
+
   it("denies a different Google identity", async () => {
     const wrongGoogleDb = testEnvironment.authenticatedContext("wrong-google", {
       email: "wrong@example.test",

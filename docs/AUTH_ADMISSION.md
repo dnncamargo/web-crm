@@ -49,6 +49,12 @@ Não há wildcard de domínio, `@gmail.com`, lista no bundle Vite ou verificaç�
 client-side como controle de segurança. A lista do documento é a fonte de verdade
 das regras.
 
+Como as regras usam `get()` em `config/authAdmission`, o Firestore avalia uma
+leitura de documento dependente nas requisições protegidas. Isso contribui para o
+uso/quota de leituras de documentos do Firestore. O custo operacional é aceito
+intencionalmente para manter os e-mails reais fora do código-fonte e do bundle do
+navegador.
+
 ## UX de conta não admitida
 
 Depois que o Firebase restaura uma identidade, o cliente executa uma leitura
