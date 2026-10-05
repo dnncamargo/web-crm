@@ -3,12 +3,15 @@ import { describe, expect, it } from "vitest";
 import {
   clearPrintCompanionToken,
   clearPendingPrintCompanionWakeIfMatches,
+  DEFAULT_IDLE_TIMEOUT_MINUTES,
   inspectFreshPendingPrintCompanionWake,
   loadPrintCompanionConfig,
   loadPrintCompanionToken,
   savePendingPrintCompanionWake,
   savePrintCompanionConfig,
   savePrintCompanionToken,
+  MAX_IDLE_TIMEOUT_MINUTES,
+  MIN_IDLE_TIMEOUT_MINUTES,
 } from "./printCompanionStorage";
 
 class MemoryStorage implements Storage {
@@ -51,12 +54,27 @@ describe("Print Companion local storage", () => {
     expect(loadPrintCompanionToken(storage)).toBeNull();
   });
 
-  it("uses a validated 15-minute config default and rejects invalid values", () => {
+  it("uses a validated 15-minute config default and enforces the Android range", () => {
     const storage = new MemoryStorage();
 
-    expect(loadPrintCompanionConfig(storage)).toEqual({ idleTimeoutMinutes: 15 });
+    expect(DEFAULT_IDLE_TIMEOUT_MINUTES).toBe(15);
+    expect(MIN_IDLE_TIMEOUT_MINUTES).toBe(1);
+    expect(MAX_IDLE_TIMEOUT_MINUTES).toBe(120);
+    expect(loadPrintCompanionConfig(storage)).toEqual({ idleTimeoutMinutes: DEFAULT_IDLE_TIMEOUT_MINUTES });
+
+    for (const idleTimeoutMinutes of [1, 15, 120]) {
+      storage.setItem("web-crm.print-companion.config.v1", JSON.stringify({ idleTimeoutMinutes }));
+      expect(loadPrintCompanionConfig(storage)).toEqual({ idleTimeoutMinutes });
+    }
+
     savePrintCompanionConfig({ idleTimeoutMinutes: 30 }, storage);
     expect(loadPrintCompanionConfig(storage)).toEqual({ idleTimeoutMinutes: 30 });
+
+    for (const idleTimeoutMinutes of [0, 121, 1440]) {
+      storage.setItem("web-crm.print-companion.config.v1", JSON.stringify({ idleTimeoutMinutes }));
+      expect(loadPrintCompanionConfig(storage)).toEqual({ idleTimeoutMinutes: DEFAULT_IDLE_TIMEOUT_MINUTES });
+    }
+
     expect(() => savePrintCompanionConfig({ idleTimeoutMinutes: 0 }, storage)).toThrow();
   });
 

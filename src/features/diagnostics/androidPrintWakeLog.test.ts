@@ -35,7 +35,7 @@ describe("Android diagnostic visible log", () => {
 
   it("formats a safe copy payload with the diagnostic header", () => {
     const text = formatAndroidDiagnosticLog({
-      diagnosticVersion: "1.0.8",
+      diagnosticVersion: "1.0.9",
       companionVersion: "1.0.0",
       companionVersionCode: 1,
       environment: "PRODUÇÃO",
@@ -52,7 +52,7 @@ describe("Android diagnostic visible log", () => {
       details: "app=1.0.0 code=1 api=1 paired=false",
     }]);
 
-    expect(text).toContain("Diagnóstico Android v1.0.8");
+    expect(text).toContain("Diagnóstico Android v1.0.9");
     expect(text).toContain("Ambiente PRODUÇÃO");
     expect(text).toContain("Tentativa #2");
     expect(text).toContain("[health] probe #1 respondeu");
@@ -60,9 +60,33 @@ describe("Android diagnostic visible log", () => {
     expect(text).not.toContain("token");
   });
 
+  it("records an idle timeout update without secrets", () => {
+    const text = formatAndroidDiagnosticLog({
+      diagnosticVersion: "1.0.9",
+      companionVersion: "1.0.0",
+      companionVersionCode: 1,
+      environment: "PRODUÇÃO",
+      origin: "https://deliciasdoporto.vercel.app",
+      wakeDeadlineMs: 15_000,
+      healthProbeTimeoutMs: 1_000,
+      pollIntervalMs: 500,
+      attemptNumber: 1,
+    }, [{
+      at: Date.now(),
+      stage: "config",
+      event: "timeout atualizado",
+      details: "idle=30min",
+    }]);
+
+    expect(text).toContain("idle=30min");
+    expect(text).not.toContain("nonce");
+    expect(text).not.toContain("token");
+    expect(text).not.toContain("Authorization");
+  });
+
   it("keeps the selected printer name without adding connection secrets", () => {
     const text = formatAndroidDiagnosticLog({
-      diagnosticVersion: "1.0.8",
+      diagnosticVersion: "1.0.9",
       companionVersion: "1.0.0",
       companionVersionCode: 1,
       environment: "PRODUÇÃO",

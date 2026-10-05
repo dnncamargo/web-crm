@@ -31,6 +31,11 @@ import {
 import { getAndroidPrintWakeErrorDetails } from "./androidPrintWakeErrors";
 import { createAndroidPrintDiagnosticResumeOwner } from "./androidPrintDiagnosticResumeOwner";
 import {
+  COMPANION_IDLE_TIMEOUT_OPTIONS,
+  isCompanionIdleTimeoutControlDisabled,
+  saveAndApplyCompanionIdleTimeout,
+} from "./companionIdleTimeout";
+import {
   getFlowLabel,
   type BridgeStatus,
   type DiagnosticStage,
@@ -134,6 +139,9 @@ export function AndroidPrintWakePage() {
   });
   const [attemptNumber, setAttemptNumber] = useState(0);
   const [copyMessage, setCopyMessage] = useState("");
+  const [companionConfig, setCompanionConfig] = useState(() => loadPrintCompanionConfig());
+  const [configFeedback, setConfigFeedback] = useState("");
+  const [configApplying, setConfigApplying] = useState(false);
   const attemptStartedAtRef = useRef<number | null>(null);
   const attemptStartedPerformanceAtRef = useRef<number | null>(null);
   const attemptNumberRef = useRef(0);
@@ -156,6 +164,41 @@ export function AndroidPrintWakePage() {
       details,
     }));
   }, []);
+
+  const handleIdleTimeoutChange = useCallback(async (nextIdleTimeoutMinutes: number) => {
+    setConfigApplying(true);
+    setConfigFeedback("");
+
+    try {
+      const result = await saveAndApplyCompanionIdleTimeout(nextIdleTimeoutMinutes, {
+        companionReady: isProduction && bridgeStatus === "online" && authenticated,
+        configure: (nextConfig) => companionClient.configure(nextConfig),
+      });
+      setCompanionConfig(result.config);
+      appendDiagnosticLog(
+        "config",
+        result.applied ? "timeout atualizado" : "timeout salvo",
+        `idle=${result.config.idleTimeoutMinutes}min`,
+      );
+
+      if (result.applied) {
+        setConfigFeedback("Configuração aplicada.");
+      } else {
+        setConfigFeedback("Configuração salva. Será aplicada na próxima ativação.");
+        if (result.error) {
+          appendDiagnosticLog(
+            "config",
+            "aplicação imediata falhou",
+            getAndroidPrintWakeErrorDetails(result.error).publicCode,
+          );
+        }
+      }
+    } catch {
+      setConfigFeedback("Não foi possível salvar a configuração.");
+    } finally {
+      setConfigApplying(false);
+    }
+  }, [appendDiagnosticLog, authenticated, bridgeStatus, isProduction]);
 
   const appendAttemptDiagnosticLog = useCallback((
     attemptId: string,
@@ -328,6 +371,7 @@ export function AndroidPrintWakePage() {
 
     try {
       const config = loadPrintCompanionConfig();
+      setCompanionConfig(config);
       const readyHealth = await companionClient.resumePendingWake({
         requiredCapabilities: ["test"],
         config,
@@ -561,6 +605,24 @@ export function AndroidPrintWakePage() {
           {!loadingPrinters && !selectedPrinter && (
             <span className="muted-text">Cadastre uma impressora para executar o teste.</span>
           )}
+        </div>
+
+        <div className="android-wake-printer-field">
+          <label htmlFor="diagnostic-idle-timeout">Desativar companion após inatividade</label>
+          <select
+            id="diagnostic-idle-timeout"
+            value={companionConfig.idleTimeoutMinutes}
+            disabled={isCompanionIdleTimeoutControlDisabled(attemptActive, configApplying)}
+            onChange={(event) => void handleIdleTimeoutChange(Number(event.target.value))}
+          >
+            {COMPANION_IDLE_TIMEOUT_OPTIONS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {minutes} minutos
+              </option>
+            ))}
+          </select>
+          <span className="muted-text">O prazo é reiniciado após testes e impressões.</span>
+          {configFeedback && <span className="muted-text" aria-live="polite">{configFeedback}</span>}
         </div>
 
         <div className="android-wake-details">
