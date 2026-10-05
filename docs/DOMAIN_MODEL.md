@@ -501,6 +501,22 @@ o trabalho já codificado e autenticado; não conhece `Order`, Firebase ou regra
 de negócio. O helper Windows em `tools/windows-print-bridge` permanece apenas
 como PoC standalone e não é consumidor do fluxo de produção.
 
+Quando um recibo precisa atravessar um wake Android, a aplicação mantém um
+snapshot transitório de sessão separado das entidades de domínio. Ele contém
+`attemptId`, `createdAt`, `intent: "print"`, o `orderId`, o `jobId` original,
+o snapshot imutável da `PrinterConfiguration` e os bytes ESC/POS em base64. Esse estado
+usa o TTL/stale do wake, não é documento Firestore e é removido após sucesso,
+expiração ou substituição explícita.
+
+O caminho `RUNNING` imprime diretamente. No caminho `STOPPED`, o próprio gesto
+de `Imprimir` ativa o link Android preparado; não existe uma etapa intermediária
+de confirmação. O retorno retoma a mesma intenção, o mesmo `jobId`, a mesma
+impressora e os mesmos bytes. O recibo não é reconstruído a partir de
+`Order`/`Product[]` vivos depois do round-trip.
+Estados recuperáveis do companion não abrem impressão de sistema
+automaticamente, e nenhuma falha após o início de `PrintCompanionClient.print()`
+pode acionar `window.print()`.
+
 ## 15. Serviços e hooks
 
 Responsabilidades:

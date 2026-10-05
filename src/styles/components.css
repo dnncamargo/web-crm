@@ -1018,6 +1018,19 @@
   gap: 8px;
 }
 
+.receipt-print-log {
+  flex: 1 1 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .receipt-paper {
   width: 80mm;
   max-width: 100%;

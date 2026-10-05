@@ -72,7 +72,7 @@ export interface PrintCompanionWakeIntent {
 
 export interface PrintCompanionClient {
   health(timeoutMs?: number): Promise<PrintCompanionHealth>;
-  prepareWakeIntent(intent?: PrintCompanionIntent): PrintCompanionWakeIntent;
+  prepareWakeIntent(intent?: PrintCompanionIntent, attemptId?: string): PrintCompanionWakeIntent;
   activatePreparedWake(wakeIntent: PrintCompanionWakeIntent): void;
   invalidatePendingWakeResume(): void;
   startWakeFromUserGesture(intent?: PrintCompanionIntent): { nonce: string; url: string };
@@ -431,8 +431,8 @@ export function createPrintCompanionClient(
     return body;
   }
 
-  function prepareWakeIntent(intent: PrintCompanionIntent = "test"): PrintCompanionWakeIntent {
-    const attemptId = createAttemptId();
+  function prepareWakeIntent(intent: PrintCompanionIntent = "test", requestedAttemptId?: string): PrintCompanionWakeIntent {
+    const attemptId = requestedAttemptId ?? createAttemptId();
     const nonce = createNonce();
     const pending = { attemptId, nonce, intent };
     const fallbackUrl = PRINT_COMPANION_APP_LINK;

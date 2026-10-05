@@ -1,10 +1,10 @@
-export interface AndroidPrintDiagnosticResumeOwner {
+export interface PrintCompanionResumeOwner {
   claim(attemptId: string): boolean;
   release(attemptId: string): void;
   getActiveAttemptId(): string | null;
 }
 
-export function createAndroidPrintDiagnosticResumeOwner(): AndroidPrintDiagnosticResumeOwner {
+export function createPrintCompanionResumeOwner(): PrintCompanionResumeOwner {
   let activeAttemptId: string | null = null;
 
   return {

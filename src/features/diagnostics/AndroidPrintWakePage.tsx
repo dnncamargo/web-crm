@@ -29,7 +29,7 @@ import {
   type WakePollResult,
 } from "./androidPrintWakeResume";
 import { getAndroidPrintWakeErrorDetails } from "./androidPrintWakeErrors";
-import { createAndroidPrintDiagnosticResumeOwner } from "./androidPrintDiagnosticResumeOwner";
+import { createPrintCompanionResumeOwner } from "../printers/printCompanionResumeOwner";
 import {
   COMPANION_IDLE_TIMEOUT_OPTIONS,
   isCompanionIdleTimeoutControlDisabled,
@@ -98,7 +98,9 @@ export function AndroidPrintWakePage() {
   const [initialPendingState] = useState(() => isProduction
     ? inspectFreshPendingPrintCompanionWake()
     : { pending: null });
-  const initialPendingWake = initialPendingState.pending;
+  const initialPendingWake = initialPendingState.pending?.intent === "test"
+    ? initialPendingState.pending
+    : null;
   const [wakeIntent, setWakeIntent] = useState(() => companionClient.prepareWakeIntent("test"));
   const hasPendingWake = isProduction && Boolean(initialPendingWake);
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>("unknown");
@@ -147,7 +149,7 @@ export function AndroidPrintWakePage() {
   const attemptNumberRef = useRef(0);
   const pollAttemptCountRef = useRef(0);
   const currentAttemptIdRef = useRef<string | null>(initialPendingWake?.attemptId ?? null);
-  const resumeOwnerRef = useRef(createAndroidPrintDiagnosticResumeOwner());
+  const resumeOwnerRef = useRef(createPrintCompanionResumeOwner());
   const staleAttemptLogRef = useRef(new Set<string>());
 
   const appendDiagnosticLog = useCallback((
@@ -505,7 +507,7 @@ export function AndroidPrintWakePage() {
 
     const resumeIfPending = () => {
       const freshPending = inspectFreshPendingPrintCompanionWake();
-      if (freshPending.pending) {
+      if (freshPending.pending?.intent === "test") {
         void resumeAcceptance();
       } else if (freshPending.staleAgeMs !== undefined) {
         appendDiagnosticLog("pending", "stale descartado", `age=${freshPending.staleAgeMs} ms`);

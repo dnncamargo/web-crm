@@ -171,6 +171,26 @@ describe("PrintCompanionClient", () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+  it("preserves the frozen print attempt id in the explicit wake contract", () => {
+    const sessionStorage = new MemoryStorage();
+    const client = createPrintCompanionClient({
+      bridgeUrl: "http://127.0.0.1:17891",
+      fetchImpl: vi.fn<typeof fetch>(),
+      sessionStorage,
+      locationAssign: vi.fn(),
+    });
+
+    const wake = client.prepareWakeIntent("print", "attempt-print");
+    client.activatePreparedWake(wake);
+
+    expect(wake.attemptId).toBe("attempt-print");
+    expect(loadPendingPrintCompanionWake(sessionStorage)).toMatchObject({
+      attemptId: "attempt-print",
+      intent: "print",
+      nonce: wake.nonce,
+    });
+  });
+
   it("starts the wake window at activation instead of preparation", () => {
     vi.useFakeTimers();
     const sessionStorage = new MemoryStorage();
