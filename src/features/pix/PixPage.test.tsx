@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("qrcode.react", () => ({
@@ -38,16 +39,21 @@ import { derivePixPreview } from "./pixPreview";
 
 const validProfile = {
   displayName: "Loja",
-  taxId: "12345678901",
+  taxId: "12.345.678/0001-90",
   address: { city: "Saquarema" },
 };
 
 describe("PixPage layout", () => {
   it("renders a source selector and read-only value preview", () => {
-    const markup = renderToStaticMarkup(<PixPage />);
+    const markup = renderToStaticMarkup(
+      <MemoryRouter><PixPage /></MemoryRouter>,
+    );
 
     expect(markup).toContain("Pix");
     expect(markup).toContain("Configure os dados usados para pagamentos via Pix.");
+    expect(markup).toContain("Recebedor");
+    expect(markup).toContain("Pessoa jurídica");
+    expect(markup).toContain("Pessoa física");
     expect(markup).toContain("Chave Pix");
     expect(markup).toContain('id="pix-key-source"');
     expect(markup).toContain("Selecione...");
@@ -65,7 +71,7 @@ describe("PixPage layout", () => {
   });
 
   it("derives one payload for a valid Pix preview", () => {
-    const settings = { keySource: "taxId" as const };
+    const settings = { recipientType: "business" as const, keySource: "taxId" as const };
     const expectedPayload = createStaticPixPayloadFromSettings({
       settings,
       profile: validProfile,
@@ -79,7 +85,7 @@ describe("PixPage layout", () => {
 
   it("does not produce a payload for invalid Store Profile data", () => {
     const result = derivePixPreview(
-      { keySource: "taxId" },
+      { recipientType: "business", keySource: "taxId" },
       { ...validProfile, taxId: "documento inválido" },
     );
 
@@ -96,12 +102,39 @@ describe("PixPage layout", () => {
 
   it("updates the preview payload when the selected source changes", () => {
     const profile = { ...validProfile, email: "pix@loja.com" };
-    const documentPayload = derivePixPreview({ keySource: "taxId" }, profile).payload;
-    const emailPayload = derivePixPreview({ keySource: "email" }, profile).payload;
+    const documentPayload = derivePixPreview({ recipientType: "business", keySource: "taxId" }, profile).payload;
+    const emailPayload = derivePixPreview({ recipientType: "business", keySource: "email" }, profile).payload;
 
     expect(documentPayload).not.toBeNull();
     expect(emailPayload).not.toBeNull();
     expect(emailPayload).not.toBe(documentPayload);
+  });
+
+  it("derives a Person preview from the Pix-specific recipient", () => {
+    const result = derivePixPreview({
+      recipientType: "person",
+      keySource: "email",
+      personRecipient: {
+        name: "Ana Silva",
+        email: "ana@exemplo.com",
+        city: "Campos",
+      },
+    }, validProfile);
+
+    expect(result.error).toBe("");
+    expect(result.payload).toContain("ana@exemplo.com");
+    expect(result.payload).toContain("Ana Silva");
+  });
+
+  it("reports missing Person configuration without exposing a QR", () => {
+    const result = derivePixPreview({
+      recipientType: "person",
+      keySource: "phone",
+      personRecipient: { name: "", city: "", phone: "" },
+    }, validProfile);
+
+    expect(result.payload).toBeNull();
+    expect(result.error).toContain("Telefone não informado no recebedor Pessoa física");
   });
 
   it("passes the exact payload and the four-module quiet zone to QRCodeSVG", () => {

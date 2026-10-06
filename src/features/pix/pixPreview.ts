@@ -1,9 +1,10 @@
 import { createStaticPixPayloadFromSettings } from "./pixBrCode";
 import {
   PIX_KEY_SOURCE_LABELS,
+  PIX_RECIPIENT_TYPE_LABELS,
   resolvePixKeyValue,
 } from "./pixTypes";
-import type { PixSettings, PixKeySource } from "./pixTypes";
+import type { PixSettings, PixKeySource, PixRecipientType } from "./pixTypes";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
 
 export interface PixPreviewResult {
@@ -15,8 +16,13 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function getMissingSourceMessage(source: PixKeySource) {
-  return `${PIX_KEY_SOURCE_LABELS[source]} não informado no Perfil da loja.`;
+function getMissingSourceMessage(source: PixKeySource, recipientType: PixRecipientType) {
+  const recipientLabel = PIX_RECIPIENT_TYPE_LABELS[recipientType];
+  const location = recipientType === "person"
+    ? `no recebedor ${recipientLabel}`
+    : "no Perfil da loja";
+
+  return `${PIX_KEY_SOURCE_LABELS[source]} não informado ${location}.`;
 }
 
 export function derivePixPreview(
@@ -30,7 +36,10 @@ export function derivePixPreview(
   if (!resolvePixKeyValue(previewSettings, storeProfile)) {
     return {
       payload: null,
-      error: getMissingSourceMessage(previewSettings.keySource),
+      error: getMissingSourceMessage(
+        previewSettings.keySource,
+        previewSettings.recipientType,
+      ),
     };
   }
 

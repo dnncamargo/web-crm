@@ -35,7 +35,31 @@ describe("Pix key normalization", () => {
   });
 
   it("rejects an absent selected value", () => {
-    expect(() => resolveNormalizedPixKey({ keySource: "email" }, { displayName: "Loja" }))
+    expect(() => resolveNormalizedPixKey({ recipientType: "business", keySource: "email" }, { displayName: "Loja" }))
       .toThrow("não foi informada no Perfil da loja");
+  });
+
+  it("enforces CPF for Person and CNPJ for Business document keys", () => {
+    expect(() => resolveNormalizedPixKey({
+      recipientType: "person",
+      keySource: "taxId",
+      personRecipient: { name: "Ana", taxId: "12.345.678/0001-90", city: "Campos" },
+    }, { displayName: "Loja" })).toThrow("Pessoa física");
+
+    expect(() => resolveNormalizedPixKey({
+      recipientType: "business",
+      keySource: "taxId",
+    }, { displayName: "Loja", taxId: "123.456.789-00" })).toThrow("Pessoa jurídica");
+
+    expect(resolveNormalizedPixKey({
+      recipientType: "person",
+      keySource: "taxId",
+      personRecipient: { name: "Ana", taxId: "123.456.789-00", city: "Campos" },
+    }, { displayName: "Loja" })).toBe("12345678900");
+
+    expect(resolveNormalizedPixKey({
+      recipientType: "business",
+      keySource: "taxId",
+    }, { displayName: "Loja", taxId: "12.ABC.345/01DE-35" })).toBe("12ABC34501DE35");
   });
 });

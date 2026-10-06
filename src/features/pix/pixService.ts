@@ -1,4 +1,5 @@
 import {
+  deleteField,
   doc,
   getDoc,
   onSnapshot,
@@ -9,12 +10,27 @@ import type { Unsubscribe } from "firebase/firestore";
 
 import { db } from "../../services/firebase";
 import {
+  isPixRecipientType,
   isPixKeySource,
   normalizePixSettings,
 } from "./pixTypes";
-import type { PixSettings } from "./pixTypes";
+import type { PixPersonRecipient, PixSettings } from "./pixTypes";
 
 const PIX_SETTINGS_DOCUMENT = doc(db, "appSettings", "pix");
+
+function createPersonRecipientPayload(personRecipient?: PixPersonRecipient) {
+  if (!personRecipient) {
+    return undefined;
+  }
+
+  return {
+    name: personRecipient.name.trim() || deleteField(),
+    city: personRecipient.city.trim() || deleteField(),
+    taxId: personRecipient.taxId?.trim() || deleteField(),
+    phone: personRecipient.phone?.trim() || deleteField(),
+    email: personRecipient.email?.trim() || deleteField(),
+  };
+}
 
 export async function getPixSettings(): Promise<PixSettings | null> {
   const snapshot = await getDoc(PIX_SETTINGS_DOCUMENT);
@@ -40,12 +56,26 @@ export async function savePixSettings(settings: PixSettings): Promise<PixSetting
     throw new Error("Selecione uma fonte para a chave Pix.");
   }
 
-  const normalizedSettings = { keySource: settings.keySource };
+  if (!isPixRecipientType(settings.recipientType)) {
+    throw new Error("Selecione o tipo de recebedor Pix.");
+  }
+
+  const normalizedSettings = normalizePixSettings(settings);
+
+  if (!normalizedSettings) {
+    throw new Error("Configure uma fonte válida para a chave Pix.");
+  }
+
+  const personRecipientPayload = createPersonRecipientPayload(
+    normalizedSettings.personRecipient,
+  );
 
   await setDoc(
     PIX_SETTINGS_DOCUMENT,
     {
-      ...normalizedSettings,
+      recipientType: normalizedSettings.recipientType,
+      keySource: normalizedSettings.keySource,
+      ...(personRecipientPayload ? { personRecipient: personRecipientPayload } : {}),
       updatedAt: serverTimestamp(),
     },
     { merge: true },
