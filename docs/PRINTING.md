@@ -96,9 +96,10 @@ explícito de wake descrito abaixo. Depois que
 fallback, evitando impressão duplicada. O caminho direto atualmente suporta apenas o
 contrato estabelecido de papel de 80 mm com 48 colunas. O BMP da marca é
 materializado pelo navegador como raster e enviado no mesmo `PrintJob` do
-recibo; se o logo não puder ser carregado ou materializado, o recibo usa
-`Delícias do Porto` como fallback textual em ESC/POS. Somente a imagem da marca
-é rasterizada; o corpo do recibo continua texto nativo.
+recibo; se o logo não puder ser carregado ou materializado, o recibo usa o
+`StoreProfile.displayName` como fallback textual em ESC/POS. A ausência do
+documento de perfil resolve pelo fallback canônico de `DEFAULT_STORE_PROFILE`.
+Somente a imagem da marca é rasterizada; o corpo do recibo continua texto nativo.
 
 ```text
 brand BMP

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { Product } from "../products/productTypes";
 import { encodePrintJob } from "../printers/escposEncoder";
 import type { PrintJob, PrintJobRaster } from "../printers/printJobTypes";
-import { ORDER_RECEIPT_BRAND_NAME } from "./orderReceiptBrand";
 import type { Order } from "./orderTypes";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
 import { createOrderReceiptPrintJob } from "./orderReceiptPrintJob";
@@ -21,6 +20,8 @@ function checksum(bytes: Uint8Array) {
 const products: Product[] = [
   { id: "live", name: "Nome atual", active: true, tagIds: [] },
 ];
+
+const storeDisplayName = "Loja Teste";
 
 function createOrder(overrides: Partial<Order> = {}): Order {
   return {
@@ -138,12 +139,12 @@ describe("OrderReceiptDocument", () => {
     }), products);
     const job = createOrderReceiptPrintJob(document, {
       columns: 48,
-      brandName: ORDER_RECEIPT_BRAND_NAME,
+      brandName: storeDisplayName,
     });
     const bytes = encodePrintJob(job);
 
     expect(job.commands.filter((command) => command.type === "text").every((command) => command.text.length <= 48)).toBe(true);
-    expect(checksum(bytes)).toBe("a10418a1");
+    expect(checksum(bytes)).toBe("f0040069");
     expect(Array.from(bytes.slice(-4))).toEqual([0x1d, 0x56, 0x42, 0x01]);
   });
 
@@ -151,7 +152,7 @@ describe("OrderReceiptDocument", () => {
     const document = createOrderReceiptDocument(createOrder(), products);
     const job = createOrderReceiptPrintJob(document, {
       columns: 48,
-      brandName: ORDER_RECEIPT_BRAND_NAME,
+      brandName: storeDisplayName,
       logo,
     });
     const rasterIndex = job.commands.findIndex((command) => command.type === "raster");
@@ -169,7 +170,7 @@ describe("OrderReceiptDocument", () => {
     ]);
     expect(rasterIndex).toBeGreaterThanOrEqual(0);
     expect(rasterIndex).toBeLessThan(titleIndex);
-    expect(job.commands.filter((command) => command.type === "text" && command.text === ORDER_RECEIPT_BRAND_NAME)).toHaveLength(0);
+    expect(job.commands.filter((command) => command.type === "text" && command.text === storeDisplayName)).toHaveLength(0);
     expect(job.commands.filter((command) => command.type === "cut")).toHaveLength(1);
     const bytes = encodePrintJob(job);
 
@@ -184,13 +185,13 @@ describe("OrderReceiptDocument", () => {
     const document = createOrderReceiptDocument(createOrder(), products);
     const job = createOrderReceiptPrintJob(document, {
       columns: 48,
-      brandName: ORDER_RECEIPT_BRAND_NAME,
+      brandName: storeDisplayName,
     });
 
     expect(job.commands.slice(0, 8)).toEqual([
       { type: "alignment", alignment: "center" },
       { type: "bold", enabled: true },
-      { type: "text", text: ORDER_RECEIPT_BRAND_NAME },
+      { type: "text", text: storeDisplayName },
       { type: "bold", enabled: false },
       { type: "bold", enabled: true },
       { type: "text", text: "Pedido" },
@@ -205,7 +206,7 @@ describe("OrderReceiptDocument", () => {
     const document = createOrderReceiptDocument(createOrder({ creditApplied: 5, creditGenerated: 2 }), products);
     const job = createOrderReceiptPrintJob(document, {
       columns: 48,
-      brandName: ORDER_RECEIPT_BRAND_NAME,
+      brandName: storeDisplayName,
     });
     type KeyValueCommand = Extract<PrintJob["commands"][number], { type: "keyValue" }>;
     const keyValueCommands = job.commands.filter(
