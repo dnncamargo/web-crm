@@ -7,6 +7,11 @@ export const SETTINGS_ITEMS = [
     description: "Configure os dados públicos e comerciais da loja.",
   },
   {
+    to: APP_ROUTES.pix,
+    label: "Pix",
+    description: "Escolha os dados usados como chave Pix.",
+  },
+  {
     to: APP_ROUTES.appearance,
     label: "Aparência",
     description: "Escolha a cor principal e a apresentação visual do sistema.",

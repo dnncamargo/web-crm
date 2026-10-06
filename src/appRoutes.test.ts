@@ -6,6 +6,7 @@ describe("canonical application routes", () => {
   it("keeps settings and diagnostic routes grouped", () => {
     expect(APP_ROUTES.settings).toBe("/configuracoes");
     expect(APP_ROUTES.storeProfile).toBe("/configuracoes/perfil-da-loja");
+    expect(APP_ROUTES.pix).toBe("/configuracoes/pix");
     expect(APP_ROUTES.appearance).toBe("/configuracoes/aparencia");
     expect(APP_ROUTES.printers).toBe("/configuracoes/impressoras");
     expect(APP_ROUTES.diagnostic).toBe("/configuracoes/impressoras/diagnostico");

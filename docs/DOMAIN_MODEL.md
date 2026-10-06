@@ -34,6 +34,7 @@ Configuração da aplicação:
 - `appSettings/theme`
 - `appSettings/printing`
 - `appSettings/storeProfile`
+- `appSettings/pix`
 - `config/authAdmission` (documento administrativo, inacessível aos clientes)
 
 ### Fronteira de autenticação
@@ -47,8 +48,8 @@ esse documento administrativo. Usuários admitidos compartilham o mesmo banco de
 negócio; autenticação não representa propriedade por `uid` e não implica roles,
 claims, RBAC, ACL ou permissões diferenciadas.
 
-O futuro Store Profile será uma configuração global compartilhada, não um perfil
-escopado por usuário.
+O Store Profile é uma configuração global compartilhada, não um perfil escopado
+por usuário.
 
 Os serviços usam listeners em tempo real com `onSnapshot`.
 
@@ -484,7 +485,26 @@ O recibo consome `StoreProfile.displayName` como identidade atual de apresentaç
 no HTML e no fallback textual ESC/POS. O logo do recibo continua sendo um asset
 estático da aplicação e ainda não faz parte de `StoreProfile`.
 
-## 15. Impressora
+## 15. Pix
+
+`appSettings/pix` é a configuração única e global da fonte da chave Pix.
+
+Campos:
+
+- `keySource: "taxId" | "phone" | "email"`;
+- `updatedAt`, gerenciado pelo serviço.
+
+O valor efetivo da chave não é duplicado nessa configuração. Ele é resolvido
+ao vivo a partir do campo correspondente em `appSettings/storeProfile`, que
+continua sendo a única fonte de verdade para `taxId`, `phone` e `email`.
+
+Não persistir chave resolvida, CPF/CNPJ copiado, telefone ou e-mail copiado,
+credenciais bancárias, tokens, certificados ou segredos. Este contrato também
+não persiste QR Code, BR Code ou payload EMV. Se a fonte selecionada estiver
+ausente no Perfil da loja, a configuração não pode produzir atualmente uma
+chave Pix utilizável.
+
+## 16. Impressora
 
 `PrinterConfiguration` é uma entidade raiz de configuração armazenada na coleção `printers`.
 
@@ -559,7 +579,7 @@ Estados recuperáveis do companion não abrem impressão de sistema
 automaticamente, e nenhuma falha após o início de `PrintCompanionClient.print()`
 pode acionar `window.print()`.
 
-## 16. Serviços e hooks
+## 17. Serviços e hooks
 
 Responsabilidades:
 
@@ -584,7 +604,7 @@ Responsabilidades:
 - interação e composição visual;
 - não duplicar regra financeira, temporal ou de relacionamento que já pertence ao domínio.
 
-## 17. Regras para novas entidades
+## 18. Regras para novas entidades
 
 Antes de criar uma coleção:
 
@@ -596,7 +616,7 @@ Antes de criar uma coleção:
 
 Se a resposta for "não" para a maior parte, prefira objeto embutido.
 
-## 18. Regras para novas relações
+## 19. Regras para novas relações
 
 Antes de adicionar `xId`, `xName`, snapshot ou array de IDs, responder:
 
@@ -609,7 +629,7 @@ Antes de adicionar `xId`, `xName`, snapshot ou array de IDs, responder:
 
 Documentar relações bidirecionais e denormalizações. Não criar sincronização implícita.
 
-## 19. Valores monetários
+## 20. Valores monetários
 
 Valores monetários são números e a apresentação usa BRL por meio de `formatCurrencyBR`.
 
@@ -619,7 +639,7 @@ Valores monetários são números e a apresentação usa BRL por meio de `format
 - evitar comparar valores monetários formatados;
 - não substituir o valor histórico do pedido pelo preço atual do produto.
 
-## 20. Datas
+## 21. Datas
 
 Convenções atuais:
 
@@ -631,7 +651,7 @@ Não comparar datas formatadas como `DD/MM/YYYY`.
 
 Para regras civis de "hoje", "atrasado" e "próximos dias", usar utilitários de domínio e evitar conversões UTC acidentais.
 
-## 21. Checklist de modelagem
+## 22. Checklist de modelagem
 
 Antes de concluir uma mudança de domínio:
 
