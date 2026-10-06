@@ -1,13 +1,12 @@
-import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { lookupCep, normalizeCep } from "../addresses/cepService";
 import { getStoreProfile, saveStoreProfile } from "./storeProfileService";
-import {
-  DEFAULT_STORE_PROFILE,
-} from "./storeProfileTypes";
+import { DEFAULT_STORE_PROFILE } from "./storeProfileTypes";
 import type { StoreProfile, StoreProfileAddress } from "./storeProfileTypes";
 
 interface StoreProfileFormState {
@@ -59,8 +58,12 @@ function getErrorMessage(error: unknown) {
 }
 
 export function StoreProfilePage() {
+  const numberInputRef = useRef<HTMLInputElement | null>(null);
+  const lastLookupCepRef = useRef("");
   const [form, setForm] = useState(DEFAULT_FORM_STATE);
   const [loading, setLoading] = useState(true);
+  const [cepLoading, setCepLoading] = useState(false);
+  const [cepError, setCepError] = useState("");
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -71,6 +74,7 @@ export function StoreProfilePage() {
     getStoreProfile()
       .then((profile) => {
         if (active) {
+          lastLookupCepRef.current = normalizeCep(profile.address?.postalCode ?? "");
           setForm(toFormState(profile));
         }
       })
@@ -101,6 +105,56 @@ export function StoreProfilePage() {
       address: { ...current.address, [field]: value },
     }));
     setSuccessMessage("");
+  }
+
+  async function tryLookupCepAndFocusNumber() {
+    const normalizedCep = normalizeCep(form.address.postalCode);
+
+    if (normalizedCep.length !== 8) {
+      return;
+    }
+
+    if (normalizedCep === lastLookupCepRef.current) {
+      numberInputRef.current?.focus();
+      return;
+    }
+
+    setCepError("");
+    setCepLoading(true);
+
+    try {
+      const result = await lookupCep(normalizedCep);
+
+      lastLookupCepRef.current = normalizedCep;
+      setForm((current) => ({
+        ...current,
+        address: {
+          ...current.address,
+          postalCode: result.cep,
+          street: result.street,
+          neighborhood: result.neighborhood,
+          city: result.city,
+          state: result.state,
+        },
+      }));
+
+      requestAnimationFrame(() => {
+        numberInputRef.current?.focus();
+      });
+    } catch (error: unknown) {
+      setCepError(error instanceof Error ? error.message : "Erro ao consultar o CEP.");
+    } finally {
+      setCepLoading(false);
+    }
+  }
+
+  function handleCepKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    void tryLookupCepAndFocusNumber();
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -139,153 +193,165 @@ export function StoreProfilePage() {
         <form className="panel-form" onSubmit={handleSubmit}>
           {loading && <p className="panel-muted" role="status">Carregando perfil...</p>}
 
-          <section className="panel-section">
-            <div className="panel-section-title">
-              <span>Identidade</span>
-              <small>Defina como a loja será apresentada no sistema.</small>
-            </div>
+          <div className="panel-columns panel-columns-2">
+            <section className="panel-column">
+              <div className="panel-column-scroll">
+                <section className="panel-section">
+                  <div className="panel-section-title">
+                    <span>Identificação</span>
+                    <small>Dados cadastrais que identificam a loja.</small>
+                  </div>
 
-            <div className="panel-field-group">
-              <label>
-                Nome da loja *
-                <input
-                  required
-                  autoFocus
-                  value={form.displayName}
-                  onChange={(event) => updateField("displayName", event.target.value)}
-                  placeholder="Ex: Delícias do Porto"
-                  disabled={disabled}
-                />
-              </label>
+                  <div className="input-group single-column">
+                    <label>
+                      Nome fantasia *
+                      <input
+                        required
+                        autoFocus
+                        value={form.displayName}
+                        onChange={(event) => updateField("displayName", event.target.value)}
+                        placeholder="Ex: Delícias do Porto"
+                        disabled={disabled}
+                      />
+                    </label>
 
-              <div className="panel-field-row">
-                <label className="panel-field-card">
-                  Razão social
-                  <input
-                    value={form.legalName}
-                    onChange={(event) => updateField("legalName", event.target.value)}
-                    disabled={disabled}
-                  />
-                </label>
+                    <label>
+                      Razão social
+                      <input
+                        value={form.legalName}
+                        onChange={(event) => updateField("legalName", event.target.value)}
+                        disabled={disabled}
+                      />
+                    </label>
 
-                <label className="panel-field-card">
-                  Documento
-                  <input
-                    value={form.taxId}
-                    onChange={(event) => updateField("taxId", event.target.value)}
-                    disabled={disabled}
-                  />
-                </label>
+                    <label>
+                      Documento
+                      <input
+                        value={form.taxId}
+                        onChange={(event) => updateField("taxId", event.target.value)}
+                        placeholder="CPF ou CNPJ"
+                        disabled={disabled}
+                      />
+                    </label>
+
+                    <label>
+                      Contato
+                      <input
+                        type="tel"
+                        value={form.phone}
+                        onChange={(event) => updateField("phone", event.target.value)}
+                        placeholder="Telefone ou WhatsApp"
+                        disabled={disabled}
+                      />
+                    </label>
+
+                    <label>
+                      E-mail
+                      <input
+                        type="email"
+                        value={form.email}
+                        onChange={(event) => updateField("email", event.target.value)}
+                        placeholder="contato@loja.com"
+                        disabled={disabled}
+                      />
+                    </label>
+                  </div>
+                </section>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section className="panel-section">
-            <div className="panel-section-title">
-              <span>Contato</span>
-              <small>Dados comerciais opcionais para comunicação com a loja.</small>
-            </div>
+            <section className="panel-column">
+              <div className="panel-column-scroll">
+                <section className="panel-section">
+                  <div className="panel-section-title">
+                    <span>Endereço comercial</span>
+                    <small>Endereço da loja para uso comercial.</small>
+                  </div>
 
-            <div className="panel-field-row">
-              <label className="panel-field-card">
-                Telefone
-                <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={(event) => updateField("phone", event.target.value)}
-                  disabled={disabled}
-                />
-              </label>
+                  <div className="input-group single-column">
+                    <label>
+                      CEP
+                      <input
+                        value={form.address.postalCode}
+                        onChange={(event) => {
+                          updateAddressField("postalCode", event.target.value);
+                          setCepError("");
+                        }}
+                        onBlur={() => void tryLookupCepAndFocusNumber()}
+                        onKeyDown={handleCepKeyDown}
+                        placeholder="Ex: 28990-000"
+                        inputMode="numeric"
+                        disabled={disabled}
+                      />
+                    </label>
 
-              <label className="panel-field-card">
-                E-mail
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => updateField("email", event.target.value)}
-                  disabled={disabled}
-                />
-              </label>
-            </div>
-          </section>
+                    <label>
+                      Logradouro
+                      <input
+                        value={form.address.street}
+                        onChange={(event) => updateAddressField("street", event.target.value)}
+                        placeholder="Rua, avenida, estrada..."
+                        disabled={disabled}
+                      />
+                    </label>
 
-          <section className="panel-section">
-            <div className="panel-section-title">
-              <span>Endereço comercial</span>
-              <small>Informe o endereço da loja, sem criar um cadastro de cliente.</small>
-            </div>
+                    <label>
+                      Número
+                      <input
+                        ref={numberInputRef}
+                        value={form.address.number}
+                        onChange={(event) => updateAddressField("number", event.target.value)}
+                        placeholder="Número"
+                        disabled={disabled}
+                      />
+                    </label>
 
-            <div className="panel-field-group">
-              <div className="panel-field-row">
-                <label className="panel-field-card">
-                  CEP
-                  <input
-                    value={form.address.postalCode}
-                    onChange={(event) => updateAddressField("postalCode", event.target.value)}
-                    disabled={disabled}
-                  />
-                </label>
+                    <label>
+                      Complemento
+                      <input
+                        value={form.address.complement}
+                        onChange={(event) => updateAddressField("complement", event.target.value)}
+                        placeholder="Apto, bloco, sala..."
+                        disabled={disabled}
+                      />
+                    </label>
 
-                <label className="panel-field-card">
-                  Número
-                  <input
-                    value={form.address.number}
-                    onChange={(event) => updateAddressField("number", event.target.value)}
-                    disabled={disabled}
-                  />
-                </label>
+                    <label>
+                      Bairro
+                      <input
+                        value={form.address.neighborhood}
+                        onChange={(event) => updateAddressField("neighborhood", event.target.value)}
+                        disabled={disabled}
+                      />
+                    </label>
+
+                    <label>
+                      Cidade
+                      <input
+                        value={form.address.city}
+                        onChange={(event) => updateAddressField("city", event.target.value)}
+                        disabled={disabled}
+                      />
+                    </label>
+
+                    <label>
+                      Estado
+                      <input
+                        value={form.address.state}
+                        onChange={(event) => updateAddressField("state", event.target.value.toUpperCase())}
+                        placeholder="UF"
+                        maxLength={2}
+                        disabled={disabled}
+                      />
+                    </label>
+                  </div>
+
+                  {cepLoading && <p className="panel-muted" role="status">Consultando CEP...</p>}
+                  {cepError && <p className="error-text" role="alert">{cepError}</p>}
+                </section>
               </div>
-
-              <label>
-                Rua
-                <input
-                  value={form.address.street}
-                  onChange={(event) => updateAddressField("street", event.target.value)}
-                  disabled={disabled}
-                />
-              </label>
-
-              <div className="panel-field-row">
-                <label className="panel-field-card">
-                  Complemento
-                  <input
-                    value={form.address.complement}
-                    onChange={(event) => updateAddressField("complement", event.target.value)}
-                    disabled={disabled}
-                  />
-                </label>
-
-                <label className="panel-field-card">
-                  Bairro
-                  <input
-                    value={form.address.neighborhood}
-                    onChange={(event) => updateAddressField("neighborhood", event.target.value)}
-                    disabled={disabled}
-                  />
-                </label>
-              </div>
-
-              <div className="panel-field-row">
-                <label className="panel-field-card">
-                  Cidade
-                  <input
-                    value={form.address.city}
-                    onChange={(event) => updateAddressField("city", event.target.value)}
-                    disabled={disabled}
-                  />
-                </label>
-
-                <label className="panel-field-card">
-                  Estado
-                  <input
-                    value={form.address.state}
-                    onChange={(event) => updateAddressField("state", event.target.value)}
-                    disabled={disabled}
-                  />
-                </label>
-              </div>
-            </div>
-          </section>
+            </section>
+          </div>
 
           {formError && <p className="error-text" role="alert">{formError}</p>}
           {successMessage && <p className="panel-muted" role="status">{successMessage}</p>}
