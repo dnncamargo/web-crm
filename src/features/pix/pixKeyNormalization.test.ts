@@ -14,6 +14,7 @@ describe("Pix key normalization", () => {
 
   it("preserves alphanumeric CNPJ characters and uppercases them", () => {
     expect(normalizePixKey("taxId", "12.ABC.345/01DE-35")).toBe("12ABC34501DE35");
+    expect(() => normalizePixKey("taxId", "12ABC34501DEAB")).toThrow(PixDomainValidationError);
   });
 
   it("normalizes local and international Brazilian mobile phones", () => {

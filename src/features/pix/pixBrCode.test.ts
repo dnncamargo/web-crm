@@ -61,6 +61,30 @@ describe("static Pix BR Code payload", () => {
       .toThrow("no máximo 15 caracteres");
   });
 
+  it("rejects genuine fractions of a cent without rejecting arithmetic noise", () => {
+    expect(() => createStaticPixPayload({ ...goldenInput, amount: 12.345 })).toThrow(
+      "duas casas decimais",
+    );
+    expect(() => createStaticPixPayload({ ...goldenInput, amount: 1.005 })).toThrow(
+      "duas casas decimais",
+    );
+    expect(() => createStaticPixPayload({ ...goldenInput, amount: 0.001 })).toThrow(
+      "duas casas decimais",
+    );
+    expect(() => createStaticPixPayload({ ...goldenInput, amount: Number.NaN })).toThrow(
+      "não negativo",
+    );
+    expect(() => createStaticPixPayload({ ...goldenInput, amount: Number.POSITIVE_INFINITY })).toThrow(
+      "não negativo",
+    );
+    expect(() => createStaticPixPayload({ ...goldenInput, amount: Number.MAX_VALUE })).toThrow(
+      "10 dígitos",
+    );
+
+    expect(createStaticPixPayload({ ...goldenInput, amount: 0.1 + 0.2 })).toContain("54040.30");
+    expect(createStaticPixPayload({ ...goldenInput, amount: 12.34 })).toContain("540512.34");
+  });
+
   it("composes profile and settings without changing persisted values", () => {
     const profile: StoreProfile = {
       displayName: "Loja de Exemplo",

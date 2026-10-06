@@ -19,7 +19,7 @@ function normalizeTaxId(rawValue: string): string {
     return value;
   }
 
-  if (/^[A-Z0-9]{14}$/.test(value)) {
+  if (/^[A-Z0-9]{12}\d{2}$/.test(value)) {
     return value;
   }
 

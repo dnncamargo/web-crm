@@ -94,14 +94,26 @@ function formatAmount(amount: number): string {
     throw new PixDomainValidationError("Valor Pix deve ser um número finito e não negativo.");
   }
 
-  const formatted = amount.toFixed(2);
-  const [integerPart] = formatted.split(".");
+  const rawCents = amount * 100;
 
-  if (!integerPart || integerPart.length > 10) {
+  if (!Number.isFinite(rawCents)) {
     throw new PixDomainValidationError("Valor Pix deve ter no máximo 10 dígitos antes da casa decimal.");
   }
 
-  return formatted;
+  const cents = Math.round(rawCents);
+  const floatingPointTolerance = Number.EPSILON * Math.max(1, Math.abs(rawCents)) * 16;
+
+  if (Math.abs(rawCents - cents) > floatingPointTolerance) {
+    throw new PixDomainValidationError("Valor Pix deve ter no máximo duas casas decimais.");
+  }
+
+  const integerPart = Math.floor(cents / 100);
+
+  if (String(integerPart).length > 10) {
+    throw new PixDomainValidationError("Valor Pix deve ter no máximo 10 dígitos antes da casa decimal.");
+  }
+
+  return `${integerPart}.${String(cents % 100).padStart(2, "0")}`;
 }
 
 function normalizeTxid(txid: string | undefined): string {
