@@ -504,6 +504,23 @@ não persiste QR Code, BR Code ou payload EMV. Se a fonte selecionada estiver
 ausente no Perfil da loja, a configuração não pode produzir atualmente uma
 chave Pix utilizável.
 
+### Projeção transitória do BR Code estático
+
+Na geração do BR Code estático, `StoreProfile` e `PixSettings` formam uma
+projeção transitória:
+
+```text
+StoreProfile + PixSettings
+→ chave Pix normalizada na fronteira de geração
+→ payload BR Code estático
+```
+
+O payload é derivado em memória e não é persistido. A fonte selecionada continua
+viva em `StoreProfile`; a normalização da chave acontece somente na fronteira de
+geração. A implementação segue o Manual de Padrões para Iniciação do Pix do
+Banco Central do Brasil, versão 2.10.0. A geração da imagem QR ainda não faz
+parte deste fluxo.
+
 ## 16. Impressora
 
 `PrinterConfiguration` é uma entidade raiz de configuração armazenada na coleção `printers`.
