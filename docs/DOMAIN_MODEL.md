@@ -480,6 +480,10 @@ tokens, certificados ou segredos nesse documento. Consumidores futuros de
 recibos e Pix devem reutilizar este documento como fonte da identidade da loja,
 sem criar cópias concorrentes.
 
+O recibo consome `StoreProfile.displayName` como identidade atual de apresentação
+no HTML e no fallback textual ESC/POS. O logo do recibo continua sendo um asset
+estático da aplicação e ainda não faz parte de `StoreProfile`.
+
 ## 15. Impressora
 
 `PrinterConfiguration` é uma entidade raiz de configuração armazenada na coleção `printers`.

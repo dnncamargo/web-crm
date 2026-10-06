@@ -22,9 +22,11 @@ import { loadPrintRaster } from "../printers/printRaster";
 import { resolveDefaultPrinter } from "../printers/printerUtils";
 import { usePrinters } from "../printers/usePrinters";
 import { OrderReceipt } from "./components/OrderReceipt";
-import { ORDER_RECEIPT_BRAND_NAME, ORDER_RECEIPT_LOGO_SRC } from "./orderReceiptBrand";
+import { ORDER_RECEIPT_LOGO_SRC } from "./orderReceiptBrand";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
 import { createOrderReceiptPrintJob } from "./orderReceiptPrintJob";
+import { getStoreProfile } from "../store-profile/storeProfileService";
+import type { StoreProfile } from "../store-profile/storeProfileTypes";
 import {
   ORDER_RECEIPT_PRINT_BUSY_LABEL,
   ORDER_RECEIPT_PRINT_LABEL,
@@ -67,6 +69,9 @@ export function OrderReceiptPage() {
   const { orderId } = useParams<{ orderId: string }>();
   const { products, loadingProducts, productsError } = useProducts();
   const { orders, loadingOrders, ordersError } = useOrders(products);
+  const [storeProfile, setStoreProfile] = useState<StoreProfile | null>(null);
+  const [loadingStoreProfile, setLoadingStoreProfile] = useState(true);
+  const [storeProfileError, setStoreProfileError] = useState("");
   const {
     printers,
     defaultPrinterId,
@@ -98,13 +103,14 @@ export function OrderReceiptPage() {
   const printStatusOwnerRef = useRef(initialPendingPrintAttempt ? 1 : 0);
 
   const order = orders.find((candidate) => candidate.id === orderId);
-  const loading = loadingOrders || loadingProducts;
+  const loading = loadingOrders || loadingProducts || loadingStoreProfile;
   const defaultPrinter = resolveDefaultPrinter(printers, defaultPrinterId);
 
   const prepareReceiptBytes = useCallback(async (
     receiptOrder: Order,
     receiptProducts: Product[],
     printer: PrinterConfiguration,
+    receiptStoreProfile: StoreProfile,
   ) => {
     const document = createOrderReceiptDocument(receiptOrder, receiptProducts);
     let logo: PrintJobRaster | undefined;
@@ -117,20 +123,45 @@ export function OrderReceiptPage() {
 
     const job = createOrderReceiptPrintJob(document, {
       columns: getPrintColumnsForPaperWidth(printer.paperWidthMm),
-      brandName: ORDER_RECEIPT_BRAND_NAME,
+      brandName: receiptStoreProfile.displayName,
       logo,
     });
     return encodePrintJob(job);
   }, []);
 
   useEffect(() => {
+    let active = true;
+
+    getStoreProfile()
+      .then((profile) => {
+        if (active) {
+          setStoreProfile(profile);
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setStoreProfileError(getErrorMessage(error));
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoadingStoreProfile(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
-    if (!order || loading || loadingPrinters || printersError || !defaultPrinter) {
+    if (!order || loading || loadingPrinters || printersError || !defaultPrinter || !storeProfile) {
       return undefined;
     }
 
-    void prepareReceiptBytes(order, products, defaultPrinter).then((bytes) => {
+    void prepareReceiptBytes(order, products, defaultPrinter, storeProfile).then((bytes) => {
       if (cancelled) {
         return;
       }
@@ -144,7 +175,7 @@ export function OrderReceiptPage() {
     return () => {
       cancelled = true;
     };
-  }, [defaultPrinter, loading, loadingPrinters, order, prepareReceiptBytes, printersError, products]);
+  }, [defaultPrinter, loading, loadingPrinters, order, prepareReceiptBytes, printersError, products, storeProfile]);
 
   const refreshCompanionReadiness = useCallback(async () => {
     try {
@@ -355,10 +386,10 @@ export function OrderReceiptPage() {
           await testPrinterConnection(attemptPrinter);
         },
         prepareBytes: async () => {
-          if (!printer) {
+          if (!printer || !storeProfile) {
             throw new Error("Nenhuma impressora térmica ativa foi selecionada.");
           }
-          return prepareReceiptBytes(order, products, printer);
+          return prepareReceiptBytes(order, products, printer, storeProfile);
         },
         print: async (attemptPrinter, bytes, jobId) => {
           if (printStatusOwnerRef.current === statusOwner) {
@@ -444,12 +475,14 @@ export function OrderReceiptPage() {
   const currentPreparedReceipt = preparedReceipt && preparedReceipt.order === order && preparedReceipt.products === products && preparedReceipt.printer.id === defaultPrinter?.id
     ? preparedReceipt
     : null;
-  const printActionMode = getOrderPrintActionMode({
-    readiness: companionReadiness,
-    busy: thermalPrintBusy,
-    canWake: Boolean(wakeIntent && (pendingPrintAttempt || currentPreparedReceipt)),
-    canUseDirectFallback: !loadingPrinters && Boolean(printersError || !defaultPrinter),
-  });
+  const printActionMode = storeProfile && !storeProfileError && !loadingStoreProfile
+    ? getOrderPrintActionMode({
+      readiness: companionReadiness,
+      busy: thermalPrintBusy,
+      canWake: Boolean(wakeIntent && (pendingPrintAttempt || currentPreparedReceipt)),
+      canUseDirectFallback: !loadingPrinters && Boolean(printersError || !defaultPrinter),
+    })
+    : "disabled";
 
   return (
     <main className="receipt-page">
@@ -496,7 +529,8 @@ export function OrderReceiptPage() {
       {loading && <p className="receipt-state">Carregando pedido...</p>}
       {!loading && ordersError && <p className="receipt-state receipt-state-error">{ordersError}</p>}
       {!loading && productsError && <p className="receipt-state receipt-state-error">{productsError}</p>}
-      {!loading && !ordersError && !productsError && !order && (
+      {!loading && storeProfileError && <p className="receipt-state receipt-state-error">{storeProfileError}</p>}
+      {!loading && !ordersError && !productsError && !storeProfileError && !order && (
         <section className="receipt-state">
           <h1>Pedido não encontrado</h1>
           <p>Não foi possível localizar este pedido.</p>
@@ -506,7 +540,7 @@ export function OrderReceiptPage() {
         </section>
       )}
 
-      {order && <OrderReceipt order={order} products={products} />}
+      {order && storeProfile && !storeProfileError && <OrderReceipt order={order} products={products} storeDisplayName={storeProfile.displayName} />}
     </main>
   );
 }
