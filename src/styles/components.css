@@ -990,6 +990,10 @@
   background: var(--surface);
 }
 
+.store-profile-footer {
+  background: var(--transparent-color);
+}
+
 .panel-footer.with-switch {
   display: grid;
   gap: 10px;

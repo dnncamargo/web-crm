@@ -356,7 +356,7 @@ export function StoreProfilePage() {
           {formError && <p className="error-text" role="alert">{formError}</p>}
           {successMessage && <p className="panel-muted" role="status">{successMessage}</p>}
 
-          <div className="panel-footer">
+          <div className="panel-footer store-profile-footer">
             <div className="panel-actions">
               <Button type="submit" disabled={disabled || !form.displayName.trim()}>
                 {saving ? "Salvando..." : "Salvar"}

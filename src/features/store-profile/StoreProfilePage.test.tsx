@@ -53,5 +53,6 @@ describe("StoreProfilePage layout", () => {
     expect(markup.match(/class="panel-column"/g)).toHaveLength(2);
     expect(markup.match(/class="input-group single-column"/g)).toHaveLength(2);
     expect(markup).toContain('class="panel-columns panel-columns-2"');
+    expect(markup).toContain('class="panel-footer store-profile-footer"');
   });
 });
