@@ -25,7 +25,7 @@ import { OrderReceipt } from "./components/OrderReceipt";
 import { ORDER_RECEIPT_LOGO_SRC } from "./orderReceiptBrand";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
 import { createOrderReceiptPrintJob } from "./orderReceiptPrintJob";
-import { getStoreProfile } from "../store-profile/storeProfileService";
+import { subscribeToStoreProfile } from "../store-profile/storeProfileService";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
 import {
   ORDER_RECEIPT_PRINT_BUSY_LABEL,
@@ -60,6 +60,7 @@ function getErrorMessage(error: unknown) {
 interface PreparedReceipt {
   order: Order;
   products: Product[];
+  storeProfile: StoreProfile;
   printer: PrinterConfiguration;
   bytes: Uint8Array;
 }
@@ -130,28 +131,18 @@ export function OrderReceiptPage() {
   }, []);
 
   useEffect(() => {
-    let active = true;
-
-    getStoreProfile()
-      .then((profile) => {
-        if (active) {
-          setStoreProfile(profile);
-        }
-      })
-      .catch((error: unknown) => {
-        if (active) {
-          setStoreProfileError(getErrorMessage(error));
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoadingStoreProfile(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
+    return subscribeToStoreProfile(
+      (profile) => {
+        setStoreProfile(profile);
+        setStoreProfileError("");
+        setLoadingStoreProfile(false);
+      },
+      (error: Error) => {
+        setStoreProfile(null);
+        setStoreProfileError(getErrorMessage(error));
+        setLoadingStoreProfile(false);
+      },
+    );
   }, []);
 
   useEffect(() => {
@@ -166,7 +157,7 @@ export function OrderReceiptPage() {
         return;
       }
 
-      setPreparedReceipt({ order, products, printer: defaultPrinter, bytes });
+      setPreparedReceipt({ order, products, storeProfile, printer: defaultPrinter, bytes });
       if (printStatusOwnerRef.current === 0) {
         setPrintStatus("Pronto para imprimir.");
       }
@@ -436,7 +427,7 @@ export function OrderReceiptPage() {
       return;
     }
 
-    const currentPreparedReceipt = preparedReceipt && preparedReceipt.order === order && preparedReceipt.products === products && preparedReceipt.printer.id === defaultPrinter?.id
+    const currentPreparedReceipt = preparedReceipt && preparedReceipt.order === order && preparedReceipt.products === products && preparedReceipt.storeProfile === storeProfile && preparedReceipt.printer.id === defaultPrinter?.id
       ? preparedReceipt
       : null;
     const attempt = pendingPrintAttempt?.attemptId === wakeIntent.attemptId
@@ -472,7 +463,7 @@ export function OrderReceiptPage() {
     ? { message: thermalPrintError, error: true }
     : null;
 
-  const currentPreparedReceipt = preparedReceipt && preparedReceipt.order === order && preparedReceipt.products === products && preparedReceipt.printer.id === defaultPrinter?.id
+  const currentPreparedReceipt = preparedReceipt && preparedReceipt.order === order && preparedReceipt.products === products && preparedReceipt.storeProfile === storeProfile && preparedReceipt.printer.id === defaultPrinter?.id
     ? preparedReceipt
     : null;
   const printActionMode = storeProfile && !storeProfileError && !loadingStoreProfile

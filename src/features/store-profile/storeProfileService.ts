@@ -2,9 +2,11 @@ import {
   deleteField,
   doc,
   getDoc,
+  onSnapshot,
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
+import type { Unsubscribe } from "firebase/firestore";
 
 import { db } from "../../services/firebase";
 import {
@@ -53,6 +55,19 @@ export async function getStoreProfile(): Promise<StoreProfile> {
   const snapshot = await getDoc(STORE_PROFILE_DOCUMENT);
 
   return normalizeStoreProfile(snapshot.exists() ? snapshot.data() : undefined);
+}
+
+export function subscribeToStoreProfile(
+  onChange: (profile: StoreProfile) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  return onSnapshot(
+    STORE_PROFILE_DOCUMENT,
+    (snapshot) => {
+      onChange(normalizeStoreProfile(snapshot.exists() ? snapshot.data() : undefined));
+    },
+    onError,
+  );
 }
 
 export async function saveStoreProfile(profile: StoreProfile): Promise<StoreProfile> {

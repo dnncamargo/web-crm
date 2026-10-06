@@ -5,28 +5,38 @@ const mocks = vi.hoisted(() => ({
   deleteField: vi.fn(() => "delete-field"),
   doc: vi.fn((_database: unknown, ...path: string[]) => path.join("/")),
   getDoc: vi.fn(),
+  onSnapshot: vi.fn(),
   serverTimestamp: vi.fn(() => "server-timestamp"),
   setDoc: vi.fn(),
+  unsubscribe: vi.fn(),
 }));
 
 vi.mock("firebase/firestore", () => ({
   deleteField: mocks.deleteField,
   doc: mocks.doc,
   getDoc: mocks.getDoc,
+  onSnapshot: mocks.onSnapshot,
   serverTimestamp: mocks.serverTimestamp,
   setDoc: mocks.setDoc,
 }));
 
 vi.mock("../../services/firebase", () => ({ db: mocks.db }));
 
-import { getStoreProfile, saveStoreProfile } from "./storeProfileService";
+import {
+  getStoreProfile,
+  saveStoreProfile,
+  subscribeToStoreProfile,
+} from "./storeProfileService";
 
 describe("store profile persistence", () => {
   beforeEach(() => {
     mocks.getDoc.mockReset();
+    mocks.onSnapshot.mockReset();
     mocks.setDoc.mockReset();
     mocks.deleteField.mockClear();
     mocks.serverTimestamp.mockClear();
+    mocks.unsubscribe.mockClear();
+    mocks.onSnapshot.mockReturnValue(mocks.unsubscribe);
   });
 
   it("uses the canonical appSettings/storeProfile document", async () => {
@@ -75,5 +85,54 @@ describe("store profile persistence", () => {
       },
       { merge: true },
     );
+  });
+
+  it("emits the canonical fallback when the subscribed document does not exist", () => {
+    const onChange = vi.fn();
+    const unsubscribe = subscribeToStoreProfile(onChange);
+    const snapshotCallback = mocks.onSnapshot.mock.calls[0]?.[1];
+
+    snapshotCallback?.({ exists: () => false });
+
+    expect(onChange).toHaveBeenCalledWith({ displayName: "Delícias do Porto" });
+    expect(unsubscribe).toBe(mocks.unsubscribe);
+  });
+
+  it("normalizes the profile emitted by the subscribed snapshot", () => {
+    const onChange = vi.fn();
+    subscribeToStoreProfile(onChange);
+    const snapshotCallback = mocks.onSnapshot.mock.calls[0]?.[1];
+
+    snapshotCallback?.({
+      exists: () => true,
+      data: () => ({
+        displayName: "  Loja Central ",
+        phone: " (22) 99999-0000 ",
+      }),
+    });
+
+    expect(onChange).toHaveBeenCalledWith({
+      displayName: "Loja Central",
+      phone: "(22) 99999-0000",
+    });
+  });
+
+  it("passes subscription errors through and returns a callable unsubscribe", () => {
+    const onChange = vi.fn();
+    const onError = vi.fn();
+    const unsubscribe = subscribeToStoreProfile(onChange, onError);
+    const errorCallback = mocks.onSnapshot.mock.calls[0]?.[2];
+    const error = new Error("subscription failed");
+
+    expect(mocks.onSnapshot).toHaveBeenCalledWith(
+      "appSettings/storeProfile",
+      expect.any(Function),
+      onError,
+    );
+    errorCallback?.(error);
+    unsubscribe();
+
+    expect(onError).toHaveBeenCalledWith(error);
+    expect(mocks.unsubscribe).toHaveBeenCalledTimes(1);
   });
 });
