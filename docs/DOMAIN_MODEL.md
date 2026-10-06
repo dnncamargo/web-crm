@@ -513,13 +513,15 @@ projeção transitória:
 StoreProfile + PixSettings
 → chave Pix normalizada na fronteira de geração
 → payload BR Code estático
+→ apresentação em QR Code / Pix Copia e Cola
 ```
 
 O payload é derivado em memória e não é persistido. A fonte selecionada continua
 viva em `StoreProfile`; a normalização da chave acontece somente na fronteira de
-geração. A implementação segue o Manual de Padrões para Iniciação do Pix do
-Banco Central do Brasil, versão 2.10.0. A geração da imagem QR ainda não faz
-parte deste fluxo.
+geração. A representação em QR Code e Pix Copia e Cola também é transitória e
+não é persistida. Neste checkpoint, o payload não contém valor de Pedido; a
+integração com Pedidos permanece como trabalho futuro. A implementação segue o
+Manual de Padrões para Iniciação do Pix do Banco Central do Brasil, versão 2.10.0.
 
 ## 16. Impressora
 

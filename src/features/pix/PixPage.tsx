@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link } from "react-router-dom";
 
@@ -8,6 +8,8 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { subscribeToStoreProfile } from "../store-profile/storeProfileService";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
+import { PixPaymentPreview } from "./components/PixPaymentPreview";
+import { derivePixPreview } from "./pixPreview";
 import {
   isPixKeySource,
   PIX_KEY_SOURCE_LABELS,
@@ -24,10 +26,6 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function getMissingSourceMessage(source: PixKeySource) {
-  return `${PIX_KEY_SOURCE_LABELS[source]} não informado no Perfil da loja.`;
-}
-
 export function PixPage() {
   const [settings, setSettings] = useState<PixSettings | null>(null);
   const [selectedKeySource, setSelectedKeySource] = useState<PixKeySource | "">("");
@@ -38,6 +36,7 @@ export function PixPage() {
   const [storeProfileError, setStoreProfileError] = useState("");
   const [formError, setFormError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -87,20 +86,24 @@ export function PixPage() {
     };
   }, []);
 
-  const previewSettings = selectedKeySource
-    ? { keySource: selectedKeySource }
-    : settings;
+  const previewSettings = useMemo(
+    () => selectedKeySource ? { keySource: selectedKeySource } : settings,
+    [selectedKeySource, settings],
+  );
   const resolvedValue = storeProfile && previewSettings
     ? resolvePixKeyValue(previewSettings, storeProfile)
     : null;
   const loading = loadingSettings || loadingStoreProfile;
   const loadingError = settingsError || storeProfileError;
+  const preview = useMemo(
+    () => derivePixPreview(previewSettings, storeProfile),
+    [previewSettings, storeProfile],
+  );
   const canSave = Boolean(
     !loading &&
       !saving &&
       selectedKeySource &&
-      storeProfile &&
-      resolvedValue &&
+      preview.payload &&
       !loadingError,
   );
 
@@ -109,6 +112,20 @@ export function PixPage() {
     setSelectedKeySource(isPixKeySource(value) ? value : "");
     setFormError("");
     setSuccessMessage("");
+    setCopyMessage("");
+  }
+
+  async function handleCopyPayload() {
+    if (!preview.payload) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(preview.payload);
+      setCopyMessage("Código Pix copiado.");
+    } catch {
+      setCopyMessage("Não foi possível copiar o código Pix.");
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -121,8 +138,8 @@ export function PixPage() {
       return;
     }
 
-    if (!storeProfile || !resolvePixKeyValue({ keySource: selectedKeySource }, storeProfile)) {
-      setFormError(getMissingSourceMessage(selectedKeySource));
+    if (!preview.payload) {
+      setFormError(preview.error || "Não foi possível gerar o código Pix.");
       return;
     }
 
@@ -178,7 +195,7 @@ export function PixPage() {
           <section className="panel-section">
             <div className="panel-section-title">
               <span>Valor utilizado</span>
-              <small>Prévia do valor atual no Perfil da loja; a codificação Pix será definida depois.</small>
+              <small>Prévia do valor atual no Perfil da loja; a codificação Pix é gerada abaixo.</small>
             </div>
 
             <div className="panel-block">
@@ -186,7 +203,7 @@ export function PixPage() {
               {resolvedValue && <strong>{resolvedValue}</strong>}
               {!resolvedValue && selectedKeySource && storeProfile && (
                 <>
-                  <strong>{getMissingSourceMessage(selectedKeySource)}</strong>
+                  <strong>{preview.error}</strong>
                   <Link className="text-link" to={APP_ROUTES.storeProfile}>
                     Corrigir no Perfil da loja
                   </Link>
@@ -196,6 +213,36 @@ export function PixPage() {
                 <strong>Nenhuma fonte selecionada.</strong>
               )}
             </div>
+          </section>
+
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Pagamento Pix</span>
+              <small>Prévia da configuração selecionada; nada é salvo automaticamente.</small>
+            </div>
+
+            {preview.payload && (
+              <PixPaymentPreview
+                payload={preview.payload}
+                copyMessage={copyMessage}
+                onCopy={() => void handleCopyPayload()}
+              />
+            )}
+
+            {preview.error && (
+              <div className="pix-preview-error">
+                <p className="error-text" role="alert">{preview.error}</p>
+                {storeProfile && (
+                  <Link className="text-link" to={APP_ROUTES.storeProfile}>
+                    Corrigir no Perfil da loja
+                  </Link>
+                )}
+              </div>
+            )}
+
+            {!preview.payload && !preview.error && !loading && !loadingError && (
+              <p className="panel-muted">Selecione uma fonte para visualizar o QR Code Pix.</p>
+            )}
           </section>
 
           {formError && <p className="error-text" role="alert">{formError}</p>}
