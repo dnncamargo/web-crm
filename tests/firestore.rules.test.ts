@@ -48,11 +48,13 @@ describe("Firestore authenticated boundary", () => {
       "seed-user",
       allowedGoogleToken,
     ).firestore();
+    await authenticatedDb.doc("appSettings/storeProfile").set({ displayName: "Loja" });
     await authenticatedDb.doc("appSettings/theme").set({ accent: "#b87945" });
     await authenticatedDb.doc("appSettings/printing").set({ defaultPrinterId: null });
     await authenticatedDb.doc("clients/client-1").set({ name: "Cliente de teste" });
 
     const anonymousDb = testEnvironment.unauthenticatedContext().firestore();
+    await assertFails(anonymousDb.doc("appSettings/storeProfile").get());
     await assertFails(anonymousDb.doc("appSettings/theme").get());
     await assertFails(anonymousDb.doc("appSettings/printing").get());
     await assertFails(anonymousDb.doc("clients/client-1").get());
@@ -65,6 +67,7 @@ describe("Firestore authenticated boundary", () => {
       allowedGoogleToken,
     ).firestore();
 
+    await assertSucceeds(authenticatedDb.doc("appSettings/storeProfile").set({ displayName: "Loja" }));
     await assertSucceeds(authenticatedDb.doc("appSettings/theme").set({ accent: "#123456" }));
     await assertSucceeds(authenticatedDb.doc("clients/client-1").set({ name: "Cliente" }));
     await assertSucceeds(authenticatedDb.doc("clients/client-1").get());

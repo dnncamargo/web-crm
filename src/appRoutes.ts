@@ -1,6 +1,7 @@
 export const APP_ROUTES = {
   login: "/login",
   settings: "/configuracoes",
+  storeProfile: "/configuracoes/perfil-da-loja",
   appearance: "/configuracoes/aparencia",
   printers: "/configuracoes/impressoras",
   diagnostic: "/configuracoes/impressoras/diagnostico",

@@ -14,6 +14,7 @@ import { ColorPage } from "./features/color/ColorPage";
 import { PrintersPage } from "./features/printers/PrintersPage";
 import { AndroidPrintWakePage } from "./features/diagnostics/AndroidPrintWakePage";
 import { SettingsPage } from "./features/settings/SettingsPage";
+import { StoreProfilePage } from "./features/store-profile/StoreProfilePage";
 import { AuthProvider } from "./features/auth/AuthProvider";
 import { LoginPage } from "./features/auth/LoginPage";
 import { RequireAuth } from "./features/auth/RequireAuth";
@@ -51,6 +52,7 @@ function ProtectedRoutes() {
         <Route path="tarefas" element={<TasksPage />} />
         <Route path="etiquetas" element={<TagsPage />} />
         <Route path={APP_ROUTES.settings} element={<SettingsPage />} />
+        <Route path={APP_ROUTES.storeProfile} element={<StoreProfilePage />} />
         <Route path={APP_ROUTES.appearance} element={<ColorPage />} />
         <Route path={APP_ROUTES.printers} element={<PrintersPage />} />
         <Route path="/cor" element={<Navigate to={APP_ROUTES.appearance} replace />} />

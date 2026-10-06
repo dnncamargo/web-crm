@@ -33,6 +33,7 @@ Configuração da aplicação:
 
 - `appSettings/theme`
 - `appSettings/printing`
+- `appSettings/storeProfile`
 - `config/authAdmission` (documento administrativo, inacessível aos clientes)
 
 ### Fronteira de autenticação
@@ -457,7 +458,29 @@ Contrato atual:
 
 Configurações globais devem ficar separadas das coleções de domínio.
 
-## 14. Impressora
+## 14. Perfil da loja
+
+`appSettings/storeProfile` é a configuração única e global da identidade da
+loja compartilhada por todo o CRM.
+
+Campos:
+
+- `displayName` (obrigatório ao salvar);
+- `legalName?`;
+- `taxId?`;
+- `phone?`;
+- `email?`;
+- `address?`, com `postalCode?`, `street?`, `number?`, `complement?`,
+  `neighborhood?`, `city?` e `state?`.
+
+O perfil não é escopado por usuário, não é uma entidade Cliente ou Endereço e
+seu endereço é um value object próprio da loja, sem `clientId` ou semântica de
+cadastro de cliente. Não persistir chave Pix, conta bancária, credenciais,
+tokens, certificados ou segredos nesse documento. Consumidores futuros de
+recibos e Pix devem reutilizar este documento como fonte da identidade da loja,
+sem criar cópias concorrentes.
+
+## 15. Impressora
 
 `PrinterConfiguration` é uma entidade raiz de configuração armazenada na coleção `printers`.
 
@@ -532,7 +555,7 @@ Estados recuperáveis do companion não abrem impressão de sistema
 automaticamente, e nenhuma falha após o início de `PrintCompanionClient.print()`
 pode acionar `window.print()`.
 
-## 15. Serviços e hooks
+## 16. Serviços e hooks
 
 Responsabilidades:
 
@@ -557,7 +580,7 @@ Responsabilidades:
 - interação e composição visual;
 - não duplicar regra financeira, temporal ou de relacionamento que já pertence ao domínio.
 
-## 16. Regras para novas entidades
+## 17. Regras para novas entidades
 
 Antes de criar uma coleção:
 
@@ -569,7 +592,7 @@ Antes de criar uma coleção:
 
 Se a resposta for "não" para a maior parte, prefira objeto embutido.
 
-## 17. Regras para novas relações
+## 18. Regras para novas relações
 
 Antes de adicionar `xId`, `xName`, snapshot ou array de IDs, responder:
 
@@ -582,7 +605,7 @@ Antes de adicionar `xId`, `xName`, snapshot ou array de IDs, responder:
 
 Documentar relações bidirecionais e denormalizações. Não criar sincronização implícita.
 
-## 18. Valores monetários
+## 19. Valores monetários
 
 Valores monetários são números e a apresentação usa BRL por meio de `formatCurrencyBR`.
 
@@ -592,7 +615,7 @@ Valores monetários são números e a apresentação usa BRL por meio de `format
 - evitar comparar valores monetários formatados;
 - não substituir o valor histórico do pedido pelo preço atual do produto.
 
-## 19. Datas
+## 20. Datas
 
 Convenções atuais:
 
@@ -604,7 +627,7 @@ Não comparar datas formatadas como `DD/MM/YYYY`.
 
 Para regras civis de "hoje", "atrasado" e "próximos dias", usar utilitários de domínio e evitar conversões UTC acidentais.
 
-## 20. Checklist de modelagem
+## 21. Checklist de modelagem
 
 Antes de concluir uma mudança de domínio:
 
