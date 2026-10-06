@@ -32,7 +32,6 @@ vi.mock("../store-profile/storeProfileService", () => ({
 }));
 
 import { PixPage } from "./PixPage";
-import { PixPaymentPreview } from "./components/PixPaymentPreview";
 import { PixQrCode } from "./components/PixQrCode";
 import { createStaticPixPayloadFromSettings } from "./pixBrCode";
 import { derivePixPreview } from "./pixPreview";
@@ -56,8 +55,13 @@ describe("PixPage layout", () => {
     expect(markup).toContain("Telefone");
     expect(markup).toContain("E-mail");
     expect(markup).toContain("Valor utilizado");
+    expect(markup).toContain("Pagamento Pix");
     expect(markup).toContain("Nenhuma fonte selecionada.");
     expect(markup).toContain("Salvar");
+    expect(markup).not.toContain("Pix Copia e Cola");
+    expect(markup).not.toContain("Copiar código Pix");
+    expect(markup).not.toContain("<textarea");
+    expect(markup).not.toContain("data-payload");
   });
 
   it("derives one payload for a valid Pix preview", () => {
@@ -109,14 +113,12 @@ describe("PixPage layout", () => {
     expect(markup).toContain('aria-label="QR Code Pix"');
   });
 
-  it("uses the same payload for the QR preview and Pix Copia e Cola", () => {
+  it("renders the QR preview without exposing raw payload UI", () => {
     const payload = "0002016304ABCD";
-    const markup = renderToStaticMarkup(
-      <PixPaymentPreview payload={payload} copyMessage="" onCopy={() => undefined} />,
-    );
+    const markup = renderToStaticMarkup(<PixQrCode payload={payload} />);
 
     expect(markup).toContain(`data-payload="${payload}"`);
-    expect(markup).toContain(`>${payload}</textarea>`);
-    expect(markup).toContain("Pix Copia e Cola");
+    expect(markup).not.toContain("<textarea");
+    expect(markup).not.toContain("Copiar código Pix");
   });
 });

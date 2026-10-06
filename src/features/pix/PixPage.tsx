@@ -8,7 +8,7 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { subscribeToStoreProfile } from "../store-profile/storeProfileService";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
-import { PixPaymentPreview } from "./components/PixPaymentPreview";
+import { PixQrCode } from "./components/PixQrCode";
 import { derivePixPreview } from "./pixPreview";
 import {
   isPixKeySource,
@@ -36,7 +36,6 @@ export function PixPage() {
   const [storeProfileError, setStoreProfileError] = useState("");
   const [formError, setFormError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
-  const [copyMessage, setCopyMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -112,20 +111,6 @@ export function PixPage() {
     setSelectedKeySource(isPixKeySource(value) ? value : "");
     setFormError("");
     setSuccessMessage("");
-    setCopyMessage("");
-  }
-
-  async function handleCopyPayload() {
-    if (!preview.payload) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(preview.payload);
-      setCopyMessage("Código Pix copiado.");
-    } catch {
-      setCopyMessage("Não foi possível copiar o código Pix.");
-    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -222,11 +207,10 @@ export function PixPage() {
             </div>
 
             {preview.payload && (
-              <PixPaymentPreview
-                payload={preview.payload}
-                copyMessage={copyMessage}
-                onCopy={() => void handleCopyPayload()}
-              />
+              <>
+                <PixQrCode payload={preview.payload} />
+                <p className="panel-muted">Prévia do QR Code gerado com a configuração atual.</p>
+              </>
             )}
 
             {preview.error && (
