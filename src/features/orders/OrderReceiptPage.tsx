@@ -28,6 +28,11 @@ import { OrderReceipt } from "./components/OrderReceipt";
 import { ORDER_RECEIPT_LOGO_SRC } from "./orderReceiptBrand";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
 import { createOrderReceiptPixPayload, getOrderReceiptPixAmount } from "./orderReceiptPix";
+import {
+  isOrderReceiptPixOptionDisabled,
+  isPreparedReceiptCurrent,
+  type PreparedReceiptIdentity,
+} from "./orderReceiptPreparation";
 import { createOrderReceiptPrintJob } from "./orderReceiptPrintJob";
 import { subscribeToStoreProfile } from "../store-profile/storeProfileService";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
@@ -61,37 +66,8 @@ function getErrorMessage(error: unknown) {
     : "Não foi possível enviar o recibo para a impressora térmica.";
 }
 
-interface PreparedReceipt {
-  order: Order;
-  products: Product[];
-  storeProfile: StoreProfile;
-  printer: PrinterConfiguration;
+interface PreparedReceipt extends PreparedReceiptIdentity {
   bytes: Uint8Array;
-  includePix: boolean;
-  pixPayload: string | null;
-  pixQr: PrintJobRaster | null;
-}
-
-function isPreparedReceiptCurrent(
-  preparedReceipt: PreparedReceipt | null,
-  order: Order | undefined,
-  products: Product[],
-  storeProfile: StoreProfile | null,
-  printer: PrinterConfiguration | null,
-  includePix: boolean,
-  pixPayload: string | null,
-  pixQr: PrintJobRaster | null,
-) {
-  return Boolean(
-    preparedReceipt &&
-    preparedReceipt.order === order &&
-    preparedReceipt.products === products &&
-    preparedReceipt.storeProfile === storeProfile &&
-    preparedReceipt.printer.id === printer?.id &&
-    preparedReceipt.includePix === includePix &&
-    preparedReceipt.pixPayload === pixPayload &&
-    preparedReceipt.pixQr === pixQr,
-  );
 }
 
 export function OrderReceiptPage() {
@@ -483,16 +459,6 @@ export function OrderReceiptPage() {
     setWakeIntent(null);
   }, []);
 
-  const pixPrintIdentityRef = useRef(`${isPixIncluded}:${pixPayload ?? ""}`);
-  useEffect(() => {
-    const identity = `${isPixIncluded}:${pixPayload ?? ""}`;
-
-    if (pixPrintIdentityRef.current !== identity) {
-      pixPrintIdentityRef.current = identity;
-      invalidatePendingPrint();
-    }
-  }, [invalidatePendingPrint, isPixIncluded, pixPayload]);
-
   async function handlePrint() {
     if (!order || thermalPrintBusy) {
       return;
@@ -652,7 +618,7 @@ export function OrderReceiptPage() {
                   id="include-pix-qr"
                   type="checkbox"
                   checked={isPixIncluded}
-                  disabled={thermalPrintBusy}
+                  disabled={isOrderReceiptPixOptionDisabled(thermalPrintBusy, Boolean(pendingPrintAttempt))}
                   onChange={(event) => {
                     setIncludePix(event.target.checked);
                     setThermalPrintError("");
