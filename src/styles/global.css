@@ -507,6 +507,12 @@ textarea:focus {
   font-size: 0.8rem;
 }
 
+@media (max-width: 860px) {
+  .global-search-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .entity-badges {
   display: flex;
   flex-wrap: wrap;
