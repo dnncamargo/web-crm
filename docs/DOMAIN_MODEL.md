@@ -491,35 +491,54 @@ estático da aplicação e ainda não faz parte de `StoreProfile`.
 
 Campos:
 
+- `recipientType: "business" | "person"`;
 - `keySource: "taxId" | "phone" | "email"`;
+- `personRecipient?`, com `name`, `city` e o campo conceitual `taxId?`,
+  `phone?` e `email?`, somente para o recebedor Pessoa física;
 - `updatedAt`, gerenciado pelo serviço.
 
-O valor efetivo da chave não é duplicado nessa configuração. Ele é resolvido
-ao vivo a partir do campo correspondente em `appSettings/storeProfile`, que
-continua sendo a única fonte de verdade para `taxId`, `phone` e `email`.
+`recipientType` e `keySource` são dimensões independentes: telefone e e-mail
+podem pertencer a Pessoa jurídica ou Pessoa física. O campo conceitual
+`taxId` continua único; ele representa CNPJ para Pessoa jurídica e CPF para
+Pessoa física quando usado como documento.
 
-Não persistir chave resolvida, CPF/CNPJ copiado, telefone ou e-mail copiado,
-credenciais bancárias, tokens, certificados ou segredos. Este contrato também
-não persiste QR Code, BR Code ou payload EMV. Se a fonte selecionada estiver
-ausente no Perfil da loja, a configuração não pode produzir atualmente uma
-chave Pix utilizável.
+Para `recipientType: "business"`, os dados do recebedor são resolvidos ao vivo
+de `appSettings/storeProfile`, sem duplicação em `appSettings/pix`. O nome do
+recebedor usa `StoreProfile.displayName`, e a cidade usa
+`StoreProfile.address.city`. Para `recipientType: "person"`, a identidade de
+recebimento vem exclusivamente do value object `personRecipient` específico do
+Pix; ele não é uma entidade Cliente ou Pessoa do CRM.
+
+Configurações legadas sem `recipientType` são normalizadas como
+`recipientType: "business"`, sem migração ou reescrita destrutiva.
+
+Não persistir chave normalizada, merchant projection, credenciais bancárias,
+tokens, certificados ou segredos. Este contrato também não persiste QR Code,
+BR Code ou payload EMV. Se a fonte selecionada estiver ausente no Perfil da
+loja ou no recebedor Pessoa física, a configuração não pode produzir uma chave
+Pix utilizável.
 
 ### Projeção transitória do BR Code estático
 
-Na geração do BR Code estático, `StoreProfile` e `PixSettings` formam uma
-projeção transitória:
+Na geração do BR Code estático, `PixSettings` e, para Pessoa jurídica,
+`StoreProfile` formam uma projeção transitória:
 
 ```text
-StoreProfile + PixSettings
+recebedor selecionado + fonte de chave selecionada
 → chave Pix normalizada na fronteira de geração
+→ merchant projection
 → payload BR Code estático
+→ apresentação em QR Code
 ```
 
-O payload é derivado em memória e não é persistido. A fonte selecionada continua
-viva em `StoreProfile`; a normalização da chave acontece somente na fronteira de
-geração. A implementação segue o Manual de Padrões para Iniciação do Pix do
-Banco Central do Brasil, versão 2.10.0. A geração da imagem QR ainda não faz
-parte deste fluxo.
+O payload e a representação em QR Code são derivados em memória e não são
+persistidos. O payload bruto não é exibido nesta interface. Neste checkpoint,
+ele não contém valor de Pedido; a integração com Pedidos e recibos permanece
+como trabalho futuro. O escopo futuro de recibos impressos será somente QR Code,
+sem Pix Copia e Cola. Pix Copia e Cola é uma funcionalidade futura separada,
+que poderá reutilizar o payload em um fluxo de compartilhamento por WhatsApp ou
+e-mail. A implementação segue o Manual de Padrões para Iniciação do Pix do
+Banco Central do Brasil, versão 2.10.0.
 
 ## 16. Impressora
 

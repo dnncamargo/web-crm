@@ -1,4 +1,4 @@
-import type { PixKeySource, PixSettings } from "./pixTypes";
+import type { PixKeySource, PixRecipientType, PixSettings } from "./pixTypes";
 import { resolvePixKeyValue } from "./pixTypes";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
 
@@ -81,6 +81,32 @@ export function normalizePixKey(source: PixKeySource, rawValue: string): string 
   }
 }
 
+export function normalizePixKeyForRecipient(
+  recipientType: PixRecipientType,
+  source: PixKeySource,
+  rawValue: string,
+): string {
+  const normalized = normalizePixKey(source, rawValue);
+
+  if (source !== "taxId") {
+    return normalized;
+  }
+
+  if (recipientType === "person" && !/^\d{11}$/.test(normalized)) {
+    throw new PixDomainValidationError(
+      "Documento de Pessoa física deve ser um CPF com 11 dígitos.",
+    );
+  }
+
+  if (recipientType === "business" && !/^[A-Z0-9]{12}\d{2}$/.test(normalized)) {
+    throw new PixDomainValidationError(
+      "Documento de Pessoa jurídica deve ser um CNPJ com 14 posições.",
+    );
+  }
+
+  return normalized;
+}
+
 export function resolveNormalizedPixKey(
   settings: PixSettings,
   profile: StoreProfile,
@@ -89,9 +115,11 @@ export function resolveNormalizedPixKey(
 
   if (!rawValue) {
     throw new PixDomainValidationError(
-      "A fonte da chave Pix selecionada não foi informada no Perfil da loja.",
+      settings.recipientType === "person"
+        ? "A fonte da chave Pix selecionada não foi informada no recebedor Pessoa física."
+        : "A fonte da chave Pix selecionada não foi informada no Perfil da loja.",
     );
   }
 
-  return normalizePixKey(settings.keySource, rawValue);
+  return normalizePixKeyForRecipient(settings.recipientType, settings.keySource, rawValue);
 }

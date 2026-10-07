@@ -1,4 +1,4 @@
-import type { PixSettings } from "./pixTypes";
+import type { PixPersonRecipient, PixSettings } from "./pixTypes";
 import {
   PixDomainValidationError,
   resolveNormalizedPixKey,
@@ -72,11 +72,6 @@ function normalizePayloadText(value: string, fieldName: string, maxLength: numbe
   return normalized;
 }
 
-function resolveMerchantName(profile: StoreProfile): string {
-  const source = profile.legalName === undefined ? profile.displayName : profile.legalName;
-  return normalizePayloadText(source, "Nome do recebedor", 25);
-}
-
 function resolveMerchantCity(profile: StoreProfile): string {
   const city = profile.address?.city;
 
@@ -87,6 +82,49 @@ function resolveMerchantCity(profile: StoreProfile): string {
   }
 
   return normalizePayloadText(city, "Cidade do recebedor", 15);
+}
+
+export interface PixRecipientProjection {
+  key: string;
+  merchantName: string;
+  merchantCity: string;
+}
+
+function resolvePersonRecipient(settings: PixSettings): PixPersonRecipient {
+  if (!settings.personRecipient) {
+    throw new PixDomainValidationError(
+      "Configure o recebedor Pessoa física para gerar o BR Code.",
+    );
+  }
+
+  if (!settings.personRecipient.name.trim()) {
+    throw new PixDomainValidationError(
+      "Informe o nome do recebedor Pessoa física para gerar o BR Code.",
+    );
+  }
+
+  if (!settings.personRecipient.city.trim()) {
+    throw new PixDomainValidationError(
+      "Informe a cidade do recebedor Pessoa física para gerar o BR Code.",
+    );
+  }
+
+  return settings.personRecipient;
+}
+
+export function resolvePixRecipient(
+  settings: PixSettings,
+  profile: StoreProfile,
+): PixRecipientProjection {
+  const personRecipient = settings.recipientType === "person"
+    ? resolvePersonRecipient(settings)
+    : null;
+
+  return {
+    key: resolveNormalizedPixKey(settings, profile),
+    merchantName: personRecipient?.name ?? profile.displayName,
+    merchantCity: personRecipient?.city ?? resolveMerchantCity(profile),
+  };
 }
 
 function formatAmount(amount: number): string {
@@ -167,14 +205,12 @@ export interface StaticPixPayloadFromSettingsInput {
 export function createStaticPixPayloadFromSettings(
   input: StaticPixPayloadFromSettingsInput,
 ): string {
-  const key = resolveNormalizedPixKey(input.settings, input.profile);
-  const merchantName = resolveMerchantName(input.profile);
-  const merchantCity = resolveMerchantCity(input.profile);
+  const projection = resolvePixRecipient(input.settings, input.profile);
 
   return createStaticPixPayload({
-    key,
-    merchantName,
-    merchantCity,
+    key: projection.key,
+    merchantName: projection.merchantName,
+    merchantCity: projection.merchantCity,
     amount: input.amount,
     txid: input.txid,
   });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { Link } from "react-router-dom";
 
@@ -8,13 +8,22 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { subscribeToStoreProfile } from "../store-profile/storeProfileService";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
+import { PixQrCode } from "./components/PixQrCode";
+import { derivePixPreview } from "./pixPreview";
 import {
   isPixKeySource,
+  isPixRecipientType,
   PIX_KEY_SOURCE_LABELS,
   PIX_KEY_SOURCES,
+  PIX_RECIPIENT_TYPE_LABELS,
+  PIX_RECIPIENT_TYPES,
   resolvePixKeyValue,
 } from "./pixTypes";
-import type { PixKeySource, PixSettings } from "./pixTypes";
+import type {
+  PixKeySource,
+  PixPersonRecipient,
+  PixRecipientType,
+} from "./pixTypes";
 import {
   savePixSettings,
   subscribeToPixSettings,
@@ -24,13 +33,55 @@ function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 
-function getMissingSourceMessage(source: PixKeySource) {
-  return `${PIX_KEY_SOURCE_LABELS[source]} não informado no Perfil da loja.`;
+type PixPersonFormState = Required<PixPersonRecipient>;
+
+const EMPTY_PERSON_RECIPIENT: PixPersonFormState = {
+  name: "",
+  taxId: "",
+  phone: "",
+  email: "",
+  city: "",
+};
+
+// These small pure helpers are exported only so the static PixPage tests can cover both recipient modes.
+// eslint-disable-next-line react-refresh/only-export-components
+export function getPixRecipientKeySourceDescription(recipientType: PixRecipientType) {
+  return recipientType === "business"
+    ? "Escolha qual dado atual do Perfil da loja será usado como chave."
+    : "Escolha qual dado do recebedor Pessoa física será usado como chave.";
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function getPixRecipientValueDescription(recipientType: PixRecipientType) {
+  const source = recipientType === "business"
+    ? "no Perfil da loja"
+    : "do recebedor Pessoa física";
+
+  return `Prévia do valor atual ${source}; a codificação Pix é gerada abaixo.`;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function shouldShowStoreProfileCorrectionLink(
+  recipientType: PixRecipientType,
+  hasStoreProfile: boolean,
+) {
+  return recipientType === "business" && hasStoreProfile;
+}
+
+function toPersonFormState(personRecipient?: PixPersonRecipient): PixPersonFormState {
+  return {
+    name: personRecipient?.name ?? "",
+    taxId: personRecipient?.taxId ?? "",
+    phone: personRecipient?.phone ?? "",
+    email: personRecipient?.email ?? "",
+    city: personRecipient?.city ?? "",
+  };
 }
 
 export function PixPage() {
-  const [settings, setSettings] = useState<PixSettings | null>(null);
+  const [selectedRecipientType, setSelectedRecipientType] = useState<PixRecipientType>("business");
   const [selectedKeySource, setSelectedKeySource] = useState<PixKeySource | "">("");
+  const [personRecipient, setPersonRecipient] = useState<PixPersonFormState>(EMPTY_PERSON_RECIPIENT);
   const [storeProfile, setStoreProfile] = useState<StoreProfile | null>(null);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [loadingStoreProfile, setLoadingStoreProfile] = useState(true);
@@ -49,8 +100,9 @@ export function PixPage() {
           return;
         }
 
-        setSettings(nextSettings);
+        setSelectedRecipientType(nextSettings?.recipientType ?? "business");
         setSelectedKeySource(nextSettings?.keySource ?? "");
+        setPersonRecipient(toPersonFormState(nextSettings?.personRecipient));
         setLoadingSettings(false);
         setSettingsError("");
       },
@@ -87,26 +139,49 @@ export function PixPage() {
     };
   }, []);
 
-  const previewSettings = selectedKeySource
-    ? { keySource: selectedKeySource }
-    : settings;
+  const previewSettings = useMemo(
+    () => selectedKeySource
+      ? {
+          recipientType: selectedRecipientType,
+          keySource: selectedKeySource,
+          personRecipient,
+        }
+      : null,
+    [personRecipient, selectedKeySource, selectedRecipientType],
+  );
   const resolvedValue = storeProfile && previewSettings
     ? resolvePixKeyValue(previewSettings, storeProfile)
     : null;
   const loading = loadingSettings || loadingStoreProfile;
   const loadingError = settingsError || storeProfileError;
+  const preview = useMemo(
+    () => derivePixPreview(previewSettings, storeProfile),
+    [previewSettings, storeProfile],
+  );
   const canSave = Boolean(
     !loading &&
       !saving &&
       selectedKeySource &&
-      storeProfile &&
-      resolvedValue &&
+      preview.payload &&
       !loadingError,
   );
 
   function handleSourceChange(event: ChangeEvent<HTMLSelectElement>) {
     const value = event.target.value;
     setSelectedKeySource(isPixKeySource(value) ? value : "");
+    setFormError("");
+    setSuccessMessage("");
+  }
+
+  function handleRecipientTypeChange(event: ChangeEvent<HTMLSelectElement>) {
+    const value = event.target.value;
+    setSelectedRecipientType(isPixRecipientType(value) ? value : "business");
+    setFormError("");
+    setSuccessMessage("");
+  }
+
+  function handlePersonFieldChange(field: keyof PixPersonFormState, value: string) {
+    setPersonRecipient((current) => ({ ...current, [field]: value }));
     setFormError("");
     setSuccessMessage("");
   }
@@ -121,16 +196,20 @@ export function PixPage() {
       return;
     }
 
-    if (!storeProfile || !resolvePixKeyValue({ keySource: selectedKeySource }, storeProfile)) {
-      setFormError(getMissingSourceMessage(selectedKeySource));
+    if (!preview.payload) {
+      setFormError(preview.error || "Não foi possível gerar o código Pix.");
       return;
     }
 
     setSaving(true);
 
     try {
-      const savedSettings = await savePixSettings({ keySource: selectedKeySource });
-      setSettings(savedSettings);
+      const savedSettings = await savePixSettings({
+        recipientType: selectedRecipientType,
+        keySource: selectedKeySource,
+        personRecipient,
+      });
+      setPersonRecipient(toPersonFormState(savedSettings.personRecipient));
       setSuccessMessage("Configuração Pix salva.");
     } catch (error: unknown) {
       setFormError(getErrorMessage(error, "Não foi possível salvar a configuração Pix."));
@@ -153,8 +232,99 @@ export function PixPage() {
 
           <section className="panel-section">
             <div className="panel-section-title">
+              <span>Recebedor</span>
+              <small>Escolha a identidade usada na geração do QR Code Pix.</small>
+            </div>
+
+            <div className="input-group single-column">
+              <label htmlFor="pix-recipient-type">
+                Recebedor
+                <select
+                  id="pix-recipient-type"
+                  value={selectedRecipientType}
+                  onChange={handleRecipientTypeChange}
+                  disabled={loading || saving}
+                >
+                  {PIX_RECIPIENT_TYPES.map((recipientType) => (
+                    <option key={recipientType} value={recipientType}>
+                      {PIX_RECIPIENT_TYPE_LABELS[recipientType]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {selectedRecipientType === "business" && (
+              <div className="panel-block">
+                <span>Dados do recebedor</span>
+                <strong>Perfil da loja</strong>
+                <Link className="text-link" to={APP_ROUTES.storeProfile}>
+                  Corrigir no Perfil da loja
+                </Link>
+              </div>
+            )}
+
+            {selectedRecipientType === "person" && (
+              <div className="input-group single-column">
+                <label htmlFor="pix-person-name">
+                  Nome
+                  <input
+                    id="pix-person-name"
+                    value={personRecipient.name}
+                    onChange={(event) => handlePersonFieldChange("name", event.target.value)}
+                    disabled={loading || saving}
+                  />
+                </label>
+
+                <label htmlFor="pix-person-tax-id">
+                  Documento
+                  <input
+                    id="pix-person-tax-id"
+                    value={personRecipient.taxId}
+                    onChange={(event) => handlePersonFieldChange("taxId", event.target.value)}
+                    disabled={loading || saving}
+                  />
+                </label>
+
+                <label htmlFor="pix-person-phone">
+                  Telefone
+                  <input
+                    id="pix-person-phone"
+                    type="tel"
+                    value={personRecipient.phone}
+                    onChange={(event) => handlePersonFieldChange("phone", event.target.value)}
+                    disabled={loading || saving}
+                  />
+                </label>
+
+                <label htmlFor="pix-person-email">
+                  E-mail
+                  <input
+                    id="pix-person-email"
+                    type="email"
+                    value={personRecipient.email}
+                    onChange={(event) => handlePersonFieldChange("email", event.target.value)}
+                    disabled={loading || saving}
+                  />
+                </label>
+
+                <label htmlFor="pix-person-city">
+                  Cidade
+                  <input
+                    id="pix-person-city"
+                    value={personRecipient.city}
+                    onChange={(event) => handlePersonFieldChange("city", event.target.value)}
+                    disabled={loading || saving}
+                  />
+                </label>
+              </div>
+            )}
+          </section>
+
+          <section className="panel-section">
+            <div className="panel-section-title">
               <span>Chave Pix</span>
-              <small>Escolha qual dado atual do Perfil da loja será usado como chave.</small>
+              <small>{getPixRecipientKeySourceDescription(selectedRecipientType)}</small>
             </div>
 
             <div className="input-group single-column">
@@ -178,24 +348,55 @@ export function PixPage() {
           <section className="panel-section">
             <div className="panel-section-title">
               <span>Valor utilizado</span>
-              <small>Prévia do valor atual no Perfil da loja; a codificação Pix será definida depois.</small>
+              <small>{getPixRecipientValueDescription(selectedRecipientType)}</small>
             </div>
 
             <div className="panel-block">
               <span>{selectedKeySource ? PIX_KEY_SOURCE_LABELS[selectedKeySource] : "Chave Pix"}</span>
               {resolvedValue && <strong>{resolvedValue}</strong>}
-              {!resolvedValue && selectedKeySource && storeProfile && (
+              {!resolvedValue && selectedKeySource && (
                 <>
-                  <strong>{getMissingSourceMessage(selectedKeySource)}</strong>
-                  <Link className="text-link" to={APP_ROUTES.storeProfile}>
-                    Corrigir no Perfil da loja
-                  </Link>
+                  <strong>{preview.error}</strong>
+                  {selectedRecipientType === "business" && (
+                    <Link className="text-link" to={APP_ROUTES.storeProfile}>
+                      Corrigir no Perfil da loja
+                    </Link>
+                  )}
                 </>
               )}
               {!resolvedValue && !selectedKeySource && (
                 <strong>Nenhuma fonte selecionada.</strong>
               )}
             </div>
+          </section>
+
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Pagamento Pix</span>
+              <small>Prévia da configuração selecionada; nada é salvo automaticamente.</small>
+            </div>
+
+            {preview.payload && (
+              <>
+                <PixQrCode payload={preview.payload} />
+                <p className="panel-muted">Prévia do QR Code gerado com a configuração atual.</p>
+              </>
+            )}
+
+            {preview.error && (
+              <div className="pix-preview-error">
+                <p className="error-text" role="alert">{preview.error}</p>
+                {shouldShowStoreProfileCorrectionLink(selectedRecipientType, Boolean(storeProfile)) && (
+                  <Link className="text-link" to={APP_ROUTES.storeProfile}>
+                    Corrigir no Perfil da loja
+                  </Link>
+                )}
+              </div>
+            )}
+
+            {!preview.payload && !preview.error && !loading && !loadingError && (
+              <p className="panel-muted">Selecione uma fonte para visualizar o QR Code Pix.</p>
+            )}
           </section>
 
           {formError && <p className="error-text" role="alert">{formError}</p>}
