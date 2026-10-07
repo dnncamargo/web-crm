@@ -189,7 +189,7 @@ export function ClientsPage() {
   }
 
   function getStackedPanelHeaderAction() {
-    if (stackedPanel?.type === "edit-client" || stackedPanel?.type === "register-interaction") {
+    if (stackedPanel?.type === "edit-client") {
       return renderFavoriteButton({
         favorite: stackedPanel.client.favorite,
         onClick: () => void toggleClientFavorite(stackedPanel.client),
@@ -387,7 +387,7 @@ export function ClientsPage() {
         title={stackedPanelTitle} 
         description={stackedPanelDescription} 
         onClose={closeStackedPanel} 
-        closeOnBackdrop={false} 
+        closeOnBackdrop={stackedPanel?.type !== "edit-client"}
         headerAction={getStackedPanelHeaderAction()}
       >
         {stackedPanel?.type === "edit-client" && <ClientForm client={stackedPanel.client} availableTags={clientTags} onCancel={closeStackedPanel} onSave={handlePanelEditClient} />}
