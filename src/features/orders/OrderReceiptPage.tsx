@@ -608,9 +608,24 @@ export function OrderReceiptPage() {
     <main className="receipt-page">
       {order && (
         <div className="receipt-toolbar" aria-label="Ações do recibo">
-          <Button type="button" variant="secondary" onClick={() => navigate("/pedidos")}>
-            Voltar
-          </Button>
+          <div className="receipt-toolbar-actions">
+            <Button type="button" variant="secondary" onClick={() => navigate("/pedidos")}>
+              Voltar
+            </Button>
+            {printActionMode === "wake" && wakeIntent ? (
+              <a className="button button-primary" href={wakeIntent.intentUrl} onClick={handleWakePrint}>
+                {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
+              </a>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => void handlePrint()}
+                disabled={printActionMode === "disabled"}
+              >
+                {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
+              </Button>
+            )}
+          </div>
           {pixEligible && (
             <div className="receipt-pix-option">
               <label htmlFor="include-pix-qr">
@@ -635,19 +650,6 @@ export function OrderReceiptPage() {
                 </p>
               )}
             </div>
-          )}
-          {printActionMode === "wake" && wakeIntent ? (
-            <a className="button button-primary" href={wakeIntent.intentUrl} onClick={handleWakePrint}>
-              {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
-            </a>
-          ) : (
-            <Button
-              type="button"
-              onClick={() => void handlePrint()}
-              disabled={printActionMode === "disabled"}
-            >
-              {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
-            </Button>
           )}
           <span
             className="receipt-print-log"
