@@ -5,6 +5,7 @@ import { encodePrintJob } from "../printers/escposEncoder";
 import type { PrintJob, PrintJobRaster } from "../printers/printJobTypes";
 import type { Order } from "./orderTypes";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
+import { getOrderReceiptPixAmount } from "./orderReceiptPix";
 import { createOrderReceiptPrintJob } from "./orderReceiptPrintJob";
 
 function checksum(bytes: Uint8Array) {
@@ -208,11 +209,14 @@ describe("OrderReceiptDocument", () => {
       heightDots: 1,
       data: new Uint8Array([0x55]),
     };
-    const document = createOrderReceiptDocument(createOrder({ amountPaid: 10 }), products);
+    const pixOrder = createOrder({ total: 100, amountPaid: 30, creditApplied: 20 });
+    const pixAmount = getOrderReceiptPixAmount(pixOrder);
+    const document = createOrderReceiptDocument(pixOrder, products);
     const job = createOrderReceiptPrintJob(document, {
       columns: 48,
       brandName: storeDisplayName,
       pixQr,
+      pixAmount: pixAmount ?? undefined,
     });
     const rasterIndex = job.commands.findIndex(
       (command) => command.type === "raster" && command.raster === pixQr,
@@ -220,6 +224,18 @@ describe("OrderReceiptDocument", () => {
     const cutIndex = job.commands.findIndex((command) => command.type === "cut");
 
     expect(job.commands[rasterIndex - 1]).toEqual({ type: "alignment", alignment: "center" });
+    const amountIndex = job.commands.findIndex(
+      (command) => command.type === "keyValue" && command.label === "Valor Pix:",
+    );
+    expect(amountIndex).toBeGreaterThan(-1);
+    expect(amountIndex).toBeLessThan(rasterIndex);
+    expect(job.commands[amountIndex]).toEqual({
+      type: "keyValue",
+      label: "Valor Pix:",
+      value: "R$ 50,00",
+      valueBold: true,
+    });
+    expect(job.commands.some((command) => command.type === "text" && command.text === "540550.00")).toBe(false);
     expect(rasterIndex).toBeGreaterThan(-1);
     expect(rasterIndex).toBeLessThan(cutIndex);
     expect(job.commands.slice(rasterIndex + 1)).toEqual([

@@ -4,6 +4,11 @@ import type { StoreProfile } from "../store-profile/storeProfileTypes";
 import { getOrderBalanceInfo } from "./orderUtils";
 import type { Order } from "./orderTypes";
 
+export interface OrderReceiptPixProjection {
+  amount: number;
+  payload: string;
+}
+
 export function getOrderReceiptPixAmount(
   order: Pick<Order, "total" | "amountPaid" | "orderStatus"> & { creditApplied?: number | null },
 ): number | null {
@@ -20,15 +25,22 @@ export function createOrderReceiptPixPayload(
   settings: PixSettings,
   profile: StoreProfile,
 ): string | null {
+  return createOrderReceiptPixProjection(order, settings, profile)?.payload ?? null;
+}
+
+export function createOrderReceiptPixProjection(
+  order: Pick<Order, "total" | "amountPaid" | "orderStatus"> & { creditApplied?: number | null },
+  settings: PixSettings,
+  profile: StoreProfile,
+): OrderReceiptPixProjection | null {
   const amount = getOrderReceiptPixAmount(order);
 
   if (amount === null) {
     return null;
   }
 
-  return createStaticPixPayloadFromSettings({
-    settings,
-    profile,
+  return {
     amount,
-  });
+    payload: createStaticPixPayloadFromSettings({ settings, profile, amount }),
+  };
 }

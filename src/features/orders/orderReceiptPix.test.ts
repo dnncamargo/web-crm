@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { calculateCrc16CcittFalse } from "../pix/pixBrCode";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
-import { createOrderReceiptPixPayload, getOrderReceiptPixAmount } from "./orderReceiptPix";
+import { createOrderReceiptPixPayload, createOrderReceiptPixProjection, getOrderReceiptPixAmount } from "./orderReceiptPix";
 import type { Order } from "./orderTypes";
 
 const profile: StoreProfile = {
@@ -65,6 +65,16 @@ describe("order receipt Pix composition", () => {
     expect(payload).toContain("62070503***");
     expect(payload).toContain("011412345678000190");
     expect(payload?.slice(-4)).toBe(calculateCrc16CcittFalse(payload?.slice(0, -4) ?? ""));
+  });
+
+  it.each([
+    [{ amountPaid: 30 }, 70, "540570.00"],
+    [{ amountPaid: 30, creditApplied: 20 }, 50, "540550.00"],
+  ])("keeps the visible and encoded Pix amounts canonical for %o", (overrides, expectedAmount, encodedAmount) => {
+    const projection = createOrderReceiptPixProjection(createOrder(overrides), settings, profile);
+
+    expect(projection?.amount).toBe(expectedAmount);
+    expect(projection?.payload).toContain(encodedAmount);
   });
 
   it("returns no charge payload for an ineligible order", () => {

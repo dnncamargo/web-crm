@@ -27,7 +27,7 @@ import { usePrinters } from "../printers/usePrinters";
 import { OrderReceipt } from "./components/OrderReceipt";
 import { ORDER_RECEIPT_LOGO_SRC } from "./orderReceiptBrand";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
-import { createOrderReceiptPixPayload, getOrderReceiptPixAmount } from "./orderReceiptPix";
+import { createOrderReceiptPixProjection, getOrderReceiptPixAmount } from "./orderReceiptPix";
 import {
   isOrderReceiptPixOptionDisabled,
   isPreparedReceiptCurrent,
@@ -121,6 +121,7 @@ export function OrderReceiptPage() {
   const pixEligible = pixAmount !== null;
   const isPixIncluded = includePix && pixEligible;
   let pixPayload: string | null = null;
+  let pixPresentationAmount: number | null = null;
   let pixPayloadError = "";
 
   if (isPixIncluded) {
@@ -134,7 +135,9 @@ export function OrderReceiptPage() {
       pixPayloadError = "Aguardando o Perfil da loja para gerar o QR Code Pix…";
     } else {
       try {
-        pixPayload = createOrderReceiptPixPayload(order, pixSettings, storeProfile);
+        const pixProjection = createOrderReceiptPixProjection(order, pixSettings, storeProfile);
+        pixPayload = pixProjection?.payload ?? null;
+        pixPresentationAmount = pixProjection?.amount ?? null;
       } catch (error: unknown) {
         pixPayloadError = error instanceof Error
           ? error.message
@@ -158,6 +161,7 @@ export function OrderReceiptPage() {
     printer: PrinterConfiguration,
     receiptStoreProfile: StoreProfile,
     receiptPixQr: PrintJobRaster | null,
+    receiptPixAmount: number | null,
   ) => {
     const document = createOrderReceiptDocument(receiptOrder, receiptProducts);
     let logo: PrintJobRaster | undefined;
@@ -172,7 +176,7 @@ export function OrderReceiptPage() {
       columns: getPrintColumnsForPaperWidth(printer.paperWidthMm),
       brandName: receiptStoreProfile.displayName,
       logo,
-      ...(receiptPixQr ? { pixQr: receiptPixQr } : {}),
+      ...(receiptPixQr ? { pixQr: receiptPixQr, pixAmount: receiptPixAmount ?? undefined } : {}),
     });
     return encodePrintJob(job);
   }, []);
@@ -250,8 +254,9 @@ export function OrderReceiptPage() {
     const preparedIncludePix = isPixIncluded;
     const preparedPixPayload = isPixIncluded ? pixPayload : null;
     const preparedPixQr = isPixIncluded ? pixQr : null;
+    const preparedPixAmount = isPixIncluded ? pixPresentationAmount : null;
 
-    void prepareReceiptBytes(order, products, defaultPrinter, storeProfile, preparedPixQr).then((bytes) => {
+    void prepareReceiptBytes(order, products, defaultPrinter, storeProfile, preparedPixQr, preparedPixAmount).then((bytes) => {
       if (cancelled) {
         return;
       }
@@ -274,7 +279,7 @@ export function OrderReceiptPage() {
     return () => {
       cancelled = true;
     };
-  }, [defaultPrinter, isPixIncluded, loading, loadingPrinters, order, pixPayload, pixPrintBlocked, pixQr, prepareReceiptBytes, printersError, products, storeProfile]);
+  }, [defaultPrinter, isPixIncluded, loading, loadingPrinters, order, pixPayload, pixPrintBlocked, pixPresentationAmount, pixQr, prepareReceiptBytes, printersError, products, storeProfile]);
 
   const refreshCompanionReadiness = useCallback(async () => {
     try {
@@ -479,6 +484,7 @@ export function OrderReceiptPage() {
     try {
       const printer = loadingPrinters || printersError ? null : defaultPrinter;
       const requestedPixQr = isPixIncluded ? pixQr : null;
+      const requestedPixAmount = isPixIncluded ? pixPresentationAmount : null;
       setLastAttemptPrinter(printer);
       const result = await printReceiptAutomatically({
         orderId: orderId ?? "",
@@ -495,7 +501,7 @@ export function OrderReceiptPage() {
           if (!printer || !storeProfile) {
             throw new Error("Nenhuma impressora térmica ativa foi selecionada.");
           }
-          return prepareReceiptBytes(order, products, printer, storeProfile, requestedPixQr);
+          return prepareReceiptBytes(order, products, printer, storeProfile, requestedPixQr, requestedPixAmount);
         },
         print: async (attemptPrinter, bytes, jobId) => {
           if (printStatusOwnerRef.current === statusOwner) {
@@ -695,6 +701,7 @@ export function OrderReceiptPage() {
             products={products}
             storeDisplayName={storeProfile.displayName}
             pixPayload={pixPayload ?? undefined}
+            pixAmount={pixPresentationAmount ?? undefined}
           />
         </>
       )}

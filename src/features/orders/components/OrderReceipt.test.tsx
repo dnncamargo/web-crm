@@ -45,7 +45,7 @@ describe("OrderReceipt", () => {
     expect(markup).not.toContain("Copia e Cola");
   });
 
-  it("renders only the QR presentation when a Pix payload is supplied", () => {
+  it("renders the canonical Pix amount with the QR presentation", () => {
     const payload = createStaticPixPayload({
       key: "123e4567-e12b-12d1-a456-426655440000",
       merchantName: "Loja Central",
@@ -58,14 +58,30 @@ describe("OrderReceipt", () => {
         products={products}
         storeDisplayName="Loja Central"
         pixPayload={payload}
+        pixAmount={70}
       />,
     );
 
     expect(markup).toContain('aria-label="Pagamento Pix"');
+    expect(markup).toContain("Valor Pix:");
+    expect(markup).toContain("R$ 70,00");
     expect(markup).toContain("<title>QR Code Pix</title>");
     expect(markup).toContain('width="256"');
     expect(markup).not.toContain(payload);
     expect(markup).not.toContain("123e4567-e12b-12d1-a456-426655440000");
     expect(markup).not.toContain("Copia e Cola");
+  });
+
+  it("does not render the Pix amount when the QR presentation is not supplied", () => {
+    const markup = renderToStaticMarkup(
+      <OrderReceipt
+        order={order}
+        products={products}
+        storeDisplayName="Loja Central"
+        pixAmount={70}
+      />,
+    );
+
+    expect(markup).not.toContain("Valor Pix");
   });
 });
