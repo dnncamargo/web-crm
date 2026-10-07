@@ -36,3 +36,12 @@ export function resolveEntityById<T extends { id: string }>(entities: T[], entit
 
   return entities.find((entity) => entity.id === entityId);
 }
+
+export function shouldProcessOpenEntityNavigation(
+  handledLocationKey: string | null,
+  locationKey: string,
+  openEntityId: string | null,
+  loading: boolean,
+) {
+  return Boolean(openEntityId) && !loading && handledLocationKey !== locationKey;
+}

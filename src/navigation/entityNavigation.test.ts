@@ -5,6 +5,7 @@ import {
   createOpenEntityNavigationState,
   getOpenEntityId,
   resolveEntityById,
+  shouldProcessOpenEntityNavigation,
 } from "./entityNavigation";
 
 describe("entity navigation state", () => {
@@ -39,5 +40,32 @@ describe("entity navigation state", () => {
     expect(clearOpenEntityNavigationState({ openEntityId: "order-1", returnTo: "/pedidos" })).toEqual({ returnTo: "/pedidos" });
     expect(getOpenEntityId(clearOpenEntityNavigationState({ openEntityId: "order-1" }))).toBeNull();
     expect(getOpenEntityId(null)).toBeNull();
+  });
+
+  it("processes an open intent once per location entry", () => {
+    let handledLocationKey: string | null = null;
+
+    expect(shouldProcessOpenEntityNavigation(handledLocationKey, "entry-1", "client-1", false)).toBe(true);
+    handledLocationKey = "entry-1";
+
+    expect(shouldProcessOpenEntityNavigation(handledLocationKey, "entry-1", "client-1", false)).toBe(false);
+    expect(shouldProcessOpenEntityNavigation(handledLocationKey, "entry-2", "client-1", false)).toBe(true);
+  });
+
+  it("does not mark a loading entry and allows it after loading completes", () => {
+    const handledLocationKey: string | null = null;
+
+    expect(shouldProcessOpenEntityNavigation(handledLocationKey, "entry-1", "client-1", true)).toBe(false);
+    expect(handledLocationKey).toBeNull();
+    expect(shouldProcessOpenEntityNavigation(handledLocationKey, "entry-1", "client-1", false)).toBe(true);
+  });
+
+  it("allows a stale intent to be consumed once without replay", () => {
+    let handledLocationKey: string | null = null;
+
+    expect(shouldProcessOpenEntityNavigation(handledLocationKey, "entry-1", "missing", false)).toBe(true);
+    handledLocationKey = "entry-1";
+
+    expect(shouldProcessOpenEntityNavigation(handledLocationKey, "entry-1", "missing", false)).toBe(false);
   });
 });
