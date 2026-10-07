@@ -46,38 +46,52 @@ export function ClientDetailsPanelContent({
         <section className="panel-column panel-column-scroll is-plain">
           <section className="panel-section">
             <div className="panel-section-title">
-              <span>Resumo do cliente</span>
+              <span>Identidade e relacionamento</span>
               <small>Dados principais e histórico do relacionamento.</small>
             </div>
 
-            <div className="compact-summary-box panel-details-summary">
-              <span>
-                Cliente: <strong>{client.name}</strong>
-              </span>
+            <div className="panel-block-grid">
+              <div className="panel-block">
+                <span>Cliente</span>
+                <strong>{client.name}</strong>
+              </div>
 
-              <span>
-                Contato: <strong>{primaryContact?.value || "Não informado"}</strong>
-              </span>
+              <div className="panel-block">
+                <span>Contato principal</span>
+                <strong>{primaryContact?.value || "Não informado"}</strong>
+              </div>
 
-              <span>
-                Aniversário: <strong>{client.birthDate ? formatDateBR(client.birthDate) : "Não informado"}</strong>
-              </span>
+              <div className="panel-block">
+                <span>Aniversário</span>
+                <strong>{client.birthDate ? formatDateBR(client.birthDate) : "Não informado"}</strong>
+              </div>
 
-              <span>
-                Frequência: <strong>{frequencyLabels[client.contactFrequency]}</strong>
-              </span>
+              <div className="panel-block">
+                <span>Frequência</span>
+                <strong>{frequencyLabels[client.contactFrequency]}</strong>
+              </div>
 
-              <span>
-                Última interação: <strong>{formatClientDateTimeBR(client.lastInteractionAt)}</strong>
-              </span>
+              <div className="panel-block">
+                <span>Última interação</span>
+                <strong>{formatClientDateTimeBR(client.lastInteractionAt)}</strong>
+              </div>
 
-              <span>
-                Pedidos: <strong>{client.totalOrders ?? 0}</strong>
-              </span>
+              <div className="panel-block">
+                <span>Pedidos registrados</span>
+                <strong>{client.totalOrders ?? 0}</strong>
+              </div>
+            </div>
+          </section>
 
-              <span className="summary-full">
-                Endereço principal: <strong>{primaryAddressText}</strong>
-              </span>
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Endereço principal</span>
+              <small>Preferência atual para este cliente.</small>
+            </div>
+
+            <div className="panel-block">
+              <span>Localização</span>
+              <strong>{primaryAddressText}</strong>
             </div>
           </section>
 

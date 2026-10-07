@@ -1,10 +1,12 @@
 import { Card } from "../../../components/ui/Card";
 
 interface ClientFiltersPanelProps {
+  search: string;
   showOnlyFavorites: boolean;
   showOnlyActive: boolean;
   showOnlyWithContactFrequency: boolean;
   showOnlyWithBirthDate: boolean;
+  onSearchChange: (value: string) => void;
   onToggleFavorites: () => void;
   onToggleActive: () => void;
   onToggleWithContactFrequency: () => void;
@@ -12,10 +14,12 @@ interface ClientFiltersPanelProps {
 }
 
 export function ClientFiltersPanel({
+  search,
   showOnlyFavorites,
   showOnlyActive,
   showOnlyWithContactFrequency,
   showOnlyWithBirthDate,
+  onSearchChange,
   onToggleFavorites,
   onToggleActive,
   onToggleWithContactFrequency,
@@ -23,7 +27,16 @@ export function ClientFiltersPanel({
 }: ClientFiltersPanelProps) {
   return (
     <Card>
-      <div className="toolbar">
+      <div className="toolbar search-filter-toolbar">
+        <input
+          className="toolbar-search"
+          type="search"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Buscar clientes"
+          aria-label="Buscar clientes"
+        />
+
         <button
           type="button"
           className={showOnlyFavorites ? "filter-pill active" : "filter-pill"}

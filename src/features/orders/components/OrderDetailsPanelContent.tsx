@@ -8,16 +8,21 @@ import { formatDateTimeBR, getOrderBalanceInfo, getOrderEffectivePaid, getOrderI
 interface OrderDetailsPanelContentProps {
   order: Order;
   products: Product[];
+  tagLabelsById: Record<string, string>;
   onEdit: () => void;
   onPrint: () => void;
 }
 
-export function OrderDetailsPanelContent({ order, products, onEdit, onPrint }: OrderDetailsPanelContentProps) {
+export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdit, onPrint }: OrderDetailsPanelContentProps) {
   const paymentStatus = getPaymentStatus(order);
   const balanceInfo = getOrderBalanceInfo(order);
   const creditApplied = order.creditApplied ?? 0;
   const creditGenerated = order.creditGenerated ?? 0;
   const effectivePaid = getOrderEffectivePaid(order);
+  const orderTagLabels = order.tagIds.map((tagId) => ({
+    id: tagId,
+    label: (tagLabelsById[tagId] ?? tagId).replace(/^#+/, ""),
+  }));
 
   return (
     <div className="panel-view">
@@ -25,23 +30,30 @@ export function OrderDetailsPanelContent({ order, products, onEdit, onPrint }: O
         <section className="panel-column panel-column-scroll is-plain">
           <section className="panel-section">
             <div className="panel-section-title">
-              <span>Resumo do pedido</span>
+              <span>Cliente e agenda</span>
               <small>Dados principais, entrega e situação atual.</small>
             </div>
 
-            <div className="compact-summary-box panel-details-summary">
-              <span>
-                Cliente: <strong>{order.clientName}</strong>
-              </span>
-              <span>
-                Entrega: <strong>{formatDateTimeBR(order.deliveryDateTime)}</strong>
-              </span>
-              <span>
-                Status: <strong>{getOrderStatusLabel(order.orderStatus)}</strong>
-              </span>
-              <span>
-                Pagamento: <strong>{getPaymentStatusLabel(paymentStatus)}</strong>
-              </span>
+            <div className="panel-block-grid">
+              <div className="panel-block">
+                <span>Cliente</span>
+                <strong>{order.clientName}</strong>
+              </div>
+
+              <div className="panel-block">
+                <span>Entrega</span>
+                <strong>{formatDateTimeBR(order.deliveryDateTime)}</strong>
+              </div>
+
+              <div className="panel-block">
+                <span>Status do pedido</span>
+                <strong>{getOrderStatusLabel(order.orderStatus)}</strong>
+              </div>
+
+              <div className="panel-block">
+                <span>Status do pagamento</span>
+                <strong>{getPaymentStatusLabel(paymentStatus)}</strong>
+              </div>
             </div>
           </section>
 
@@ -52,6 +64,7 @@ export function OrderDetailsPanelContent({ order, products, onEdit, onPrint }: O
               </div>
 
               <div className="panel-note">
+                <span>{order.addressSnapshot.label}</span>
                 <p>
                   {order.addressSnapshot.street}
                   {order.addressSnapshot.number ? `, ${order.addressSnapshot.number}` : ""}
@@ -103,33 +116,50 @@ export function OrderDetailsPanelContent({ order, products, onEdit, onPrint }: O
               <small>Valores consolidados em um único bloco.</small>
             </div>
 
-            <div className="compact-summary-box panel-details-summary">
-              <span>
-                Produtos: <strong>{formatCurrencyBR(order.subtotal)}</strong>
-              </span>
-              <span>
-                Entrega: <strong>{formatCurrencyBR(order.deliveryFee)}</strong>
-              </span>
-              <span>
-                Total: <strong>{formatCurrencyBR(order.total)}</strong>
-              </span>
-              <span>
-                Pago: <strong>{formatCurrencyBR(order.amountPaid)}</strong>
-              </span>
+            <div className="panel-block-grid">
+              <div className="panel-block">
+                <span>Produtos</span>
+                <strong>{formatCurrencyBR(order.subtotal)}</strong>
+              </div>
+
+              <div className="panel-block">
+                <span>Taxa de entrega</span>
+                <strong>{formatCurrencyBR(order.deliveryFee)}</strong>
+              </div>
+
+              <div className="panel-block panel-block-total">
+                <span>Total</span>
+                <strong>{formatCurrencyBR(order.total)}</strong>
+              </div>
+
+              <div className="panel-block">
+                <span>Pago</span>
+                <strong>{formatCurrencyBR(order.amountPaid)}</strong>
+              </div>
+
               {creditApplied > 0 && (
-                <span>
-                  Crédito usado: <strong>{formatCurrencyBR(creditApplied)}</strong>
-                </span>
+                <div className="panel-block">
+                  <span>Crédito usado</span>
+                  <strong>{formatCurrencyBR(creditApplied)}</strong>
+                </div>
               )}
+
               {creditGenerated > 0 && (
-                <span>
-                  Crédito gerado: <strong>{formatCurrencyBR(creditGenerated)}</strong>
-                </span>
+                <div className="panel-block">
+                  <span>Crédito gerado</span>
+                  <strong>{formatCurrencyBR(creditGenerated)}</strong>
+                </div>
               )}
-              <span>Pago considerado: <strong>{formatCurrencyBR(effectivePaid)}</strong></span>
-              <span className="summary-full">
-                {balanceInfo.label}: <strong>{formatCurrencyBR(balanceInfo.amount)}</strong>
-              </span>
+
+              <div className="panel-block">
+                <span>Pago considerado</span>
+                <strong>{formatCurrencyBR(effectivePaid)}</strong>
+              </div>
+
+              <div className="panel-block panel-block-total">
+                <span>{balanceInfo.label}</span>
+                <strong>{formatCurrencyBR(balanceInfo.amount)}</strong>
+              </div>
             </div>
           </section>
 
@@ -146,13 +176,14 @@ export function OrderDetailsPanelContent({ order, products, onEdit, onPrint }: O
 
           <section className="panel-section">
             <div className="panel-section-title">
-              <span>Marcadores</span>
+              <span>Status e etiquetas</span>
             </div>
 
             <div className="panel-badges panel-badges-visible">
               <Badge>{getOrderStatusLabel(order.orderStatus)}</Badge>
               <Badge>{getPaymentStatusLabel(paymentStatus)}</Badge>
               {creditGenerated > 0 && <Badge>{`Crédito ${formatCurrencyBR(creditGenerated)}`}</Badge>}
+              {orderTagLabels.map((tag) => <Badge key={tag.id}>{tag.label}</Badge>)}
             </div>
           </section>
         </section>

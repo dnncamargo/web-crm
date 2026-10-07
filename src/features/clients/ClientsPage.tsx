@@ -35,7 +35,7 @@ export function ClientsPage() {
 
   const tagLabelsById = useMemo(() => Object.fromEntries(activeTags.map((tag) => [tag.id, tag.label])), [activeTags]);
 
-  const { clients, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
+  const { clients, search, setSearch, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
 
   const { getAddressesByClient, saveAddressForClient } = useAddresses();
 
@@ -292,10 +292,12 @@ export function ClientsPage() {
 
       {showFilters && (
         <ClientFiltersPanel
+          search={search}
           showOnlyFavorites={showOnlyFavorites}
           showOnlyActive={showOnlyActive}
           showOnlyWithContactFrequency={showOnlyWithContactFrequency}
           showOnlyWithBirthDate={showOnlyWithBirthDate}
+          onSearchChange={setSearch}
           onToggleFavorites={() => setShowOnlyFavorites((current) => !current)}
           onToggleActive={() => setShowOnlyActive((current) => !current)}
           onToggleWithContactFrequency={() => setShowOnlyWithContactFrequency((current) => !current)}
