@@ -19,6 +19,7 @@ import type { NewOrderData, Order } from "./orderTypes";
 import { compareOrderCreationDesc, getPaymentStatus } from "./orderUtils";
 import { useOrders } from "./useOrders";
 import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent";
+import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
 
 type OrderPanelState = { type: "create-order" } | { type: "edit-order"; order: Order } | { type: "view-order"; order: Order } | null;
 
@@ -188,6 +189,8 @@ export function OrdersPage() {
   function openViewOrder(selectedOrder: Order) {
     setPanel({ type: "view-order", order: selectedOrder });
   }
+
+  useOpenEntityFromNavigation({ entities: orders, loading: loadingOrders, onOpen: openViewOrder });
 
   function openStackedEditOrder(selectedOrder: Order) {
     setStackedEditOrder(selectedOrder);

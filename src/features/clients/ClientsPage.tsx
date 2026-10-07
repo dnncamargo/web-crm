@@ -18,6 +18,7 @@ import { ClientFiltersPanel } from "./components/ClientFiltersPanel";
 import { ClientInteractionForm } from "./components/ClientInteractionForm";
 import { ClientListView } from "./components/ClientListView";
 import { useClients } from "./useClients";
+import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
 
 type ClientMainPanelState = { type: "create-client" } | { type: "view-client"; client: Client } | null;
 
@@ -35,7 +36,7 @@ export function ClientsPage() {
 
   const tagLabelsById = useMemo(() => Object.fromEntries(activeTags.map((tag) => [tag.id, tag.label])), [activeTags]);
 
-  const { filteredClients, search, setSearch, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
+  const { clients, filteredClients, search, setSearch, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
 
   const { getAddressesByClient, saveAddressForClient } = useAddresses();
 
@@ -100,6 +101,8 @@ export function ClientsPage() {
     setPanel({ type: "view-client", client });
     setStackedPanel(null);
   }
+
+  useOpenEntityFromNavigation({ entities: clients, loading, onOpen: openViewClient });
 
   function updateViewedClient(clientId: string, data: UpdateClientData) {
     setPanel((currentPanel) => {

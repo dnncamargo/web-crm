@@ -10,6 +10,7 @@ import { getOrderItemProductName } from "../../features/orders/orderUtils";
 import { useTags } from "../../features/tags/useTags";
 import { formatCurrencyBR } from "../../utils/money";
 import { useAuth } from "../../features/auth/useAuth";
+import { createOpenEntityNavigationState } from "../../navigation/entityNavigation";
 import { UserIdentityMenu } from "./UserIdentityMenu";
 
 const navItems = [
@@ -159,7 +160,13 @@ export function AppShell() {
                       ) : (
                         <div className="global-search-results">
                           {section.results.map((result) => (
-                            <Link className="global-search-result" key={result.id} to={section.to} onClick={() => setGlobalSearch("")}>
+                            <Link
+                              className="global-search-result"
+                              key={result.id}
+                              to={section.to}
+                              state={createOpenEntityNavigationState(result.id)}
+                              onClick={() => setGlobalSearch("")}
+                            >
                               <strong>{result.title}</strong>
                               <span>{result.meta}</span>
                             </Link>

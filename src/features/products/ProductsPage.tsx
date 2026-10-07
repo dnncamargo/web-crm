@@ -12,6 +12,7 @@ import { ProductForm } from "./components/ProductForm";
 import { ProductListView } from "./components/ProductListView";
 import type { NewProductData, Product } from "./productTypes";
 import { useProducts } from "./useProducts";
+import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
 
 type ProductPanelState =
   | { type: "create-product" }
@@ -20,6 +21,7 @@ type ProductPanelState =
 
 export function ProductsPage() {
   const {
+    products,
     filteredProducts,
     showOnlyActive,
     setShowOnlyActive,
@@ -72,6 +74,8 @@ export function ProductsPage() {
   function openViewProduct(product: Product) {
     setPanel({ type: "view-product", product });
   }
+
+  useOpenEntityFromNavigation({ entities: products, loading: loadingProducts, onOpen: openViewProduct });
 
   function openStackedEditProduct(product: Product) {
     setStackedEditProduct(product);
