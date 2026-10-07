@@ -64,7 +64,6 @@ export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdi
               </div>
 
               <div className="panel-note">
-                <span>{order.addressSnapshot.label}</span>
                 <p>
                   {order.addressSnapshot.street}
                   {order.addressSnapshot.number ? `, ${order.addressSnapshot.number}` : ""}

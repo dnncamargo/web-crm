@@ -35,7 +35,7 @@ export function ClientsPage() {
 
   const tagLabelsById = useMemo(() => Object.fromEntries(activeTags.map((tag) => [tag.id, tag.label])), [activeTags]);
 
-  const { clients, search, setSearch, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
+  const { filteredClients, search, setSearch, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
 
   const { getAddressesByClient, saveAddressForClient } = useAddresses();
 
@@ -51,13 +51,13 @@ export function ClientsPage() {
 
   const visibleClients = useMemo(
     () =>
-      filterVisibleClients(clients, {
+      filterVisibleClients(filteredClients, {
         showOnlyFavorites,
         showOnlyActive,
         showOnlyWithContactFrequency,
         showOnlyWithBirthDate,
       }),
-    [clients, showOnlyActive, showOnlyFavorites, showOnlyWithBirthDate, showOnlyWithContactFrequency],
+    [filteredClients, showOnlyActive, showOnlyFavorites, showOnlyWithBirthDate, showOnlyWithContactFrequency],
   );
 
   const mainPanelSize = panel?.type === "view-client" ? "wide" : "normal";
