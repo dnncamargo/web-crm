@@ -32,7 +32,12 @@ vi.mock("../store-profile/storeProfileService", () => ({
   subscribeToStoreProfile: vi.fn(),
 }));
 
-import { PixPage } from "./PixPage";
+import {
+  getPixRecipientKeySourceDescription,
+  getPixRecipientValueDescription,
+  PixPage,
+  shouldShowStoreProfileCorrectionLink,
+} from "./PixPage";
 import { PixQrCode } from "./components/PixQrCode";
 import { createStaticPixPayloadFromSettings } from "./pixBrCode";
 import { derivePixPreview } from "./pixPreview";
@@ -44,6 +49,18 @@ const validProfile = {
 };
 
 describe("PixPage layout", () => {
+  it("keeps helper text and correction links scoped to the recipient", () => {
+    expect(getPixRecipientKeySourceDescription("business")).toContain("Perfil da loja");
+    expect(getPixRecipientValueDescription("business")).toContain("Perfil da loja");
+    expect(shouldShowStoreProfileCorrectionLink("business", true)).toBe(true);
+
+    expect(getPixRecipientKeySourceDescription("person")).toContain("recebedor Pessoa física");
+    expect(getPixRecipientValueDescription("person")).toContain("recebedor Pessoa física");
+    expect(getPixRecipientKeySourceDescription("person")).not.toContain("Perfil da loja");
+    expect(getPixRecipientValueDescription("person")).not.toContain("Perfil da loja");
+    expect(shouldShowStoreProfileCorrectionLink("person", true)).toBe(false);
+  });
+
   it("renders a source selector and read-only value preview", () => {
     const markup = renderToStaticMarkup(
       <MemoryRouter><PixPage /></MemoryRouter>,

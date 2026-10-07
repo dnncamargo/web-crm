@@ -43,6 +43,31 @@ const EMPTY_PERSON_RECIPIENT: PixPersonFormState = {
   city: "",
 };
 
+// These small pure helpers are exported only so the static PixPage tests can cover both recipient modes.
+// eslint-disable-next-line react-refresh/only-export-components
+export function getPixRecipientKeySourceDescription(recipientType: PixRecipientType) {
+  return recipientType === "business"
+    ? "Escolha qual dado atual do Perfil da loja será usado como chave."
+    : "Escolha qual dado do recebedor Pessoa física será usado como chave.";
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function getPixRecipientValueDescription(recipientType: PixRecipientType) {
+  const source = recipientType === "business"
+    ? "no Perfil da loja"
+    : "do recebedor Pessoa física";
+
+  return `Prévia do valor atual ${source}; a codificação Pix é gerada abaixo.`;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function shouldShowStoreProfileCorrectionLink(
+  recipientType: PixRecipientType,
+  hasStoreProfile: boolean,
+) {
+  return recipientType === "business" && hasStoreProfile;
+}
+
 function toPersonFormState(personRecipient?: PixPersonRecipient): PixPersonFormState {
   return {
     name: personRecipient?.name ?? "",
@@ -299,7 +324,7 @@ export function PixPage() {
           <section className="panel-section">
             <div className="panel-section-title">
               <span>Chave Pix</span>
-              <small>Escolha qual dado atual do Perfil da loja será usado como chave.</small>
+              <small>{getPixRecipientKeySourceDescription(selectedRecipientType)}</small>
             </div>
 
             <div className="input-group single-column">
@@ -323,7 +348,7 @@ export function PixPage() {
           <section className="panel-section">
             <div className="panel-section-title">
               <span>Valor utilizado</span>
-              <small>Prévia do valor atual no Perfil da loja; a codificação Pix é gerada abaixo.</small>
+              <small>{getPixRecipientValueDescription(selectedRecipientType)}</small>
             </div>
 
             <div className="panel-block">
@@ -361,7 +386,7 @@ export function PixPage() {
             {preview.error && (
               <div className="pix-preview-error">
                 <p className="error-text" role="alert">{preview.error}</p>
-                {storeProfile && (
+                {shouldShowStoreProfileCorrectionLink(selectedRecipientType, Boolean(storeProfile)) && (
                   <Link className="text-link" to={APP_ROUTES.storeProfile}>
                     Corrigir no Perfil da loja
                   </Link>
