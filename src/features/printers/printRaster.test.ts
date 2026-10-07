@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { packRgbaPixelsToPrintRaster } from "./printRaster";
+import { createPrintRasterFromCanvas, packRgbaPixelsToPrintRaster } from "./printRaster";
 
 function rgba(...pixels: Array<[number, number, number, number]>) {
   return new Uint8ClampedArray(pixels.flat());
@@ -68,5 +68,25 @@ describe("packRgbaPixelsToPrintRaster", () => {
     );
 
     expect(raster.data).toEqual(new Uint8Array([0x40]));
+  });
+});
+
+describe("createPrintRasterFromCanvas", () => {
+  it("reads canvas pixels and delegates to the RGBA packer", () => {
+    const pixels = new Uint8ClampedArray([
+      0, 0, 0, 255,
+      255, 255, 255, 255,
+    ]);
+    const canvas = {
+      width: 2,
+      height: 1,
+      getContext: () => ({ getImageData: () => ({ data: pixels }) }),
+    } as unknown as HTMLCanvasElement;
+
+    expect(createPrintRasterFromCanvas(canvas)).toEqual({
+      widthDots: 2,
+      heightDots: 1,
+      data: new Uint8Array([0x80]),
+    });
   });
 });

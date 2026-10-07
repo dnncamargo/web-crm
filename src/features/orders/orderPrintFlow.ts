@@ -19,6 +19,7 @@ interface PrintReceiptAutomaticallyOptions {
   createJobId: () => string;
   preflight: (printer: PrinterConfiguration) => Promise<void>;
   prepareBytes: () => Promise<Uint8Array>;
+  fallbackToBrowserOnPrepareError?: boolean;
   print: (printer: PrinterConfiguration, bytes: Uint8Array, jobId: string) => Promise<void>;
   browserPrint: () => void;
   onRecoverableCompanion?: (attempt: OrderPrintAttempt) => void;
@@ -92,6 +93,7 @@ export async function printReceiptAutomatically({
   createJobId,
   preflight,
   prepareBytes,
+  fallbackToBrowserOnPrepareError = true,
   print,
   browserPrint,
   onRecoverableCompanion,
@@ -106,7 +108,11 @@ export async function printReceiptAutomatically({
   let bytes: Uint8Array;
   try {
     bytes = await prepareBytes();
-  } catch {
+  } catch (error) {
+    if (!fallbackToBrowserOnPrepareError) {
+      throw error;
+    }
+
     browserPrint();
     return { route: "browser", jobId };
   }

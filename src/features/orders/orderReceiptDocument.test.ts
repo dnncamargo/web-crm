@@ -202,6 +202,37 @@ describe("OrderReceiptDocument", () => {
     expect(Array.from(encodePrintJob(job)).slice(-4)).toEqual([0x1d, 0x56, 0x42, 0x01]);
   });
 
+  it("places the optional Pix raster centered before the final feed and cut", () => {
+    const pixQr: PrintJobRaster = {
+      widthDots: 8,
+      heightDots: 1,
+      data: new Uint8Array([0x55]),
+    };
+    const document = createOrderReceiptDocument(createOrder({ amountPaid: 10 }), products);
+    const job = createOrderReceiptPrintJob(document, {
+      columns: 48,
+      brandName: storeDisplayName,
+      pixQr,
+    });
+    const rasterIndex = job.commands.findIndex(
+      (command) => command.type === "raster" && command.raster === pixQr,
+    );
+    const cutIndex = job.commands.findIndex((command) => command.type === "cut");
+
+    expect(job.commands[rasterIndex - 1]).toEqual({ type: "alignment", alignment: "center" });
+    expect(rasterIndex).toBeGreaterThan(-1);
+    expect(rasterIndex).toBeLessThan(cutIndex);
+    expect(job.commands.slice(rasterIndex + 1)).toEqual([
+      { type: "feed", lines: 3 },
+      { type: "cut", mode: "partial" },
+    ]);
+    expect(job.commands.filter((command) => command.type === "text").some((command) => command.text.includes("540"))).toBe(false);
+
+    const bytes = encodePrintJob(job);
+    expect(Array.from(bytes)).toContain(0x55);
+    expect(Array.from(bytes.slice(-4))).toEqual([0x1d, 0x56, 0x42, 0x01]);
+  });
+
   it("bolds requested headings, the customer label, and currency values", () => {
     const document = createOrderReceiptDocument(createOrder({ creditApplied: 5, creditGenerated: 2 }), products);
     const job = createOrderReceiptPrintJob(document, {

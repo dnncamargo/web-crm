@@ -532,13 +532,38 @@ recebedor selecionado + fonte de chave selecionada
 ```
 
 O payload e a representação em QR Code são derivados em memória e não são
-persistidos. O payload bruto não é exibido nesta interface. Neste checkpoint,
-ele não contém valor de Pedido; a integração com Pedidos e recibos permanece
-como trabalho futuro. O escopo futuro de recibos impressos será somente QR Code,
-sem Pix Copia e Cola. Pix Copia e Cola é uma funcionalidade futura separada,
-que poderá reutilizar o payload em um fluxo de compartilhamento por WhatsApp ou
-e-mail. A implementação segue o Manual de Padrões para Iniciação do Pix do
-Banco Central do Brasil, versão 2.10.0.
+persistidos. O payload bruto não é exibido no recibo. A composição transitória
+de um recibo segue:
+
+```text
+Order
+→ saldo restante canônico
+
+PixSettings + StoreProfile
+→ projeção de recebedor/chave
+
+escolha transitória do usuário + saldo restante positivo
+→ BR Code estático com o valor restante
+→ QR Code para apresentação HTML e raster para impressão térmica
+→ emissão do recibo
+```
+
+A inclusão do QR Code não é persistida no `Order`, em `PixSettings`, no
+Firestore, em `localStorage` ou em `sessionStorage`; ela é uma escolha local da
+página durante a emissão atual. Somente saldo restante positivo é cobrável:
+Pedidos quitados ou cancelados não oferecem a opção, enquanto um Pedido
+`completed` ainda pode oferecê-la se houver saldo positivo. O valor do Pix é o
+saldo restante, não o total, e `creditApplied` participa desse cálculo;
+`creditGenerated` não altera o valor devido. Neste checkpoint, o `txid`
+permanece `***` e não recebe o ID do Pedido.
+
+O recibo exibe somente o QR Code, sem Pix Copia e Cola, payload bruto ou chave
+Pix. Browser e térmica usam o mesmo payload canônico. No caminho térmico, o
+QR Code é convertido pelo caminho raster genérico antes da codificação ESC/POS;
+o `OrderPrintAttempt` congela os bytes finais, preservando o QR Code exato
+durante um wake Android. Pix Copia e Cola é uma funcionalidade futura separada.
+A implementação segue o Manual de Padrões para Iniciação do Pix do Banco
+Central do Brasil, versão 2.10.0.
 
 ## 16. Impressora
 
@@ -579,6 +604,11 @@ A separação arquitetural é:
 Order
 → OrderReceiptDocument
 → renderizadores HTML ou PrintJob
+
+Order + escolha Pix transitória
+→ payload BR Code canônico
+→ QR SVG no recibo HTML ou QR canvas convertido em PrintJobRaster
+→ PrintJob
 
 PrintJob
 → encoder ESC/POS

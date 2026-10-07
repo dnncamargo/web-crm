@@ -6,6 +6,7 @@ export interface OrderReceiptPrintJobOptions {
   columns: number;
   brandName: string;
   logo?: PrintJobRaster;
+  pixQr?: PrintJobRaster;
 }
 
 function addWrappedText(commands: PrintJob["commands"], text: string, columns: number) {
@@ -96,6 +97,12 @@ export function createOrderReceiptPrintJob(
   commands.push({ type: "bold", enabled: true });
   addKeyValue(commands, "TOTAL", document.summary.total);
   commands.push({ type: "bold", enabled: false });
+
+  if (options.pixQr) {
+    commands.push({ type: "alignment", alignment: "center" });
+    commands.push({ type: "raster", raster: options.pixQr });
+  }
+
   commands.push({ type: "feed", lines: 3 });
   commands.push({ type: "cut", mode: "partial" });
 
