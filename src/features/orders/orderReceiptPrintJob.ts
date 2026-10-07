@@ -1,11 +1,14 @@
 import type { OrderReceiptDocument } from "./orderReceiptDocument";
 import { wrapPrintText } from "../printers/printJobLayout";
 import type { PrintJob, PrintJobRaster } from "../printers/printJobTypes";
+import { formatCurrencyBR } from "../../utils/money";
 
 export interface OrderReceiptPrintJobOptions {
   columns: number;
   brandName: string;
   logo?: PrintJobRaster;
+  pixQr?: PrintJobRaster;
+  pixAmount?: number;
 }
 
 function addWrappedText(commands: PrintJob["commands"], text: string, columns: number) {
@@ -96,6 +99,18 @@ export function createOrderReceiptPrintJob(
   commands.push({ type: "bold", enabled: true });
   addKeyValue(commands, "TOTAL", document.summary.total);
   commands.push({ type: "bold", enabled: false });
+
+  if (options.pixQr) {
+    if (options.pixAmount === undefined) {
+      throw new Error("O valor Pix é obrigatório quando o QR Code Pix é incluído.");
+    }
+
+    addBoldWrappedText(commands, "Pix", options.columns);
+    addKeyValue(commands, "Valor Pix:", formatCurrencyBR(options.pixAmount), { valueBold: true });
+    commands.push({ type: "alignment", alignment: "center" });
+    commands.push({ type: "raster", raster: options.pixQr });
+  }
+
   commands.push({ type: "feed", lines: 3 });
   commands.push({ type: "cut", mode: "partial" });
 

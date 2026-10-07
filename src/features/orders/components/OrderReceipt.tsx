@@ -1,4 +1,6 @@
 import type { Product } from "../../products/productTypes";
+import { PixQrCode } from "../../pix/components/PixQrCode";
+import { formatCurrencyBR } from "../../../utils/money";
 import type { Order } from "../orderTypes";
 import { ORDER_RECEIPT_LOGO_SRC } from "../orderReceiptBrand";
 import { createOrderReceiptDocument } from "../orderReceiptDocument";
@@ -7,9 +9,11 @@ interface OrderReceiptProps {
   order: Order;
   products: Product[];
   storeDisplayName: string;
+  pixPayload?: string;
+  pixAmount?: number;
 }
 
-export function OrderReceipt({ order, products, storeDisplayName }: OrderReceiptProps) {
+export function OrderReceipt({ order, products, storeDisplayName, pixPayload, pixAmount }: OrderReceiptProps) {
   const document = createOrderReceiptDocument(order, products);
 
   return (
@@ -70,6 +74,14 @@ export function OrderReceipt({ order, products, storeDisplayName }: OrderReceipt
           <strong>{document.summary.total}</strong>
         </div>
       </section>
+
+      {pixPayload && pixAmount !== undefined && (
+        <section className="receipt-section receipt-pix" aria-label="Pagamento Pix">
+          <h2>Pix</h2>
+          <p>Valor Pix: <strong>{formatCurrencyBR(pixAmount)}</strong></p>
+          <PixQrCode payload={pixPayload} />
+        </section>
+      )}
     </article>
   );
 }

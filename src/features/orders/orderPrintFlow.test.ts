@@ -109,6 +109,19 @@ describe("order print cutover", () => {
     expect(options.print).not.toHaveBeenCalled();
   });
 
+  it("does not fall back to browser printing when Pix bytes fail to prepare", async () => {
+    const options = createOptions({
+      fallbackToBrowserOnPrepareError: false,
+      prepareBytes: vi.fn(async () => {
+        throw new Error("QR raster is not ready");
+      }),
+    });
+
+    await expect(printReceiptAutomatically(options)).rejects.toThrow("QR raster is not ready");
+    expect(options.browserPrint).not.toHaveBeenCalled();
+    expect(options.print).not.toHaveBeenCalled();
+  });
+
   it("sends prepared bytes through the canonical print client once", async () => {
     const options = createOptions();
 

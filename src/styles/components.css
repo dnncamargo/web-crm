@@ -1072,6 +1072,15 @@
   height: auto;
 }
 
+.pix-qr-raster-source {
+  position: absolute;
+  width: 256px;
+  height: 256px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .pix-preview-error {
   display: grid;
   gap: 6px;
@@ -1130,6 +1139,34 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
+}
+
+.receipt-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.receipt-pix-option {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 4px;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.receipt-pix-option label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+}
+
+.receipt-pix-error {
+  margin: 0;
+  color: var(--danger);
+  line-height: 1.35;
 }
 
 .receipt-print-log {
@@ -1280,6 +1317,21 @@
 .receipt-summary {
   border-bottom: 0;
   padding-bottom: 0;
+}
+
+.receipt-pix {
+  justify-items: center;
+  text-align: center;
+}
+
+.receipt-pix h2 {
+  justify-self: stretch;
+  text-align: left;
+}
+
+.receipt-pix .pix-qr-code {
+  padding: 0;
+  border: 0;
 }
 
 .receipt-summary-row {

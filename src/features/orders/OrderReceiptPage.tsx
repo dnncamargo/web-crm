@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { getDiagnosticRoute } from "../../appRoutes";
+import { APP_ROUTES, getDiagnosticRoute } from "../../appRoutes";
 import { Button } from "../../components/ui/Button";
 import {
   clearPendingPrintCompanionWakeIfMatches,
@@ -15,15 +15,24 @@ import {
 } from "../printers/printCompanionClient";
 import { createPrintCompanionResumeOwner } from "../printers/printCompanionResumeOwner";
 import { useProducts } from "../products/useProducts";
+import { PixQrCodeCanvas } from "../pix/components/PixQrCode";
+import { subscribeToPixSettings } from "../pix/pixService";
+import type { PixSettings } from "../pix/pixTypes";
 import { encodePrintJob } from "../printers/escposEncoder";
 import { getPrintColumnsForPaperWidth } from "../printers/printJobLayout";
 import type { PrintJobRaster } from "../printers/printJobTypes";
-import { loadPrintRaster } from "../printers/printRaster";
+import { createPrintRasterFromCanvas, loadPrintRaster } from "../printers/printRaster";
 import { resolveDefaultPrinter } from "../printers/printerUtils";
 import { usePrinters } from "../printers/usePrinters";
 import { OrderReceipt } from "./components/OrderReceipt";
 import { ORDER_RECEIPT_LOGO_SRC } from "./orderReceiptBrand";
 import { createOrderReceiptDocument } from "./orderReceiptDocument";
+import { createOrderReceiptPixProjection, getOrderReceiptPixAmount } from "./orderReceiptPix";
+import {
+  isOrderReceiptPixOptionDisabled,
+  isPreparedReceiptCurrent,
+  type PreparedReceiptIdentity,
+} from "./orderReceiptPreparation";
 import { createOrderReceiptPrintJob } from "./orderReceiptPrintJob";
 import { subscribeToStoreProfile } from "../store-profile/storeProfileService";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
@@ -57,11 +66,7 @@ function getErrorMessage(error: unknown) {
     : "Não foi possível enviar o recibo para a impressora térmica.";
 }
 
-interface PreparedReceipt {
-  order: Order;
-  products: Product[];
-  storeProfile: StoreProfile;
-  printer: PrinterConfiguration;
+interface PreparedReceipt extends PreparedReceiptIdentity {
   bytes: Uint8Array;
 }
 
@@ -73,6 +78,12 @@ export function OrderReceiptPage() {
   const [storeProfile, setStoreProfile] = useState<StoreProfile | null>(null);
   const [loadingStoreProfile, setLoadingStoreProfile] = useState(true);
   const [storeProfileError, setStoreProfileError] = useState("");
+  const [pixSettings, setPixSettings] = useState<PixSettings | null>(null);
+  const [loadingPixSettings, setLoadingPixSettings] = useState(true);
+  const [pixSettingsError, setPixSettingsError] = useState("");
+  const [includePix, setIncludePix] = useState(false);
+  const [pixRasterState, setPixRasterState] = useState<{ payload: string; raster: PrintJobRaster } | null>(null);
+  const [pixRasterErrorState, setPixRasterErrorState] = useState<{ payload: string; message: string } | null>(null);
   const {
     printers,
     defaultPrinterId,
@@ -106,12 +117,51 @@ export function OrderReceiptPage() {
   const order = orders.find((candidate) => candidate.id === orderId);
   const loading = loadingOrders || loadingProducts || loadingStoreProfile;
   const defaultPrinter = resolveDefaultPrinter(printers, defaultPrinterId);
+  const pixAmount = order ? getOrderReceiptPixAmount(order) : null;
+  const pixEligible = pixAmount !== null;
+  const isPixIncluded = includePix && pixEligible;
+  let pixPayload: string | null = null;
+  let pixPresentationAmount: number | null = null;
+  let pixPayloadError = "";
+
+  if (isPixIncluded) {
+    if (loadingPixSettings) {
+      pixPayloadError = "Carregando a configuração Pix…";
+    } else if (pixSettingsError) {
+      pixPayloadError = pixSettingsError;
+    } else if (!pixSettings) {
+      pixPayloadError = "Configure o Pix para incluir o QR Code neste recibo.";
+    } else if (!order || !storeProfile) {
+      pixPayloadError = "Aguardando o Perfil da loja para gerar o QR Code Pix…";
+    } else {
+      try {
+        const pixProjection = createOrderReceiptPixProjection(order, pixSettings, storeProfile);
+        pixPayload = pixProjection?.payload ?? null;
+        pixPresentationAmount = pixProjection?.amount ?? null;
+      } catch (error: unknown) {
+        pixPayloadError = error instanceof Error
+          ? error.message
+          : "Não foi possível gerar o QR Code Pix.";
+      }
+    }
+  }
+
+  const pixRasterError = pixPayload && pixRasterErrorState?.payload === pixPayload
+    ? pixRasterErrorState.message
+    : "";
+  const pixQr = pixPayload && pixRasterState?.payload === pixPayload ? pixRasterState.raster : null;
+  const pixPrintError = isPixIncluded
+    ? pixPayloadError || pixRasterError || (pixPayload && !pixQr ? "Preparando o QR Code Pix para impressão…" : "")
+    : "";
+  const pixPrintBlocked = isPixIncluded && (!pixPayload || !pixQr || Boolean(pixPayloadError) || Boolean(pixRasterError));
 
   const prepareReceiptBytes = useCallback(async (
     receiptOrder: Order,
     receiptProducts: Product[],
     printer: PrinterConfiguration,
     receiptStoreProfile: StoreProfile,
+    receiptPixQr: PrintJobRaster | null,
+    receiptPixAmount: number | null,
   ) => {
     const document = createOrderReceiptDocument(receiptOrder, receiptProducts);
     let logo: PrintJobRaster | undefined;
@@ -126,9 +176,29 @@ export function OrderReceiptPage() {
       columns: getPrintColumnsForPaperWidth(printer.paperWidthMm),
       brandName: receiptStoreProfile.displayName,
       logo,
+      ...(receiptPixQr ? { pixQr: receiptPixQr, pixAmount: receiptPixAmount ?? undefined } : {}),
     });
     return encodePrintJob(job);
   }, []);
+
+  const handlePixCanvasReady = useCallback((canvas: HTMLCanvasElement) => {
+    const payload = pixPayload;
+
+    if (!payload) {
+      return;
+    }
+
+    try {
+      setPixRasterErrorState(null);
+      setPixRasterState({ payload, raster: createPrintRasterFromCanvas(canvas) });
+    } catch (error: unknown) {
+      setPixRasterState(null);
+      setPixRasterErrorState({
+        payload,
+        message: error instanceof Error ? error.message : "Não foi possível preparar o QR Code Pix.",
+      });
+    }
+  }, [pixPayload]);
 
   useEffect(() => {
     return subscribeToStoreProfile(
@@ -146,18 +216,61 @@ export function OrderReceiptPage() {
   }, []);
 
   useEffect(() => {
+    return subscribeToPixSettings(
+      (settings) => {
+        setPixSettings(settings);
+        setPixSettingsError("");
+        setLoadingPixSettings(false);
+      },
+      (error: Error) => {
+        setPixSettings(null);
+        setPixSettingsError(getErrorMessage(error));
+        setLoadingPixSettings(false);
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!pixEligible && includePix) {
+      const resetTimer = window.setTimeout(() => {
+        setIncludePix(false);
+      }, 0);
+
+      return () => {
+        window.clearTimeout(resetTimer);
+      };
+    }
+
+    return undefined;
+  }, [includePix, pixEligible]);
+
+  useEffect(() => {
     let cancelled = false;
 
-    if (!order || loading || loadingPrinters || printersError || !defaultPrinter || !storeProfile) {
+    if (!order || loading || loadingPrinters || printersError || !defaultPrinter || !storeProfile || pixPrintBlocked) {
       return undefined;
     }
 
-    void prepareReceiptBytes(order, products, defaultPrinter, storeProfile).then((bytes) => {
+    const preparedIncludePix = isPixIncluded;
+    const preparedPixPayload = isPixIncluded ? pixPayload : null;
+    const preparedPixQr = isPixIncluded ? pixQr : null;
+    const preparedPixAmount = isPixIncluded ? pixPresentationAmount : null;
+
+    void prepareReceiptBytes(order, products, defaultPrinter, storeProfile, preparedPixQr, preparedPixAmount).then((bytes) => {
       if (cancelled) {
         return;
       }
 
-      setPreparedReceipt({ order, products, storeProfile, printer: defaultPrinter, bytes });
+      setPreparedReceipt({
+        order,
+        products,
+        storeProfile,
+        printer: defaultPrinter,
+        bytes,
+        includePix: preparedIncludePix,
+        pixPayload: preparedPixPayload,
+        pixQr: preparedPixQr,
+      });
       if (printStatusOwnerRef.current === 0) {
         setPrintStatus("Pronto para imprimir.");
       }
@@ -166,7 +279,7 @@ export function OrderReceiptPage() {
     return () => {
       cancelled = true;
     };
-  }, [defaultPrinter, loading, loadingPrinters, order, prepareReceiptBytes, printersError, products, storeProfile]);
+  }, [defaultPrinter, isPixIncluded, loading, loadingPrinters, order, pixPayload, pixPrintBlocked, pixPresentationAmount, pixQr, prepareReceiptBytes, printersError, products, storeProfile]);
 
   const refreshCompanionReadiness = useCallback(async () => {
     try {
@@ -356,6 +469,11 @@ export function OrderReceiptPage() {
       return;
     }
 
+    if (pixPrintBlocked) {
+      setThermalPrintError(pixPrintError || "Desative o QR Code Pix ou corrija sua configuração antes de imprimir.");
+      return;
+    }
+
     const statusOwner = printStatusOwnerRef.current + 1;
     printStatusOwnerRef.current = statusOwner;
     invalidatePendingPrint();
@@ -365,6 +483,8 @@ export function OrderReceiptPage() {
 
     try {
       const printer = loadingPrinters || printersError ? null : defaultPrinter;
+      const requestedPixQr = isPixIncluded ? pixQr : null;
+      const requestedPixAmount = isPixIncluded ? pixPresentationAmount : null;
       setLastAttemptPrinter(printer);
       const result = await printReceiptAutomatically({
         orderId: orderId ?? "",
@@ -376,11 +496,12 @@ export function OrderReceiptPage() {
           }
           await testPrinterConnection(attemptPrinter);
         },
+        fallbackToBrowserOnPrepareError: !isPixIncluded,
         prepareBytes: async () => {
           if (!printer || !storeProfile) {
             throw new Error("Nenhuma impressora térmica ativa foi selecionada.");
           }
-          return prepareReceiptBytes(order, products, printer, storeProfile);
+          return prepareReceiptBytes(order, products, printer, storeProfile, requestedPixQr, requestedPixAmount);
         },
         print: async (attemptPrinter, bytes, jobId) => {
           if (printStatusOwnerRef.current === statusOwner) {
@@ -422,14 +543,21 @@ export function OrderReceiptPage() {
   }
 
   function handleWakePrint(event: MouseEvent<HTMLAnchorElement>) {
-    if (thermalPrintBusy || !wakeIntent || !order || !orderId) {
+    if (thermalPrintBusy || pixPrintBlocked || !wakeIntent || !order || !orderId) {
       event.preventDefault();
       return;
     }
 
-    const currentPreparedReceipt = preparedReceipt && preparedReceipt.order === order && preparedReceipt.products === products && preparedReceipt.storeProfile === storeProfile && preparedReceipt.printer.id === defaultPrinter?.id
-      ? preparedReceipt
-      : null;
+    const currentPreparedReceipt = isPreparedReceiptCurrent(
+      preparedReceipt,
+      order,
+      products,
+      storeProfile,
+      defaultPrinter,
+      isPixIncluded,
+      pixPayload,
+      pixQr,
+    ) ? preparedReceipt : null;
     const attempt = pendingPrintAttempt?.attemptId === wakeIntent.attemptId
       ? pendingPrintAttempt
       : currentPreparedReceipt
@@ -463,10 +591,17 @@ export function OrderReceiptPage() {
     ? { message: thermalPrintError, error: true }
     : null;
 
-  const currentPreparedReceipt = preparedReceipt && preparedReceipt.order === order && preparedReceipt.products === products && preparedReceipt.storeProfile === storeProfile && preparedReceipt.printer.id === defaultPrinter?.id
-    ? preparedReceipt
-    : null;
-  const printActionMode = storeProfile && !storeProfileError && !loadingStoreProfile
+  const currentPreparedReceipt = isPreparedReceiptCurrent(
+    preparedReceipt,
+    order,
+    products,
+    storeProfile,
+    defaultPrinter,
+    isPixIncluded,
+    pixPayload,
+    pixQr,
+  ) ? preparedReceipt : null;
+  const printActionMode = !pixPrintBlocked && storeProfile && !storeProfileError && !loadingStoreProfile
     ? getOrderPrintActionMode({
       readiness: companionReadiness,
       busy: thermalPrintBusy,
@@ -479,21 +614,48 @@ export function OrderReceiptPage() {
     <main className="receipt-page">
       {order && (
         <div className="receipt-toolbar" aria-label="Ações do recibo">
-          <Button type="button" variant="secondary" onClick={() => navigate("/pedidos")}>
-            Voltar
-          </Button>
-          {printActionMode === "wake" && wakeIntent ? (
-            <a className="button button-primary" href={wakeIntent.intentUrl} onClick={handleWakePrint}>
-              {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
-            </a>
-          ) : (
-            <Button
-              type="button"
-              onClick={() => void handlePrint()}
-              disabled={printActionMode === "disabled"}
-            >
-              {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
+          <div className="receipt-toolbar-actions">
+            <Button type="button" variant="secondary" onClick={() => navigate("/pedidos")}>
+              Voltar
             </Button>
+            {printActionMode === "wake" && wakeIntent ? (
+              <a className="button button-primary" href={wakeIntent.intentUrl} onClick={handleWakePrint}>
+                {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
+              </a>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => void handlePrint()}
+                disabled={printActionMode === "disabled"}
+              >
+                {thermalPrintBusy ? ORDER_RECEIPT_PRINT_BUSY_LABEL : ORDER_RECEIPT_PRINT_LABEL}
+              </Button>
+            )}
+          </div>
+          {pixEligible && (
+            <div className="receipt-pix-option">
+              <label htmlFor="include-pix-qr">
+                <input
+                  id="include-pix-qr"
+                  type="checkbox"
+                  checked={isPixIncluded}
+                  disabled={isOrderReceiptPixOptionDisabled(thermalPrintBusy, Boolean(pendingPrintAttempt))}
+                  onChange={(event) => {
+                    setIncludePix(event.target.checked);
+                    setThermalPrintError("");
+                  }}
+                />
+                Incluir QR Code Pix
+              </label>
+              {isPixIncluded && pixPrintError && (
+                <p className="receipt-pix-error" role="alert">
+                  {pixPrintError}
+                  {pixPayloadError && !loadingPixSettings && (
+                    <> <Link to={APP_ROUTES.pix}>Configurar Pix</Link></>
+                  )}
+                </p>
+              )}
+            </div>
           )}
           <span
             className="receipt-print-log"
@@ -531,7 +693,18 @@ export function OrderReceiptPage() {
         </section>
       )}
 
-      {order && storeProfile && !storeProfileError && <OrderReceipt order={order} products={products} storeDisplayName={storeProfile.displayName} />}
+      {order && storeProfile && !storeProfileError && (
+        <>
+          {pixPayload && <PixQrCodeCanvas payload={pixPayload} onReady={handlePixCanvasReady} />}
+          <OrderReceipt
+            order={order}
+            products={products}
+            storeDisplayName={storeProfile.displayName}
+            pixPayload={pixPayload ?? undefined}
+            pixAmount={pixPresentationAmount ?? undefined}
+          />
+        </>
+      )}
     </main>
   );
 }

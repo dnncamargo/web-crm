@@ -89,7 +89,7 @@ Order + Products
 ```
 
 `Imprimir` chama `window.print()` somente quando não há rota térmica válida, os
-bytes não podem ser preparados ou um preflight não recuperável falha. Um
+bytes de um recibo sem QR Pix não podem ser preparados ou um preflight não recuperável falha. Um
 `companion_offline`, `pairing_required` ou `service_stopping` inicia o caminho
 explícito de wake descrito abaixo. Depois que
 `PrintCompanionClient.print()` começa, qualquer erro é exibido e nunca dispara
@@ -99,7 +99,11 @@ materializado pelo navegador como raster e enviado no mesmo `PrintJob` do
 recibo; se o logo não puder ser carregado ou materializado, o recibo usa o
 `StoreProfile.displayName` como fallback textual em ESC/POS. A ausência do
 documento de perfil resolve pelo fallback canônico de `DEFAULT_STORE_PROFILE`.
-Somente a imagem da marca é rasterizada; o corpo do recibo continua texto nativo.
+Quando o usuário solicita o QR Pix, o payload canônico do recibo é renderizado
+em um `QRCodeCanvas`, convertido pelo helper raster genérico e inserido como
+imagem centralizada antes do feed e corte. O recibo sem essa escolha permanece
+byte-idêntico ao caminho anterior; o corpo textual continua usando comandos
+nativos ESC/POS.
 
 ```text
 brand BMP

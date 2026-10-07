@@ -48,6 +48,24 @@ export function packRgbaPixelsToPrintRaster(
   return { widthDots, heightDots, data };
 }
 
+export function createPrintRasterFromCanvas(canvas: HTMLCanvasElement): PrintJobRaster {
+  if (!Number.isInteger(canvas.width) || canvas.width <= 0 || !Number.isInteger(canvas.height) || canvas.height <= 0) {
+    throw new Error("Canvas QR deve possuir dimensões válidas para impressão térmica.");
+  }
+
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("Não foi possível preparar o QR Code Pix para impressão térmica.");
+  }
+
+  return packRgbaPixelsToPrintRaster(
+    canvas.width,
+    canvas.height,
+    context.getImageData(0, 0, canvas.width, canvas.height).data,
+  );
+}
+
 export async function loadPrintRaster(source: string): Promise<PrintJobRaster> {
   const image = new Image();
 
