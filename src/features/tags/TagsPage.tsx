@@ -10,10 +10,11 @@ import { SlidePanel } from "../../components/ui/SlidePanel";
 import { TagForm } from "./components/TagForm";
 import { TagDetailsPanelContent } from "./components/TagDetailsPanelContent";
 import { useTags } from "./useTags";
+import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
 type TagPanelState = { type: "create-tag" } | { type: "view-tag"; tag: Tag } | null;
 
 export function TagsPage() {
-  const { filteredTags, showOnlyActive, setShowOnlyActive, loadingTags, tagsError, addTag, editTag, setTagActive } = useTags();
+  const { tags, filteredTags, showOnlyActive, setShowOnlyActive, loadingTags, tagsError, addTag, editTag, setTagActive } = useTags();
 
   const [panel, setPanel] = useState<TagPanelState>(null);
   const [stackedEditTag, setStackedEditTag] = useState<Tag | null>(null);
@@ -25,6 +26,12 @@ export function TagsPage() {
     setPanel(null);
     setStackedEditTag(null);
   }
+
+  function openViewTag(tag: Tag) {
+    setPanel({ type: "view-tag", tag });
+  }
+
+  useOpenEntityFromNavigation({ entities: tags, loading: loadingTags, onOpen: openViewTag });
 
   async function handleCreateTag(data: NewTagData) {
     await addTag(data);
@@ -76,7 +83,7 @@ export function TagsPage() {
           </div>
         </Card>
       )}
-      <TagListView tags={filteredTags} onRequestViewTag={(selectedTag) => setPanel({ type: "view-tag", tag: selectedTag })} onActiveChange={setTagActive} />
+      <TagListView tags={filteredTags} onRequestViewTag={openViewTag} onActiveChange={setTagActive} />
       <SlidePanel
         open={panel !== null}
         size={mainPanelSize}

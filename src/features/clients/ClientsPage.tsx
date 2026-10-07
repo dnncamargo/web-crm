@@ -18,6 +18,7 @@ import { ClientFiltersPanel } from "./components/ClientFiltersPanel";
 import { ClientInteractionForm } from "./components/ClientInteractionForm";
 import { ClientListView } from "./components/ClientListView";
 import { useClients } from "./useClients";
+import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
 
 type ClientMainPanelState = { type: "create-client" } | { type: "view-client"; client: Client } | null;
 
@@ -35,7 +36,7 @@ export function ClientsPage() {
 
   const tagLabelsById = useMemo(() => Object.fromEntries(activeTags.map((tag) => [tag.id, tag.label])), [activeTags]);
 
-  const { clients, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
+  const { clients, filteredClients, search, setSearch, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
 
   const { getAddressesByClient, saveAddressForClient } = useAddresses();
 
@@ -51,13 +52,13 @@ export function ClientsPage() {
 
   const visibleClients = useMemo(
     () =>
-      filterVisibleClients(clients, {
+      filterVisibleClients(filteredClients, {
         showOnlyFavorites,
         showOnlyActive,
         showOnlyWithContactFrequency,
         showOnlyWithBirthDate,
       }),
-    [clients, showOnlyActive, showOnlyFavorites, showOnlyWithBirthDate, showOnlyWithContactFrequency],
+    [filteredClients, showOnlyActive, showOnlyFavorites, showOnlyWithBirthDate, showOnlyWithContactFrequency],
   );
 
   const mainPanelSize = panel?.type === "view-client" ? "wide" : "normal";
@@ -100,6 +101,8 @@ export function ClientsPage() {
     setPanel({ type: "view-client", client });
     setStackedPanel(null);
   }
+
+  useOpenEntityFromNavigation({ entities: clients, loading, onOpen: openViewClient });
 
   function updateViewedClient(clientId: string, data: UpdateClientData) {
     setPanel((currentPanel) => {
@@ -186,7 +189,7 @@ export function ClientsPage() {
   }
 
   function getStackedPanelHeaderAction() {
-    if (stackedPanel?.type === "edit-client" || stackedPanel?.type === "register-interaction") {
+    if (stackedPanel?.type === "edit-client") {
       return renderFavoriteButton({
         favorite: stackedPanel.client.favorite,
         onClick: () => void toggleClientFavorite(stackedPanel.client),
@@ -292,10 +295,12 @@ export function ClientsPage() {
 
       {showFilters && (
         <ClientFiltersPanel
+          search={search}
           showOnlyFavorites={showOnlyFavorites}
           showOnlyActive={showOnlyActive}
           showOnlyWithContactFrequency={showOnlyWithContactFrequency}
           showOnlyWithBirthDate={showOnlyWithBirthDate}
+          onSearchChange={setSearch}
           onToggleFavorites={() => setShowOnlyFavorites((current) => !current)}
           onToggleActive={() => setShowOnlyActive((current) => !current)}
           onToggleWithContactFrequency={() => setShowOnlyWithContactFrequency((current) => !current)}
@@ -382,7 +387,7 @@ export function ClientsPage() {
         title={stackedPanelTitle} 
         description={stackedPanelDescription} 
         onClose={closeStackedPanel} 
-        closeOnBackdrop={false} 
+        closeOnBackdrop={stackedPanel?.type !== "edit-client"}
         headerAction={getStackedPanelHeaderAction()}
       >
         {stackedPanel?.type === "edit-client" && <ClientForm client={stackedPanel.client} availableTags={clientTags} onCancel={closeStackedPanel} onSave={handlePanelEditClient} />}

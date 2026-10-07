@@ -2,6 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import type { Client, NewClientData, UpdateClientData } from "./clientTypes";
 import { createClient, listenClients, toggleClientActive, toggleClientFavorite, updateClient } from "./clientsService";
 
+export function filterClientsBySearch(clients: Client[], search: string, tagLabelsById: Record<string, string> = {}) {
+  const normalizedSearch = search.trim().toLowerCase();
+
+  if (!normalizedSearch) {
+    return clients;
+  }
+
+  return clients.filter((client) => {
+    const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
+    const clientTagLabels = (client.tagIds ?? []).map((tagId) => tagLabelsById[tagId] ?? tagId);
+
+    const searchableText = [client.name, primaryContact?.value, client.notes, ...clientTagLabels, ...(client.tagIds ?? [])].filter(Boolean).join(" ").toLowerCase();
+    return searchableText.includes(normalizedSearch);
+  });
+}
+
 export function useClients(tagLabelsById: Record<string, string> = {}) {
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
@@ -24,20 +40,9 @@ export function useClients(tagLabelsById: Record<string, string> = {}) {
   }, []);
 
   const filteredClients = useMemo(() => {
-    const normalizedSearch = search.trim().toLowerCase();
-    return clients.filter((client) => {
-      if (showOnlyFavorites && !client.favorite) {
-        return false;
-      }
-      if (!normalizedSearch) {
-        return true;
-      }
-      const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
-      const clientTagLabels = (client.tagIds ?? []).map((tagId) => tagLabelsById[tagId] ?? tagId);
+    const favoriteClients = showOnlyFavorites ? clients.filter((client) => client.favorite) : clients;
 
-      const searchableText = [client.name, primaryContact?.value, client.notes, ...clientTagLabels, ...(client.tagIds ?? [])].filter(Boolean).join(" ").toLowerCase();
-      return searchableText.includes(normalizedSearch);
-    });
+    return filterClientsBySearch(favoriteClients, search, tagLabelsById);
   }, [clients, search, showOnlyFavorites, tagLabelsById]);
 
   async function addClient(data: NewClientData) {

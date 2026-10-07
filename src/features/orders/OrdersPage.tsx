@@ -19,6 +19,7 @@ import type { NewOrderData, Order } from "./orderTypes";
 import { compareOrderCreationDesc, getPaymentStatus } from "./orderUtils";
 import { useOrders } from "./useOrders";
 import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent";
+import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
 
 type OrderPanelState = { type: "create-order" } | { type: "edit-order"; order: Order } | { type: "view-order"; order: Order } | null;
 
@@ -35,8 +36,8 @@ export function OrdersPage() {
   const { addresses, addressesError, saveAddressForClient } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
-  const { orders, filteredOrders, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders(products);
-  const { activeTags } = useTags();
+  const { orders, filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders(products);
+  const { tags, activeTags } = useTags();
 
   const [panel, setPanel] = useState<OrderPanelState>(null);
   const [showFilters, setShowFilters] = useState(false);
@@ -46,6 +47,8 @@ export function OrdersPage() {
   const [stackedEditOrder, setStackedEditOrder] = useState<Order | null>(null);
   const [orderFormIsDirty, setOrderFormIsDirty] = useState(false);
   const [stackedOrderFormIsDirty, setStackedOrderFormIsDirty] = useState(false);
+
+  const tagLabelsById = useMemo(() => Object.fromEntries(tags.map((tag) => [tag.id, tag.label])), [tags]);
 
   const orderItemTags = useMemo(
     () =>
@@ -187,6 +190,8 @@ export function OrdersPage() {
     setPanel({ type: "view-order", order: selectedOrder });
   }
 
+  useOpenEntityFromNavigation({ entities: orders, loading: loadingOrders, onOpen: openViewOrder });
+
   function openStackedEditOrder(selectedOrder: Order) {
     setStackedEditOrder(selectedOrder);
   }
@@ -226,7 +231,16 @@ export function OrdersPage() {
       />
       {showFilters && (
         <Card>
-          <div className="toolbar order-toolbar">
+          <div className="toolbar order-toolbar search-filter-toolbar">
+            <input
+              className="toolbar-search"
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Buscar pedidos"
+              aria-label="Buscar pedidos"
+            />
+
             <div className="segmented-control">
               <button type="button" className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")}>
                 Lista
@@ -307,6 +321,7 @@ export function OrdersPage() {
           <OrderDetailsPanelContent
             order={panel.order}
             products={products}
+            tagLabelsById={tagLabelsById}
             onEdit={() => openStackedEditOrder(panel.order)}
             onPrint={() => openOrderReceipt(panel.order)}
           />

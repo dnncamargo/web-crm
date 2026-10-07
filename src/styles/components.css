@@ -749,6 +749,16 @@
   overflow-wrap: anywhere;
 }
 
+.panel-block-total {
+  border-color: var(--border-selected);
+  background: var(--accent-surface);
+}
+
+.panel-block-total strong {
+  font-size: 0.96rem;
+  font-weight: 600;
+}
+
 .panel-list {
   display: grid;
   gap: 8px;
