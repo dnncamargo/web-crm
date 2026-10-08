@@ -84,7 +84,7 @@ describe("OrderReceiptDocument", () => {
     expect(document.items.map((item) => item.name)).toEqual(["Nome atual", "Produto salvo"]);
   });
 
-  it("keeps paid/remaining, applied credit and generated credit in the summary", () => {
+  it("derives generated credit from canonical cash and applied credit", () => {
     const document = createOrderReceiptDocument(createOrder({
       amountPaid: 10,
       creditApplied: 5,
@@ -98,7 +98,7 @@ describe("OrderReceiptDocument", () => {
       { label: "Crédito usado", value: "R$\u00a05,00" },
       { label: "Restante", value: "R$\u00a015,00" },
     ]);
-    expect(document.summary.creditGenerated).toEqual({ label: "Crédito gerado", value: "R$\u00a02,00" });
+    expect(document.summary.creditGenerated).toBeUndefined();
     expect(document.summary.settled).toBe(false);
   });
 

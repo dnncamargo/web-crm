@@ -333,8 +333,29 @@ Quando o Produto referenciado existir, sua descrição/nome atual pode ser exibi
 - `deliveryFee`
 - `total`
 - `amountPaid`
+- `payments?`, com itens `OrderPayment` embutidos:
+  - `id`
+  - `amount`
+  - `receivedAt: string | null`
 - `creditApplied?`
 - `creditGenerated?`
+
+`payments` é o histórico canônico de dinheiro recebido para pedidos novos. Um
+pedido novo sem recebimento persiste `payments: []`; um recebimento inicial
+persiste um evento com data/hora ISO real. `amountPaid` permanece por
+compatibilidade e deve ser o agregado da soma de `payments` quando o campo
+estiver presente.
+
+Pedidos legados sem `payments` continuam interpretando `amountPaid` como
+dinheiro recebido. Na apresentação, esse valor pode ser projetado como um
+evento sintético com ID local determinístico e `receivedAt: null`, que significa
+data histórica desconhecida. A projeção não é persistida apenas por ser lida;
+ela só é materializada junto do primeiro novo recebimento.
+
+`getOrderCashPaid` em `orderUtils.ts` é a fonte canônica para consumidores
+financeiros: soma `payments` quando presente e usa `amountPaid` apenas como
+fallback legado. O pagamento é dinheiro recebido; não é crédito aplicado nem
+crédito gerado.
 
 Esses valores precisam obedecer às funções canônicas de cálculo existentes em `orderUtils.ts`.
 
@@ -387,7 +408,8 @@ Portanto, não tratar geração de crédito como mutuamente exclusiva com aplica
 - manter cálculo em utilitário de domínio, não na UI;
 - aplicar crédito disponível até o limite necessário para cobrir o Pedido;
 - qualquer pagamento que exceda o valor ainda necessário, considerando crédito aplicado, pode gerar novo crédito;
-- cálculos de saldo restante e status de pagamento devem considerar `amountPaid + creditApplied`;
+- cálculos de saldo restante e status de pagamento devem considerar `getOrderCashPaid(order) + creditApplied`;
+- `creditGenerated` deriva do excesso desse valor efetivo sobre `total`;
 - não duplicar fórmulas de saldo em componentes;
 - um Pedido novo calcula crédito disponível normalmente;
 - um Pedido existente ainda não quitado pode recalcular crédito disponível ao ser salvo, permitindo aproveitar crédito surgido depois;
@@ -395,6 +417,8 @@ Portanto, não tratar geração de crédito como mutuamente exclusiva com aplica
 - se uma edição alterar esses dados comerciais/financeiros, saldo e crédito podem ser recalculados;
 - editar apenas endereço, data/hora, observações, etiquetas ou outros dados não financeiros de um Pedido quitado não deve redistribuir silenciosamente suas movimentações de crédito;
 - cancelar um Pedido retira suas movimentações do saldo disponível conforme a regra atual; reativá-lo volta a considerar as movimentações registradas, salvo recálculo decorrente de alteração financeira;
+- pagamentos são append-only nesta versão: não há edição, exclusão, pagamento negativo, estorno ou reembolso;
+- cancelar um Pedido não é reembolso: o histórico de pagamentos permanece e o Pedido cancelado não aceita novos recebimentos;
 - não persistir um "saldo do cliente" separado sem uma decisão explícita de fonte da verdade e reconciliação.
 
 ## 11. Tarefa

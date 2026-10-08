@@ -3,6 +3,7 @@ import type { Product } from "../products/productTypes";
 import type { Order } from "./orderTypes";
 import {
   formatDateTimeBR,
+  getOrderCashPaid,
   getOrderBalanceInfo,
   getOrderGeneratedCreditAmount,
   getOrderItemProductName,
@@ -63,7 +64,7 @@ export function createOrderReceiptDocument(order: Order, products: Product[]): O
     rows.push({ label: "Entrega", value: formatCurrencyBR(order.deliveryFee) });
   }
 
-  rows.push({ label: "Pago", value: formatCurrencyBR(order.amountPaid) });
+  rows.push({ label: "Pago", value: formatCurrencyBR(getOrderCashPaid(order)) });
 
   if (creditApplied > 0) {
     rows.push({ label: "Crédito usado", value: formatCurrencyBR(creditApplied) });

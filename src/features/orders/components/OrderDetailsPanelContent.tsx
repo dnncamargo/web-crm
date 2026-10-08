@@ -3,7 +3,7 @@ import { Button } from "../../../components/ui/Button";
 import { formatCurrencyBR } from "../../../utils/money";
 import type { Product } from "../../products/productTypes";
 import type { Order } from "../orderTypes";
-import { formatDateTimeBR, getOrderBalanceInfo, getOrderEffectivePaid, getOrderItemProductName, getOrderStatusLabel, getPaymentStatus, getPaymentStatusLabel } from "../orderUtils";
+import { formatDateTimeBR, getOrderBalanceInfo, getOrderCashPaid, getOrderEffectivePaid, getOrderGeneratedCreditAmount, getOrderItemProductName, getOrderPaymentHistory, getOrderStatusLabel, getPaymentStatus, getPaymentStatusLabel } from "../orderUtils";
 
 interface OrderDetailsPanelContentProps {
   order: Order;
@@ -11,14 +11,17 @@ interface OrderDetailsPanelContentProps {
   tagLabelsById: Record<string, string>;
   onEdit: () => void;
   onPrint: () => void;
+  onRegisterPayment: () => void;
 }
 
-export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdit, onPrint }: OrderDetailsPanelContentProps) {
+export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdit, onPrint, onRegisterPayment }: OrderDetailsPanelContentProps) {
   const paymentStatus = getPaymentStatus(order);
   const balanceInfo = getOrderBalanceInfo(order);
   const creditApplied = order.creditApplied ?? 0;
-  const creditGenerated = order.creditGenerated ?? 0;
+  const creditGenerated = getOrderGeneratedCreditAmount(order);
   const effectivePaid = getOrderEffectivePaid(order);
+  const cashPaid = getOrderCashPaid(order);
+  const paymentHistory = getOrderPaymentHistory(order);
   const orderTagLabels = order.tagIds.map((tagId) => ({
     id: tagId,
     label: (tagLabelsById[tagId] ?? tagId).replace(/^#+/, ""),
@@ -132,8 +135,8 @@ export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdi
               </div>
 
               <div className="panel-block">
-                <span>Pago</span>
-                <strong>{formatCurrencyBR(order.amountPaid)}</strong>
+                <span>Dinheiro recebido</span>
+                <strong>{formatCurrencyBR(cashPaid)}</strong>
               </div>
 
               {creditApplied > 0 && (
@@ -159,6 +162,26 @@ export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdi
                 <span>{balanceInfo.label}</span>
                 <strong>{formatCurrencyBR(balanceInfo.amount)}</strong>
               </div>
+            </div>
+          </section>
+
+          <section className="panel-section">
+            <div className="panel-section-title">
+              <span>Histórico de pagamentos</span>
+              <small>Dinheiro recebido, separado do crédito do cliente.</small>
+            </div>
+
+            <div className="panel-list compact-list">
+              {paymentHistory.length > 0 ? paymentHistory.map((payment) => (
+                <div className="panel-list-row compact-row panel-list-row-with-value" key={payment.id}>
+                  <div>
+                    <strong>{formatCurrencyBR(payment.amount)}</strong>
+                    <span>{payment.receivedAt ? formatDateTimeBR(payment.receivedAt) : "Data desconhecida"}</span>
+                  </div>
+                </div>
+              )) : (
+                <p className="muted-text">Nenhum pagamento em dinheiro registrado.</p>
+              )}
             </div>
           </section>
 
@@ -190,6 +213,11 @@ export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdi
 
       <div className="panel-footer">
         <div className="panel-actions">
+          {order.orderStatus !== "cancelled" && (
+            <Button type="button" variant="secondary" onClick={onRegisterPayment}>
+              Registrar pagamento
+            </Button>
+          )}
           <Button type="button" variant="secondary" onClick={onPrint}>
             Imprimir via
           </Button>
