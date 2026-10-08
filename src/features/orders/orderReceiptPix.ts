@@ -10,7 +10,7 @@ export interface OrderReceiptPixProjection {
 }
 
 export function getOrderReceiptPixAmount(
-  order: Pick<Order, "total" | "amountPaid" | "orderStatus"> & { creditApplied?: number | null },
+  order: Pick<Order, "total" | "amountPaid" | "payments" | "orderStatus"> & { creditApplied?: number | null },
 ): number | null {
   if (order.orderStatus === "cancelled") {
     return null;
@@ -21,7 +21,7 @@ export function getOrderReceiptPixAmount(
 }
 
 export function createOrderReceiptPixPayload(
-  order: Pick<Order, "total" | "amountPaid" | "orderStatus"> & { creditApplied?: number | null },
+  order: Pick<Order, "total" | "amountPaid" | "payments" | "orderStatus"> & { creditApplied?: number | null },
   settings: PixSettings,
   profile: StoreProfile,
 ): string | null {
@@ -29,7 +29,7 @@ export function createOrderReceiptPixPayload(
 }
 
 export function createOrderReceiptPixProjection(
-  order: Pick<Order, "total" | "amountPaid" | "orderStatus"> & { creditApplied?: number | null },
+  order: Pick<Order, "total" | "amountPaid" | "payments" | "orderStatus"> & { creditApplied?: number | null },
   settings: PixSettings,
   profile: StoreProfile,
 ): OrderReceiptPixProjection | null {

@@ -6,6 +6,7 @@ import type { Product } from "../../products/productTypes";
 import type { Order } from "../orderTypes";
 import {
   formatDateTimeBR,
+  getOrderCashPaid,
   getOrderBalanceInfo,
   getOrderItemProductName,
   getOrderStatusLabel,
@@ -44,7 +45,7 @@ export function OrderCard({ order, products, onRequestEditOrder }: OrderCardProp
 
       <div className="client-meta">
         <span>Total: {formatCurrencyBR(order.total)}</span>
-        <span>Pago: {formatCurrencyBR(order.amountPaid)}</span>
+        <span>Pago: {formatCurrencyBR(getOrderCashPaid(order))}</span>
         <span>{balanceInfo.label}: {formatCurrencyBR(balanceInfo.amount)}</span>
       </div>
 

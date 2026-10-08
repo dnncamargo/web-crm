@@ -14,8 +14,10 @@ import { useTags } from "../tags/useTags";
 import { isProductStructuralGroup } from "../tags/tagConfig";
 import { OrderCalendarView } from "./components/OrderCalendarView";
 import { OrderForm } from "./components/OrderForm";
+import { OrderPaymentForm } from "./components/OrderPaymentForm";
 import { OrderListView } from "./components/OrderListView";
 import type { NewOrderData, Order } from "./orderTypes";
+import type { RegisterOrderPaymentInput } from "./ordersService";
 import { compareOrderCreationDesc, getPaymentStatus } from "./orderUtils";
 import { useOrders } from "./useOrders";
 import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent";
@@ -36,7 +38,7 @@ export function OrdersPage() {
   const { addresses, addressesError, saveAddressForClient } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
-  const { orders, filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder } = useOrders(products);
+  const { orders, filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder, registerPayment } = useOrders(products);
   const { tags, activeTags } = useTags();
 
   const [panel, setPanel] = useState<OrderPanelState>(null);
@@ -45,6 +47,7 @@ export function OrdersPage() {
   const [paymentFilter, setPaymentFilter] = useState<OrderPaymentFilter>("all");
   const [sortBy, setSortBy] = useState<OrderSortMode>("createdAt");
   const [stackedEditOrder, setStackedEditOrder] = useState<Order | null>(null);
+  const [stackedPaymentOrder, setStackedPaymentOrder] = useState<Order | null>(null);
   const [orderFormIsDirty, setOrderFormIsDirty] = useState(false);
   const [stackedOrderFormIsDirty, setStackedOrderFormIsDirty] = useState(false);
 
@@ -103,6 +106,7 @@ export function OrdersPage() {
   function closePanel() {
     setPanel(null);
     setStackedEditOrder(null);
+    setStackedPaymentOrder(null);
     setOrderFormIsDirty(false);
   }
 
@@ -196,11 +200,27 @@ export function OrdersPage() {
     setStackedEditOrder(selectedOrder);
   }
 
+  function openStackedPaymentOrder(selectedOrder: Order) {
+    setStackedPaymentOrder(selectedOrder);
+  }
+
+  async function handleRegisterPayment(input: RegisterOrderPaymentInput) {
+    if (!stackedPaymentOrder) {
+      return;
+    }
+
+    await registerPayment(stackedPaymentOrder.id, input);
+    setStackedPaymentOrder(null);
+  }
+
   function openOrderReceipt(selectedOrder: Order) {
     navigate(`/pedidos/${selectedOrder.id}/via`);
   }
 
   const mainPanelSize = panel?.type === "view-order" && stackedEditOrder ? "fullscreen" : panel?.type === "view-order" ? "wide" : "fullscreen";
+  const selectedOrder = panel?.type === "view-order"
+    ? orders.find((order) => order.id === panel.order.id) ?? panel.order
+    : null;
 
   return (
     <div className="page-stack">
@@ -319,11 +339,12 @@ export function OrdersPage() {
         {" "}
         {panel?.type === "view-order" && (
           <OrderDetailsPanelContent
-            order={panel.order}
+            order={selectedOrder ?? panel.order}
             products={products}
             tagLabelsById={tagLabelsById}
-            onEdit={() => openStackedEditOrder(panel.order)}
-            onPrint={() => openOrderReceipt(panel.order)}
+            onEdit={() => openStackedEditOrder(selectedOrder ?? panel.order)}
+            onPrint={() => openOrderReceipt(selectedOrder ?? panel.order)}
+            onRegisterPayment={() => openStackedPaymentOrder(selectedOrder ?? panel.order)}
           />
         )}
         {panel?.type === "create-order" && (
@@ -375,6 +396,23 @@ export function OrdersPage() {
             onSave={handleStackedEditOrder}
             onCreateAddress={handleCreateAddressForOrder}
             onDirtyChange={setStackedOrderFormIsDirty}
+          />
+        )}
+      </SlidePanel>{" "}
+      <SlidePanel
+        open={stackedPaymentOrder !== null}
+        level={2}
+        size="normal"
+        closeOnBackdrop={false}
+        title="Registrar pagamento"
+        description="Confirme o valor e a data real do recebimento."
+        onClose={() => setStackedPaymentOrder(null)}
+      >
+        {stackedPaymentOrder && (
+          <OrderPaymentForm
+            order={stackedPaymentOrder}
+            onCancel={() => setStackedPaymentOrder(null)}
+            onSave={handleRegisterPayment}
           />
         )}
       </SlidePanel>{" "}

@@ -135,6 +135,7 @@ O sistema é estruturado em torno de:
 * Cadastro completo de pedidos
 * Produtos negociáveis
 * Pagamentos parciais
+* Histórico de pagamentos com registro de parcelas e compatibilidade com pedidos legados
 * Crédito automático e acumulável do cliente
 * Aplicação de crédito anterior com possibilidade de gerar novo crédito no mesmo pedido
 * Endereço sugerido a partir do cadastro do cliente, sem restringir o uso de outros endereços

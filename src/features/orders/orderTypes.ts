@@ -26,6 +26,12 @@ export interface OrderItem {
   tagIds?: string[];
 }
 
+export interface OrderPayment {
+  id: string;
+  amount: number;
+  receivedAt: string | null;
+}
+
 export interface Order {
   id: string;
 
@@ -43,6 +49,7 @@ export interface Order {
   deliveryFee: number;
   total: number;
   amountPaid: number;
+  payments?: OrderPayment[];
 
   creditApplied?: number | null;
   creditGenerated?: number | null;
@@ -70,6 +77,7 @@ export interface NewOrderData {
   deliveryFee: number;
   total: number;
   amountPaid: number;
+  payments?: OrderPayment[];
 
   creditApplied?: number | null;
   creditGenerated?: number | null;

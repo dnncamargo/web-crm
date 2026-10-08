@@ -4,6 +4,8 @@ import {
   calculateOrderSubtotal,
   calculateOrderTotal,
   getAutomaticCreditApplied,
+  getOrderCashPaid,
+  getOrderGeneratedCreditAmount,
   getClientAvailableCredit,
   getOrderBalanceInfo,
   getOrderItemProductName,
@@ -84,12 +86,10 @@ function getFinancialSignature(
   clientId: string,
   items: OrderFormItem[],
   deliveryFee: string,
-  amountPaid: string,
 ) {
   return JSON.stringify({
     clientId,
     deliveryFee: parseMoneyOrZero(deliveryFee),
-    amountPaid: parseMoneyOrZero(amountPaid),
     items: items.map(({ productId, quantity, unit, unitPrice }) => ({
       productId,
       quantity: Number(quantity.replace(",", ".")),
@@ -115,7 +115,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   const [addressSelectionTouched, setAddressSelectionTouched] = useState(false);
   const [deliveryDateTime, setDeliveryDateTime] = useState(order?.deliveryDateTime ?? "");
   const [deliveryFee, setDeliveryFee] = useState(currencyToInput(order?.deliveryFee ?? 0));
-  const [amountPaid, setAmountPaid] = useState(currencyToInput(order?.amountPaid ?? 0));
+  const [initialPayment, setInitialPayment] = useState("");
   const [orderStatus, setOrderStatus] = useState<OrderStatus>(order?.orderStatus ?? "active");
   const [notes, setNotes] = useState(order?.notes ?? "");
   const [addressPanelMode, setAddressPanelMode] = useState<"choose" | "create" | null>(null);
@@ -162,7 +162,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
         addressId: order?.addressId ?? "",
         deliveryDateTime: order?.deliveryDateTime ?? "",
         deliveryFee: currencyToInput(order?.deliveryFee ?? 0),
-        amountPaid: currencyToInput(order?.amountPaid ?? 0),
+        initialPayment: "",
         orderStatus: order?.orderStatus ?? "active",
         notes: order?.notes ?? "",
         items: initialItems,
@@ -174,7 +174,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     addressId,
     deliveryDateTime,
     deliveryFee,
-    amountPaid,
+    initialPayment,
     orderStatus,
     notes,
     items,
@@ -185,7 +185,6 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
       order?.clientId ?? "",
       initialItems,
       currencyToInput(order?.deliveryFee ?? 0),
-      currencyToInput(order?.amountPaid ?? 0),
     ),
   );
 
@@ -193,7 +192,6 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     clientId,
     items,
     deliveryFee,
-    amountPaid,
   );
 
   const financialChanged = currentFinancialSignature !== initialFinancialSignature;
@@ -274,7 +272,8 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
   const subtotal = calculateOrderSubtotal(parsedItems);
   const parsedDeliveryFee = parseMoneyOrZero(deliveryFee);
-  const parsedAmountPaid = parseMoneyOrZero(amountPaid);
+  const parsedInitialPayment = parseMoneyOrZero(initialPayment);
+  const cashPaid = order ? getOrderCashPaid(order) : parsedInitialPayment;
   const total = calculateOrderTotal(parsedItems, parsedDeliveryFee);
 
   const shouldPreserveSettledCredit = Boolean(
@@ -290,7 +289,8 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
   const balanceInfo = getOrderBalanceInfo({
     total,
-    amountPaid: parsedAmountPaid,
+    amountPaid: cashPaid,
+    payments: order?.payments,
     creditApplied: automaticCreditApplied,
   });
 
@@ -396,7 +396,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     const creditFields: Partial<NewOrderData> = shouldPreserveSettledCredit
       ? {
           creditApplied: order?.creditApplied,
-          creditGenerated: order?.creditGenerated,
+          creditGenerated: order ? getOrderGeneratedCreditAmount(order) : null,
         }
       : {
           creditApplied: automaticCreditApplied > 0 ? automaticCreditApplied : null,
@@ -432,7 +432,12 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
       subtotal,
       deliveryFee: parsedDeliveryFee,
       total,
-      amountPaid: parsedAmountPaid,
+      amountPaid: cashPaid,
+      payments: order
+        ? order.payments
+        : parsedInitialPayment > 0
+          ? [{ id: crypto.randomUUID(), amount: parsedInitialPayment, receivedAt: new Date().toISOString() }]
+          : [],
 
       ...creditFields,
 
@@ -884,7 +889,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
               <section className="panel-section">
                 <div className="panel-section-title">
                   <span>Pagamento</span>
-                  <small>Controle de sinal, entrega, crédito e combinados.</small>
+                  <small>{order ? "O dinheiro recebido é histórico; novos valores usam Registrar pagamento." : "Controle de pagamento inicial, entrega, crédito e combinados."}</small>
                 </div>
 
                 <div className="panel-field-row">
@@ -893,10 +898,17 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
                     <input value={deliveryFee} onChange={(event) => setDeliveryFee(event.target.value)} placeholder="Ex: 10,00" />
                   </label>
 
-                  <label className="panel-field-card">
-                    Valor pago
-                    <input value={amountPaid} onChange={(event) => setAmountPaid(event.target.value)} placeholder={automaticCreditApplied > 0 ? "Opcional" : "Ex: 50,00"} />
-                  </label>
+                  {order ? (
+                    <div className="panel-field-card">
+                      Dinheiro recebido
+                      <strong>{formatCurrencyBR(cashPaid)}</strong>
+                    </div>
+                  ) : (
+                    <label className="panel-field-card">
+                      Pagamento inicial
+                      <input value={initialPayment} onChange={(event) => setInitialPayment(event.target.value)} placeholder={automaticCreditApplied > 0 ? "Opcional" : "Ex: 50,00"} />
+                    </label>
+                  )}
                 </div>
               </section>
 
@@ -906,7 +918,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
                   <span>Entrega: {formatCurrencyBR(parsedDeliveryFee)}</span>
 
-                  <span>Pago: {formatCurrencyBR(parsedAmountPaid)}</span>
+                  <span>Dinheiro recebido: {formatCurrencyBR(cashPaid)}</span>
 
                   {automaticCreditApplied > 0 && (
                     <span>Crédito usado: {formatCurrencyBR(automaticCreditApplied)}</span>

@@ -1,5 +1,5 @@
 import type { Product } from "../products/productTypes";
-import type { Order, OrderItem, OrderStatus, PaymentStatus } from "./orderTypes";
+import type { Order, OrderItem, OrderPayment, OrderStatus, PaymentStatus } from "./orderTypes";
 
 export type OrderBalanceType = "remaining" | "credit" | "settled";
 
@@ -78,27 +78,22 @@ export function calculateOrderTotal(items: OrderItem[], deliveryFee: number) {
 }
 
 export function getOrderGeneratedCreditAmount(
-  order: Pick<Order, "total" | "amountPaid"> & {
+  order: Pick<Order, "total" | "amountPaid" | "payments"> & {
     creditApplied?: number | null;
-    creditGenerated?: number | null;
   },
 ) {
-  if (order.creditGenerated !== undefined && order.creditGenerated !== null) {
-    return order.creditGenerated;
-  }
-
   return Math.max(getOrderEffectivePaid(order) - order.total, 0);
 }
 
 export function getOrderBalance(
-  order: Pick<Order, "total" | "amountPaid"> & {
+  order: Pick<Order, "total" | "amountPaid" | "payments"> & {
     creditApplied?: number | null;
   },
 ) {
   return order.total - getOrderEffectivePaid(order);
 }
 export function getOrderBalanceInfo(
-  order: Pick<Order, "total" | "amountPaid"> & {
+  order: Pick<Order, "total" | "amountPaid" | "payments"> & {
     creditApplied?: number | null;
   },
 ): {
@@ -150,15 +145,15 @@ export function getAutomaticCreditApplied(availableCredit: number, orderTotal: n
 }
 
 export function getOrderEffectivePaid(
-  order: Pick<Order, "amountPaid"> & {
+  order: Pick<Order, "amountPaid" | "payments"> & {
     creditApplied?: number | null;
   },
 ) {
-  return order.amountPaid + (order.creditApplied ?? 0);
+  return getOrderCashPaid(order) + (order.creditApplied ?? 0);
 }
 
 export function getPaymentStatus(
-  order: Pick<Order, "total" | "amountPaid"> & {
+  order: Pick<Order, "total" | "amountPaid" | "payments"> & {
     creditApplied?: number | null;
   },
 ): PaymentStatus {
@@ -173,6 +168,30 @@ export function getPaymentStatus(
   }
 
   return "paid";
+}
+
+export function getOrderCashPaid(order: Pick<Order, "amountPaid" | "payments">) {
+  if (order.payments !== undefined) {
+    return order.payments.reduce((sum, payment) => sum + payment.amount, 0);
+  }
+
+  return order.amountPaid;
+}
+
+export function getOrderPaymentHistory(order: Pick<Order, "id" | "amountPaid" | "payments">): OrderPayment[] {
+  if (order.payments !== undefined) {
+    return order.payments;
+  }
+
+  if (order.amountPaid <= 0) {
+    return [];
+  }
+
+  return [{
+    id: `legacy-${order.id}`,
+    amount: order.amountPaid,
+    receivedAt: null,
+  }];
 }
 
 export function getPaymentStatusLabel(status: PaymentStatus) {
