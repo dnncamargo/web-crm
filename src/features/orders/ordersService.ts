@@ -8,7 +8,6 @@ import {
   query,
   runTransaction,
   serverTimestamp,
-  updateDoc,
   type Unsubscribe,
 } from "firebase/firestore";
 
@@ -164,20 +163,38 @@ export async function registerOrderPayment(orderId: string, input: RegisterOrder
 
 export async function updateOrder(orderId: string, data: UpdateOrderData) {
   const orderRef = doc(db, "orders", orderId);
+  const protectedFinancialFields = new Set(["payments", "amountPaid", "creditGenerated"]);
+  const editableData = Object.fromEntries(
+    Object.entries(data).filter(([key]) => !protectedFinancialFields.has(key)),
+  ) as Omit<UpdateOrderData, "payments" | "amountPaid" | "creditGenerated">;
+  const cleanedData = removeUndefinedFields(editableData);
 
-  const cleanedData = removeUndefinedFields(data);
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(orderRef);
 
-  return updateDoc(orderRef, {
-    ...cleanedData,
+    if (!snapshot.exists()) {
+      throw new Error("Pedido não encontrado.");
+    }
 
-    ...(data.creditApplied === null
-      ? { creditApplied: deleteField() }
-      : {}),
+    const currentOrder = { id: snapshot.id, ...snapshot.data() } as Order;
+    const currentCashPaid = getOrderCashPaid(currentOrder);
+    const resultingTotal = data.total ?? currentOrder.total;
+    const resultingCreditApplied = data.creditApplied === undefined
+      ? currentOrder.creditApplied ?? 0
+      : data.creditApplied ?? 0;
+    const creditGenerated = Math.max(currentCashPaid + resultingCreditApplied - resultingTotal, 0);
+    const creditAppliedUpdate = data.creditApplied === undefined
+      ? {}
+      : data.creditApplied === null
+        ? { creditApplied: deleteField() }
+        : { creditApplied: data.creditApplied };
 
-    ...(data.creditGenerated === null
-      ? { creditGenerated: deleteField() }
-      : {}),
-
-    updatedAt: serverTimestamp(),
+    transaction.update(orderRef, {
+      ...cleanedData,
+      ...creditAppliedUpdate,
+      amountPaid: currentCashPaid,
+      ...(creditGenerated > 0 ? { creditGenerated } : { creditGenerated: deleteField() }),
+      updatedAt: serverTimestamp(),
+    });
   });
 }
