@@ -293,6 +293,13 @@ Arquivo: `src/features/orders/orderTypes.ts`
 
 Pedido é o principal registro histórico transacional e continua editável enquanto o acordo comercial com o Cliente evolui.
 
+O contrato detalhado de recebimentos, correções, créditos, cancelamentos,
+devoluções, agregação, backend e migração está em
+[FINANCIAL_ARCHITECTURE.md](FINANCIAL_ARCHITECTURE.md). As marcações
+**CURRENT**, **DECIDED**, **PROPOSED** e **OPEN** daquele documento devem ser
+preservadas: este arquivo descreve o modelo atual e aponta o destino aprovado,
+mas não implica que a migração já ocorreu.
+
 ### Identificação do cliente
 
 - `clientId`: referência viva;
@@ -390,11 +397,13 @@ Registrar pagamento não deve alterar automaticamente `OrderStatus`. Alterar
 `OrderStatus` não deve criar recebimentos fictícios. Preservar essa distinção:
 **status operacional do Pedido é persistido; status de pagamento é derivado**.
 
-As regras financeiras específicas de cancelamento continuam prevalecendo: um
-Pedido cancelado não aceita novos recebimentos e suas movimentações de crédito
-não participam do saldo disponível do Cliente conforme as regras deste
-documento. Essa exceção não autoriza persistir `PaymentStatus` como uma segunda
-fonte da verdade.
+**CURRENT**: a implementação bloqueia novos recebimentos em Pedido cancelado e
+exclui suas movimentações do cálculo local de crédito disponível. Isso não
+autoriza persistir `PaymentStatus` como segunda fonte da verdade e não define
+o contrato de destino. Conforme
+[FINANCIAL_ARCHITECTURE.md](FINANCIAL_ARCHITECTURE.md), o cancelamento exigirá
+acerto financeiro explícito e a exclusão automática de crédito será revista no
+cutover, sem mudança funcional nesta documentação.
 
 ### Consequências para projeções e consultas
 
@@ -425,7 +434,12 @@ valores por um campo financeiro persistido concorrente.
 
 ## 10. Crédito do cliente
 
-O crédito é um **saldo acumulado derivado dos Pedidos**, sem documento de saldo independente.
+**CURRENT**: o crédito é um **saldo acumulado derivado dos Pedidos**, sem
+documento de saldo independente. O destino aprovado é um agregador
+transacional reconciliável por Cliente, que continua sendo projeção dos fatos
+financeiros canônicos dos Pedidos e de seus acertos; consultar
+[FINANCIAL_ARCHITECTURE.md](FINANCIAL_ARCHITECTURE.md). Não existe agregador
+implementado nesta etapa.
 
 Cada Pedido pode registrar duas movimentações diferentes:
 
@@ -436,7 +450,9 @@ Para Pedidos elegíveis, o saldo disponível do Cliente é derivado conceitualme
 
 `crédito disponível = soma(creditGenerated) - soma(creditApplied)`
 
-Pedidos cancelados não participam desse saldo conforme a regra atual.
+**CURRENT**: Pedidos cancelados não participam desse saldo. Esse comportamento
+não é o contrato de destino: cancelamentos passarão a depender de um acerto
+financeiro explícito. A regra não muda até o cutover planejado.
 
 ### Aplicação e nova geração no mesmo Pedido
 
@@ -466,10 +482,19 @@ Portanto, não tratar geração de crédito como mutuamente exclusiva com aplica
 - um Pedido já quitado preserva `creditApplied` e `creditGenerated` quando a edição não altera Cliente, itens, quantidade, unidade, preço negociado, taxa de entrega ou valor pago;
 - se uma edição alterar esses dados comerciais/financeiros, saldo e crédito podem ser recalculados;
 - editar apenas endereço, data/hora, observações, etiquetas ou outros dados não financeiros de um Pedido quitado não deve redistribuir silenciosamente suas movimentações de crédito;
-- cancelar um Pedido retira suas movimentações do saldo disponível conforme a regra atual; reativá-lo volta a considerar as movimentações registradas, salvo recálculo decorrente de alteração financeira;
-- pagamentos são append-only nesta versão: não há edição, exclusão, pagamento negativo, estorno ou reembolso;
-- cancelar um Pedido não é reembolso: o histórico de pagamentos permanece e o Pedido cancelado não aceita novos recebimentos;
-- não persistir um "saldo do cliente" separado sem uma decisão explícita de fonte da verdade e reconciliação.
+- **CURRENT**: cancelar um Pedido retira suas movimentações do saldo disponível;
+  reativá-lo volta a considerar as movimentações registradas, salvo recálculo
+  decorrente de alteração financeira. O comportamento será substituído pelo
+  acerto explícito descrito no contrato financeiro durante o cutover;
+- **CURRENT**: pagamentos são append-only nesta versão: não há edição,
+  exclusão, pagamento negativo, estorno ou reembolso. O contrato aprovado
+  substitui essa limitação por correção do lançamento existente, preservando a
+  identidade e sem trilha técnica adicional, após a migração;
+- **DECIDED**: cancelar um Pedido não é reembolso: o histórico de pagamentos
+  permanece e o Pedido cancelado não aceita novos recebimentos;
+- não persistir um "saldo do cliente" separado sem uma decisão explícita de
+  fonte da verdade e reconciliação. O agregador definido no contrato financeiro
+  atende a essa condição como projeção, nunca como fonte independente.
 
 ## 11. Tarefa
 
@@ -519,6 +544,12 @@ Ao evoluir esse fluxo, preservar rastreabilidade. Não reutilizar o mesmo campo 
 Produção por data, entregas próximas, pagamentos pendentes e sugestões de contato devem continuar derivados das entidades fonte.
 
 Não criar documentos duplicados de dashboard apenas para reproduzir valores que já podem ser calculados, salvo necessidade de performance medida e documentada.
+
+O futuro painel de acertos financeiros pendentes também será uma projeção de
+Pedidos e de seus acertos, sem criação automática de Task. Seus critérios,
+distintos de produção e de pagamento pendente, estão definidos em
+[FINANCIAL_ARCHITECTURE.md](FINANCIAL_ARCHITECTURE.md); ele ainda não existe na
+interface atual.
 
 ## 13. Configuração visual
 
