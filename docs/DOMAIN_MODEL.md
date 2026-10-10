@@ -369,9 +369,59 @@ Não recalcular saldo, pagamento ou crédito com fórmulas duplicadas dentro de 
 - `completed`
 - `cancelled`
 
-`PaymentStatus` é derivado do total efetivamente pago e não é persistido como campo independente no tipo `Order`.
+`OrderStatus` representa a situação operacional de produção e entrega do Pedido
+e é persistido no documento. Em particular, `completed` significa que o Pedido
+foi efetivamente entregue ao Cliente; não representa uma confirmação de
+quitação.
 
-Preservar essa distinção: **status de pedido é persistido; status de pagamento é derivado**.
+`PaymentStatus` representa a situação financeira. Ele é derivado, por
+`getPaymentStatus`, dos valores financeiros canônicos: dinheiro recebido por
+`getOrderCashPaid`, crédito aplicado e total do Pedido. Não é persistido como
+campo independente no tipo `Order` nem em outra coleção.
+
+As duas dimensões são independentes:
+
+- entregar um Pedido não significa quitá-lo;
+- quitar um Pedido não significa entregá-lo;
+- um Pedido entregue pode permanecer com saldo pendente;
+- um Pedido ainda não entregue pode estar integralmente quitado.
+
+Registrar pagamento não deve alterar automaticamente `OrderStatus`. Alterar
+`OrderStatus` não deve criar recebimentos fictícios. Preservar essa distinção:
+**status operacional do Pedido é persistido; status de pagamento é derivado**.
+
+As regras financeiras específicas de cancelamento continuam prevalecendo: um
+Pedido cancelado não aceita novos recebimentos e suas movimentações de crédito
+não participam do saldo disponível do Cliente conforme as regras deste
+documento. Essa exceção não autoriza persistir `PaymentStatus` como uma segunda
+fonte da verdade.
+
+### Consequências para projeções e consultas
+
+Os consumidores do domínio devem apresentar e filtrar as duas dimensões sem
+inferir uma a partir da outra:
+
+- **Detalhes de Pedidos:** exibir o estado operacional e a situação financeira
+  como informações distintas, junto do saldo calculado pelos utilitários
+  canônicos;
+- **Dashboard Hoje:** projeções de produção e entrega usam a dimensão
+  operacional; projeções financeiras usam `PaymentStatus` e o saldo canônico.
+  Critérios próprios de inclusão da projeção devem ser explícitos e não podem
+  converter entrega em quitação, ou quitação em entrega;
+- **Filtros operacionais e financeiros:** manter filtros separáveis e
+  combináveis, sem um mapeamento implícito entre `OrderStatus` e
+  `PaymentStatus`;
+- **Futuro Controle Financeiro:** classificar Pedidos `completed` com saldo
+  positivo como **"Entregues com pagamento pendente"**. Não classificá-los
+  automaticamente como inadimplentes sem um critério explícito de vencimento;
+- **Relatórios A4:** mostrar, quando pertinente, as duas dimensões e os valores
+  financeiros derivados sem inferir uma situação a partir da outra.
+
+Dinheiro recebido, crédito aplicado e saldo pendente permanecem conceitos
+distintos. Recebimentos vêm de `payments`/`amountPaid` legado por
+`getOrderCashPaid`; crédito aplicado reduz o saldo devido; e o saldo pendente é
+calculado pelos utilitários canônicos. Nenhuma projeção deve substituir esses
+valores por um campo financeiro persistido concorrente.
 
 ## 10. Crédito do cliente
 
