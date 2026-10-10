@@ -218,14 +218,18 @@ autorizado por este documento sem essa demonstração.
 
 Cancelar um pedido muda OrderStatus para cancelled, preserva pagamentos
 originais e não decide automaticamente retenção, devolução nem restituição de
-crédito. O acerto pode ser devolução integral, parcial, sem devolução ou **A
-combinar**. A regra atual de excluir automaticamente pedidos cancelados do
-crédito disponível deve ser revista no cutover; não deve ser reproduzida como
-regra do destino.
+crédito. No próprio cancelamento, o operador pode selecionar devolução
+integral, devolução parcial, sem devolução ou **A combinar**. Quando os termos
+selecionados forem válidos, o Pedido entra diretamente no estado de acerto que
+eles determinam; não há etapa intermediária obrigatória de **A combinar**. A
+regra atual de excluir automaticamente pedidos cancelados do crédito disponível
+deve ser revista no cutover; não deve ser reproduzida como regra do destino.
 
-**A combinar** significa que a decisão financeira está indefinida. Não é uma
-devolução de R$ 0, não registra retenção, compensação ou valor de devolução, e
-não cria movimentação financeira. Os recebimentos anteriores ficam preservados.
+**A combinar** significa que a decisão financeira está indefinida. Ele ocorre
+somente quando foi a opção selecionada pelo operador ou quando não existem
+termos financeiros completos e válidos. Não é uma devolução de R$ 0, não
+registra retenção, compensação ou valor de devolução, e não cria movimentação
+financeira. Os recebimentos anteriores ficam preservados.
 
 ### 4.2 Dimensão conceitual mínima
 
@@ -240,11 +244,20 @@ desenho mínimo precisa representar:
 - o valor de dinheiro acordado para devolução, quando definido;
 - o valor de crédito acordado para restituição, quando definido;
 - devoluções efetivas, cada uma com identidade, valor e data próprios;
-- o resultado explícito para o crédito aplicado.
+- o resultado explícito para o crédito aplicado e se o efeito no agregador já
+  foi executado.
 
 Campos de acordo são ausentes enquanto estiver **A combinar**. Um zero somente
 é permitido depois de um acerto definido e significa que aquela dimensão foi
 explicitamente acordada como inexistente.
+
+Termos financeiros são válidos somente quando todos os seus componentes têm
+destino explícito: o valor de devolução de dinheiro respeita seus limites, a
+destinação de todo crédito aplicado é definida e qualquer caso de crédito de
+origem em cadeia atende à decisão de produto aplicável. Valores parciais,
+incompatíveis ou dependentes de questão **OPEN** não formam um acerto definido.
+Eles devem ser rejeitados ou mantidos como **A combinar** sem persistir valores
+financeiros parciais.
 
 Definir termos não cria saída de dinheiro. Crédito só pode voltar ao agregador
 por comando explícito do acerto, na transação que marca esse efeito como
@@ -252,13 +265,13 @@ executado. Esse comando pode ocorrer enquanto uma devolução em dinheiro ainda
 está pendente, mas nunca enquanto o acerto estiver **A combinar**.
 
 Para evitar estado redundante, recomenda-se persistir fatos e derivar a visão
-de estado abaixo:
+de estado com a primeira condição aplicável desta tabela:
 
 | Estado de acerto exibido | Origem | Condição |
 | --- | --- | --- |
-| a_combinar | derivado | Pedido cancelado com termos financeiros ausentes ou indefinidos |
-| definido | derivado | Termos quantitativos definidos e nenhuma devolução efetiva ainda pendente |
-| devolucao_pendente | derivado | Devolução em dinheiro acordada excede o total efetivamente devolvido |
+| a_combinar | derivado | Pedido cancelado com opção A combinar ou sem termos financeiros completos e válidos; todos os valores de acordo permanecem ausentes |
+| devolucao_pendente | derivado | Termos válidos e valor efetivamente devolvido menor que o valor acordado para devolver em dinheiro |
+| definido | derivado | Termos válidos, sem devolução em dinheiro pendente e com destinação de crédito ainda não executada no agregador |
 | concluido | derivado | Todos os efeitos acordados foram executados e conciliados no agregador |
 
 Uma implementação pode persistir apenas o marcador mínimo de termos definidos
@@ -270,17 +283,27 @@ validado contra os fatos na mesma transação e não pode divergir deles.
 **DECIDED**
 
     pedido active ou completed
-      -> cancelar -> OrderStatus cancelled + acerto A combinar
+      -> cancelar com A combinar ou sem termos válidos
+         -> OrderStatus cancelled + acerto A combinar
+      -> cancelar com termos válidos
+         -> devolução pendente, definido ou concluído, conforme os critérios da seção 4.2
 
     A combinar
-      -> definir termos -> definido ou devolução pendente
+      -> definir termos válidos
+         -> devolução pendente, definido ou concluído, conforme os critérios da seção 4.2
 
     definido
-      -> executar efeito restante -> concluído
+      -> executar a destinação explícita do crédito
+         -> concluído
+      -> revisar termos para incluir devolução em dinheiro pendente
+         -> devolução pendente
 
     devolução pendente
-      -> registrar devolução parcial -> devolução pendente
-      -> registrar devolução final -> concluído, se crédito também estiver resolvido
+      -> registrar devolução parcial
+         -> devolução pendente
+      -> registrar devolução final
+         -> definido, se ainda houver destinação de crédito não executada;
+            caso contrário, concluído
 
 Uma revisão de acordo já definido, antes da conclusão, é uma nova decisão
 negociada e deve ser transacional; não pode apagar devoluções efetuadas, reduzir
@@ -324,12 +347,13 @@ cronograma de cobrança não pertencem a esta versão.
 **DECIDED**
 
 Hoje terá seção própria de **acertos financeiros pendentes**, derivada dos
-pedidos e seus acertos, sem criar Task automática. Devem nela permanecer, até
-resolução:
+pedidos e seus acertos, sem criar Task automática. Todo acerto cujo estado não
+seja concluido deve nela permanecer, até a execução de todos os seus efeitos:
 
 - cancelamento **A combinar**;
 - devolução acordada ainda não iniciada;
 - devolução parcialmente executada.
+- acerto definido cuja destinação explícita de crédito ainda não foi executada.
 
 Produção/entrega, pagamento pendente e acerto financeiro pendente são listas
 distintas e não devem ser uma inferida da outra. A futura interface reutiliza a
