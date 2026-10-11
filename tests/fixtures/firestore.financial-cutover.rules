@@ -1,0 +1,75 @@
+rules_version = '2';
+
+// Candidate Rules for the financial-authority cutover.
+// This file is loaded explicitly by the isolated Emulator test suite only.
+// It must never replace firestore.rules or be referenced by firebase.json.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAllowedGoogleUser() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.firebase.sign_in_provider == "google.com"
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() in get(
+          /databases/$(database)/documents/config/authAdmission
+        ).data.allowedGoogleEmails;
+    }
+
+    // Admission remains administrative-only. This explicit rule is not relied
+    // on as a denial override: no broad allow exists anywhere in this file.
+    match /config/authAdmission {
+      allow read, write: if false;
+    }
+
+    // Financial records can be read by an admitted user for the existing UI,
+    // but are written only by the server-side Admin SDK after cutover.
+    match /orders/{orderId} {
+      allow read: if isAllowedGoogleUser();
+      allow write: if false;
+    }
+
+    match /orders/{orderId}/{nestedDocument=**} {
+      allow read, write: if false;
+    }
+
+    match /clientFinancial/{clientId} {
+      allow read: if isAllowedGoogleUser();
+      allow write: if false;
+    }
+
+    // Idempotency and other operational records are internal; a client does
+    // not need to read or write them to project the financial UI.
+    match /clientFinancial/{clientId}/{nestedDocument=**} {
+      allow read, write: if false;
+    }
+
+    // The browser must retain the current non-financial CRM operations.
+    match /clients/{clientId} {
+      allow read, write: if isAllowedGoogleUser();
+    }
+
+    match /addresses/{addressId} {
+      allow read, write: if isAllowedGoogleUser();
+    }
+
+    match /products/{productId} {
+      allow read, write: if isAllowedGoogleUser();
+    }
+
+    match /tags/{tagId} {
+      allow read, write: if isAllowedGoogleUser();
+    }
+
+    match /tasks/{taskId} {
+      allow read, write: if isAllowedGoogleUser();
+    }
+
+    match /printers/{printerId} {
+      allow read, write: if isAllowedGoogleUser();
+    }
+
+    match /appSettings/{settingId} {
+      allow read, write: if isAllowedGoogleUser();
+    }
+  }
+}
