@@ -91,7 +91,8 @@ financeira. Consumidores não duplicam a regra.
 
 Registrar um recebimento deve receber uma identidade lógica estável antes da
 tentativa de gravação. A repetição com a mesma identidade e o mesmo conteúdo
-deve devolver o mesmo resultado sem criar outro lançamento. A repetição com a
+não cria novo lançamento e devolve `replayed: true` com os campos `current*`
+da projeção atual. Ela não reproduz um resultado histórico. A repetição com a
 mesma identidade e conteúdo divergente deve falhar de forma explícita.
 
 Dois recebimentos reais de mesmo valor e mesma data continuam válidos quando
@@ -102,10 +103,11 @@ cliente.
 
 No endpoint central, usar payment.id como chave idempotente da criação dentro da
 transação do pedido: se o ID já estiver presente, comparar amount e receivedAt;
-se forem iguais, retornar sucesso idempotente; se forem diferentes, rejeitar
-colisão. A transação deve recalcular amountPaid, crédito gerado e a projeção de
-crédito atingida pela operação no mesmo commit lógico. Isso elimina uma trilha
-técnica de correções e ainda permite retries seguros.
+se forem iguais, retornar `replayed: true` com a projeção atual; se forem
+diferentes, rejeitar colisão. A transação deve recalcular amountPaid, crédito
+gerado e a projeção de crédito atingida pela operação no mesmo commit lógico.
+Isso elimina uma trilha técnica de correções e ainda permite retries seguros,
+sem persistência técnica adicional por payment.id.
 
 **IMPLEMENTED — Incremento 4, somente Emulator local**
 
