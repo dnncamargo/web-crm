@@ -107,6 +107,18 @@ colisão. A transação deve recalcular amountPaid, crédito gerado e a projeç�
 crédito atingida pela operação no mesmo commit lógico. Isso elimina uma trilha
 técnica de correções e ainda permite retries seguros.
 
+**IMPLEMENTED — Incremento 4, somente Emulator local**
+
+`POST /api/financial/record-payment` recebe `orderId`, `clientId`, `paymentId`,
+`amountCents`, `receivedAt`, `presentedAvailableCreditCents` e
+`presentedRevision`. O identificador do pagamento é a chave idempotente: mesma
+identidade, valor e data retorna o resultado persistido sem nova escrita;
+identidade com conteúdo diferente retorna conflito. Valores distintos com a
+mesma data continuam admitidos. A data exigida para um novo recebimento é ISO
+com fuso horário explícito e representa o recebimento real/declarado, nunca um
+timestamp técnico. O comando atualiza `payments`, o cache `amountPaid`,
+`creditGenerated` e o agregador no mesmo commit.
+
 ### 2.3 Correção de recebimento
 
 **DECIDED**
@@ -129,6 +141,19 @@ a mesma edição é um no-op idempotente; uma edição concorrente ou baseada em
 estado obsoleto deve ser serializada pela transação ou rejeitada por uma
 precondição de versão. O mecanismo técnico de versão não deve ser exposto como
 auditoria financeira.
+
+**IMPLEMENTED — Incremento 4, somente Emulator local**
+
+`POST /api/financial/correct-payment` recebe a identidade, o estado anterior
+do lançamento, o estado desejado e a revisão/saldo apresentados. A correção
+preserva `payment.id`, não cria lançamento compensatório ou trilha técnica e
+é no-op quando o estado desejado já está persistido. A alteração exige que o
+estado anterior e a projeção do agregador ainda coincidam. Se a geração de
+crédito diminuir, a redução é aceita apenas quando o saldo disponível a cobre.
+Um documento legado sem `payments[]` não possui uma identidade persistida para
+correção: o endpoint o recusa com conflito até uma decisão de produto aprovada.
+O registro de um novo recebimento pode materializar esse legado, na transação,
+como `legacy-{orderId}` com `receivedAt: null`.
 
 ## 3. Crédito por cliente
 
@@ -554,6 +579,14 @@ normalizado e o resultado mínimo da operação. Ele é criado no mesmo commit q
 o Pedido e o agregador. Mesmo ID com mesmo fingerprint devolve o resultado
 anterior; mesmo ID com conteúdo diferente gera conflito. O pedido, agregador e
 registro idempotente são lidos antes de qualquer escrita da transação.
+
+O Incremento 4 não cria novo registro de operação para recebimentos: a própria
+identidade estável `payment.id` é a chave de idempotência do Pedido. Para uma
+mutação, o endpoint lê Pedido e agregador, valida os fatos, a relação de
+Cliente, o saldo/revisão apresentados e grava os dois documentos atomicamente.
+Retries idempotentes não alteram `updatedAt`, revisão ou crédito. O agregador
+continua obrigatório, `ready` e previamente inicializado por fixture; a API
+nunca o cria, desbloqueia ou inicializa.
 
 Na prova atual, fixtures explícitas do emulador criam o agregador em `ready`.
 O comando confirma saldo e revisão apresentados, confirma o valor em centavos,
