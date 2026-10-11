@@ -583,7 +583,18 @@ idempotência, preservando somente leituras autorizadas e as demais coleções
 necessárias. Uma regra específica de negação não bastará enquanto esse allow
 existir.
 
-**OPEN — cutover e reconciliação**
+**IMPLEMENTED — diagnóstico local somente leitura**
+
+O Incremento 3 adiciona `src/features/financial/reconciliation.ts`, um módulo
+puro que recebe documentos de Pedido e snapshots experimentais de agregador em
+memória. Ele não importa Firebase, não lê nem escreve Firestore, não cria
+agregadores e não altera o contrato produtivo. Reutiliza o núcleo de centavos
+para classificar compatibilidade legada, inconsistências, reconstruções
+conclusivas/inconclusivas, cancelamentos e divergências de agregador. O plano
+operacional, códigos de diagnóstico e dry-run sintético estão em
+[FINANCIAL_RECONCILIATION_CUTOVER.md](FINANCIAL_RECONCILIATION_CUTOVER.md).
+
+**OPEN — cutover e reconciliação produtiva**
 
 O schema permanece experimental até aprovação do Product Owner. Continuam
 abertos o protocolo de reconciliação e reparo, cancelamentos, devoluções,
