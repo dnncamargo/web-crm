@@ -38,7 +38,8 @@ export interface CreditApplicationSuggestion {
 }
 
 export interface ConfirmCreditApplicationInput {
-  availableCreditCents: MoneyCents;
+  presentedAvailableCreditCents: MoneyCents;
+  currentAvailableCreditCents: MoneyCents;
   orderTotalCents: MoneyCents;
   selectedCents: MoneyCents;
   confirmed: boolean;
@@ -46,7 +47,8 @@ export interface ConfirmCreditApplicationInput {
 
 export interface ConfirmedCreditApplication {
   appliedCents: MoneyCents;
-  remainingOrderBalanceCents: MoneyCents;
+  /** Remaining order total after credit only; excludes cash payments. */
+  orderBalanceBeforeCashPaymentsCents: MoneyCents;
   remainingAvailableCreditCents: MoneyCents;
 }
 
@@ -91,9 +93,17 @@ export function validateRetroactiveCreditReduction(
   assertNonNegativeMoneyCents(input.previousGeneratedCreditCents, "Crédito gerado anterior");
   assertNonNegativeMoneyCents(input.nextGeneratedCreditCents, "Novo crédito gerado");
 
-  const reductionCents = input.nextGeneratedCreditCents < input.previousGeneratedCreditCents
-    ? subtractMoneyCents(input.previousGeneratedCreditCents, input.nextGeneratedCreditCents)
-    : subtractMoneyCents(input.previousGeneratedCreditCents, input.previousGeneratedCreditCents);
+  if (input.nextGeneratedCreditCents > input.previousGeneratedCreditCents) {
+    throw new FinancialDomainError(
+      "CREDIT_REDUCTION_VALIDATOR_REQUIRES_REDUCTION",
+      "A validação de redução retroativa não aceita aumento de crédito gerado.",
+    );
+  }
+
+  const reductionCents = subtractMoneyCents(
+    input.previousGeneratedCreditCents,
+    input.nextGeneratedCreditCents,
+  );
 
   if (reductionCents > input.availableCreditCents) {
     throw new FinancialDomainError(
@@ -118,7 +128,8 @@ export function suggestCreditApplication(
 export function confirmCreditApplication(
   input: ConfirmCreditApplicationInput,
 ): ConfirmedCreditApplication {
-  assertNonNegativeMoneyCents(input.availableCreditCents, "Crédito disponível");
+  assertNonNegativeMoneyCents(input.presentedAvailableCreditCents, "Crédito apresentado ao operador");
+  assertNonNegativeMoneyCents(input.currentAvailableCreditCents, "Crédito disponível atual");
   assertNonNegativeMoneyCents(input.orderTotalCents, "Total do pedido");
   assertNonNegativeMoneyCents(input.selectedCents, "Crédito escolhido");
 
@@ -129,6 +140,20 @@ export function confirmCreditApplication(
     );
   }
 
+  if (input.selectedCents > input.currentAvailableCreditCents) {
+    throw new FinancialDomainError(
+      "INSUFFICIENT_AVAILABLE_CREDIT",
+      "O crédito escolhido excede o saldo disponível no momento da confirmação.",
+    );
+  }
+
+  if (input.presentedAvailableCreditCents !== input.currentAvailableCreditCents) {
+    throw new FinancialDomainError(
+      "CREDIT_BALANCE_CHANGED",
+      "O saldo de crédito mudou desde que foi apresentado; é necessária nova confirmação.",
+    );
+  }
+
   if (input.selectedCents > input.orderTotalCents) {
     throw new FinancialDomainError(
       "CREDIT_APPLICATION_EXCEEDS_ORDER_TOTAL",
@@ -136,17 +161,10 @@ export function confirmCreditApplication(
     );
   }
 
-  if (input.selectedCents > input.availableCreditCents) {
-    throw new FinancialDomainError(
-      "INSUFFICIENT_AVAILABLE_CREDIT",
-      "O crédito escolhido excede o saldo disponível no momento da confirmação.",
-    );
-  }
-
   return {
     appliedCents: input.selectedCents,
-    remainingOrderBalanceCents: subtractMoneyCents(input.orderTotalCents, input.selectedCents),
-    remainingAvailableCreditCents: subtractMoneyCents(input.availableCreditCents, input.selectedCents),
+    orderBalanceBeforeCashPaymentsCents: subtractMoneyCents(input.orderTotalCents, input.selectedCents),
+    remainingAvailableCreditCents: subtractMoneyCents(input.currentAvailableCreditCents, input.selectedCents),
   };
 }
 

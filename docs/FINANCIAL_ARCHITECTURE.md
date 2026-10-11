@@ -233,6 +233,13 @@ reserva/bloqueio é autorizado por este documento sem essa demonstração.
   saldo mudar antes da gravação, a API deve rejeitar o valor confirmado e exigir
   nova decisão; nunca diminuí-lo automaticamente.
 
+No contrato de domínio, a confirmação recebe separadamente o saldo apresentado
+ao operador e o saldo atual. Qualquer diferença, inclusive aumento, exige nova
+confirmação. Na futura API, essa precondição deve incluir a versão do agregador
+lida pelo operador e ser validada dentro da transação que grava o Pedido; o
+saldo e sua versão precisam continuar iguais aos apresentados. O núcleo puro
+não implementa armazenamento de versão nem proteção concorrente.
+
 **IMPLEMENTED — contrato puro, ainda fora da produção**
 
 `src/features/financial/money.ts` estabelece cálculos determinísticos em

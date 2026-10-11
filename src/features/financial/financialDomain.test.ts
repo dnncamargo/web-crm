@@ -86,6 +86,22 @@ describe("fungible client credit", () => {
     }), "alteração financeira foi rejeitada");
   });
 
+  it("allows an unchanged generated credit amount without changing available balance", () => {
+    expect(validateRetroactiveCreditReduction({
+      availableCreditCents: cents(20),
+      previousGeneratedCreditCents: cents(50),
+      nextGeneratedCreditCents: cents(50),
+    })).toEqual({ reductionCents: cents(0), nextAvailableCreditCents: cents(20) });
+  });
+
+  it("rejects an increase passed to the retroactive reduction validator", () => {
+    expectFinancialError(() => validateRetroactiveCreditReduction({
+      availableCreditCents: cents(20),
+      previousGeneratedCreditCents: cents(50),
+      nextGeneratedCreditCents: cents(60),
+    }), "não aceita aumento");
+  });
+
   it("does not modify previous consumer effects when a reduction is rejected", () => {
     const consumers = [
       createCreditEffect({ generatedCents: cents(0), appliedCents: cents(10) }),
@@ -108,20 +124,36 @@ describe("explicit credit application", () => {
 
   it("allows a partial operator-confirmed application", () => {
     expect(confirmCreditApplication({
-      availableCreditCents: cents(50),
+      presentedAvailableCreditCents: cents(50),
+      currentAvailableCreditCents: cents(50),
       orderTotalCents: cents(120),
       selectedCents: cents(30),
       confirmed: true,
     })).toEqual({
       appliedCents: cents(30),
-      remainingOrderBalanceCents: cents(90),
+      orderBalanceBeforeCashPaymentsCents: cents(90),
       remainingAvailableCreditCents: cents(20),
     });
   });
 
+  it("labels the post-credit projection as before cash and keeps full balance separate", () => {
+    const confirmation = confirmCreditApplication({
+      presentedAvailableCreditCents: cents(50),
+      currentAvailableCreditCents: cents(50),
+      orderTotalCents: cents(120),
+      selectedCents: cents(30),
+      confirmed: true,
+    });
+
+    expect(confirmation.orderBalanceBeforeCashPaymentsCents).toBe(cents(90));
+    expect(calculateOrderBalanceCents(cents(120), cents(50), confirmation.appliedCents)).toBe(cents(40));
+    expect(confirmation).not.toHaveProperty("remainingOrderBalanceCents");
+  });
+
   it("allows an explicitly confirmed refusal of credit", () => {
     expect(confirmCreditApplication({
-      availableCreditCents: cents(50),
+      presentedAvailableCreditCents: cents(50),
+      currentAvailableCreditCents: cents(50),
       orderTotalCents: cents(120),
       selectedCents: cents(0),
       confirmed: true,
@@ -130,17 +162,34 @@ describe("explicit credit application", () => {
 
   it("requires explicit confirmation and rejects a choice above the available credit", () => {
     expectFinancialError(() => confirmCreditApplication({
-      availableCreditCents: cents(50), orderTotalCents: cents(120), selectedCents: cents(50), confirmed: false,
+      presentedAvailableCreditCents: cents(50), currentAvailableCreditCents: cents(50),
+      orderTotalCents: cents(120), selectedCents: cents(50), confirmed: false,
     }), "confirmação explícita");
     expectFinancialError(() => confirmCreditApplication({
-      availableCreditCents: cents(20), orderTotalCents: cents(120), selectedCents: cents(50), confirmed: true,
+      presentedAvailableCreditCents: cents(50), currentAvailableCreditCents: cents(20),
+      orderTotalCents: cents(120), selectedCents: cents(50), confirmed: true,
     }), "excede o saldo disponível");
   });
 
-  it("rejects a stale confirmed amount instead of decreasing it automatically", () => {
+  it("rejects a lower stale balance even when the chosen amount still fits", () => {
     expectFinancialError(() => confirmCreditApplication({
-      availableCreditCents: cents(30), orderTotalCents: cents(120), selectedCents: cents(50), confirmed: true,
-    }), "excede o saldo disponível");
+      presentedAvailableCreditCents: cents(50), currentAvailableCreditCents: cents(40),
+      orderTotalCents: cents(120), selectedCents: cents(30), confirmed: true,
+    }), "mudou desde que foi apresentado");
+  });
+
+  it("requires reconfirmation when the current balance increased", () => {
+    expectFinancialError(() => confirmCreditApplication({
+      presentedAvailableCreditCents: cents(50), currentAvailableCreditCents: cents(60),
+      orderTotalCents: cents(120), selectedCents: cents(30), confirmed: true,
+    }), "mudou desde que foi apresentado");
+  });
+
+  it("allows an explicitly confirmed zero choice when the displayed balance is current", () => {
+    expect(confirmCreditApplication({
+      presentedAvailableCreditCents: cents(50), currentAvailableCreditCents: cents(50),
+      orderTotalCents: cents(120), selectedCents: cents(0), confirmed: true,
+    }).appliedCents).toBe(cents(0));
   });
 
   it("preserves applied credit during a non-financial edit", () => {
