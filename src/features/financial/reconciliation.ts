@@ -96,6 +96,7 @@ export interface ReconciliationResult {
 
 interface ParsedOrder {
   result: ReconciledOrder;
+  sortKey: string;
   clientId?: string;
   canReconstructCredit: boolean;
   isCancelledWithCreditEffect: boolean;
@@ -125,6 +126,37 @@ function isTechnicalId(value: unknown): value is string {
 
 function isValidDate(value: string): boolean {
   return !Number.isNaN(new Date(value).getTime());
+}
+
+function stableValueKey(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "number") {
+    if (Number.isNaN(value)) return "number:NaN";
+    if (value === Number.POSITIVE_INFINITY) return "number:+Infinity";
+    if (value === Number.NEGATIVE_INFINITY) return "number:-Infinity";
+  }
+  if (typeof value === "string" || typeof value === "boolean" || typeof value === "number") {
+    return `${typeof value}:${JSON.stringify(value)}`;
+  }
+  if (Array.isArray(value)) return `[${value.map(stableValueKey).join(",")}]`;
+  if (isRecord(value)) {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableValueKey(value[key])}`).join(",")}}`;
+  }
+  return `${typeof value}:${String(value)}`;
+}
+
+function addArithmeticFinding(
+  findings: ReconciliationFinding[],
+  base: Omit<ReconciliationFinding, "code" | "classification" | "description" | "field">,
+  field: string,
+): void {
+  findings.push({
+    ...base,
+    code: "MONETARY_ARITHMETIC_INVALID",
+    classification: "INCONSISTENT",
+    description: "A operação monetária excede o intervalo seguro e não foi aproximada.",
+    field,
+  });
 }
 
 function recordClassification(findings: readonly ReconciliationFinding[]): ReconciliationClassification {
@@ -240,19 +272,27 @@ function examineItems(
     if (unitPrice === null || total === null) return;
 
     const lineProduct = item.quantity * (unitPrice / 100);
+    if (!Number.isFinite(lineProduct)) {
+      addArithmeticFinding(findings, base, itemField);
+      return;
+    }
     try {
       const productCents = legacyReaisToMoneyCents(lineProduct, `${itemField}.quantity × unitPrice`);
       if (productCents !== total) {
         findings.push({
           ...base,
-          code: "ORDER_ITEM_ROUNDING_DECISION_REQUIRED",
-          classification: "BLOCKED_BY_PRODUCT_DECISION",
-          description: "O total do item não pode ser confirmado sem uma regra comercial de arredondamento aprovada.",
+          code: "ORDER_ITEM_TOTAL_MISMATCH",
+          classification: "INCONSISTENT",
+          description: "O total do item diverge da multiplicação matematicamente verificável de quantidade e preço unitário.",
           field: itemField,
         });
       }
     } catch (error) {
       if (error instanceof FinancialDomainError) {
+        if (error.code !== "MONETARY_VALUE_REQUIRES_CENT_PRECISION") {
+          addArithmeticFinding(findings, base, itemField);
+          return;
+        }
         findings.push({
           ...base,
           code: "ORDER_ITEM_ROUNDING_DECISION_REQUIRED",
@@ -309,25 +349,42 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
   const deliveryFee = order.deliveryFee === undefined
     ? null
     : centsFromLegacy(order.deliveryFee, "deliveryFee", findings, base);
+  if (order.subtotal === undefined || order.deliveryFee === undefined) {
+    findings.push({
+      ...base,
+      code: "ORDER_COMMERCIAL_TOTALS_INCOMPLETE",
+      classification: "INDETERMINATE",
+      description: "O pedido não possui subtotal ou taxa de entrega para verificar a coerência comercial; não há compatibilidade legada aprovada para omitir esses fatos.",
+      field: order.subtotal === undefined ? "subtotal" : "deliveryFee",
+    });
+  }
   if (itemTotals !== null && subtotal !== null) {
-    const calculatedSubtotal = calculateOrderSubtotalCents(itemTotals);
-    if (calculatedSubtotal !== subtotal) {
-      findings.push({
-        ...base,
-        code: "ORDER_SUBTOTAL_DIVERGENT",
-        classification: "INCONSISTENT",
-        description: "O subtotal persistido diverge da soma dos totais dos itens.",
-        field: "subtotal",
-      });
-    }
-    if (total !== null && deliveryFee !== null && calculateOrderTotalCents(calculatedSubtotal, deliveryFee) !== total) {
-      findings.push({
-        ...base,
-        code: "ORDER_TOTAL_DIVERGENT",
-        classification: "INCONSISTENT",
-        description: "O total persistido diverge do subtotal dos itens somado à taxa de entrega.",
-        field: "total",
-      });
+    try {
+      const calculatedSubtotal = calculateOrderSubtotalCents(itemTotals);
+      if (calculatedSubtotal !== subtotal) {
+        findings.push({
+          ...base,
+          code: "ORDER_SUBTOTAL_DIVERGENT",
+          classification: "INCONSISTENT",
+          description: "O subtotal persistido diverge da soma dos totais dos itens.",
+          field: "subtotal",
+        });
+      }
+      if (total !== null && deliveryFee !== null && calculateOrderTotalCents(calculatedSubtotal, deliveryFee) !== total) {
+        findings.push({
+          ...base,
+          code: "ORDER_TOTAL_DIVERGENT",
+          classification: "INCONSISTENT",
+          description: "O total persistido diverge do subtotal dos itens somado à taxa de entrega.",
+          field: "total",
+        });
+      }
+    } catch (error) {
+      if (error instanceof FinancialDomainError) {
+        addArithmeticFinding(findings, base, "items");
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -434,15 +491,23 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
       });
     }
     if (validPayments) {
-      cashPaid = sumMoneyCents(paymentAmounts);
-      if (amountPaid !== null && cashPaid !== amountPaid) {
-        findings.push({
-          ...base,
-          code: "AMOUNT_PAID_PAYMENTS_MISMATCH",
-          classification: "INCONSISTENT",
-          description: "amountPaid diverge da soma canônica de payments.",
-          field: "amountPaid",
-        });
+      try {
+        cashPaid = sumMoneyCents(paymentAmounts);
+        if (amountPaid !== null && cashPaid !== amountPaid) {
+          findings.push({
+            ...base,
+            code: "AMOUNT_PAID_PAYMENTS_MISMATCH",
+            classification: "INCONSISTENT",
+            description: "amountPaid diverge da soma canônica de payments.",
+            field: "amountPaid",
+          });
+        }
+      } catch (error) {
+        if (error instanceof FinancialDomainError) {
+          addArithmeticFinding(findings, base, "payments");
+        } else {
+          throw error;
+        }
       }
     }
   }
@@ -450,24 +515,32 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
   let balance: MoneyCents | null = null;
   let calculatedGeneratedCredit: MoneyCents | null = null;
   if (total !== null && cashPaid !== null && creditApplied !== null) {
-    balance = calculateOrderBalanceCents(total, cashPaid, creditApplied);
-    calculatedGeneratedCredit = calculateGeneratedCreditCents(total, cashPaid, creditApplied);
-    if (persistedCreditGenerated !== null && persistedCreditGenerated !== calculatedGeneratedCredit) {
-      findings.push({
-        ...base,
-        code: "CREDIT_GENERATED_MISMATCH",
-        classification: "INCONSISTENT",
-        description: "creditGenerated persistido diverge do crédito calculado pelos fatos válidos.",
-        field: "creditGenerated",
-      });
-    }
-    if (creditApplied > 0 && calculatedGeneratedCredit > 0) {
-      findings.push({
-        ...base,
-        code: "CREDIT_APPLIED_AND_GENERATED",
-        classification: "VALID",
-        description: "O pedido registra aplicação e geração de crédito, combinação permitida pelo contrato atual.",
-      });
+    try {
+      balance = calculateOrderBalanceCents(total, cashPaid, creditApplied);
+      calculatedGeneratedCredit = calculateGeneratedCreditCents(total, cashPaid, creditApplied);
+      if (persistedCreditGenerated !== null && persistedCreditGenerated !== calculatedGeneratedCredit) {
+        findings.push({
+          ...base,
+          code: "CREDIT_GENERATED_MISMATCH",
+          classification: "INCONSISTENT",
+          description: "creditGenerated persistido diverge do crédito calculado pelos fatos válidos.",
+          field: "creditGenerated",
+        });
+      }
+      if (creditApplied > 0 && calculatedGeneratedCredit > 0) {
+        findings.push({
+          ...base,
+          code: "CREDIT_APPLIED_AND_GENERATED",
+          classification: "VALID",
+          description: "O pedido registra aplicação e geração de crédito, combinação permitida pelo contrato atual.",
+        });
+      }
+    } catch (error) {
+      if (error instanceof FinancialDomainError) {
+        addArithmeticFinding(findings, base, "total");
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -487,7 +560,7 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
     && cashPaid !== null
     && creditApplied !== null
     && calculatedGeneratedCredit !== null
-    && !findings.some((finding) => finding.classification === "INCONSISTENT")
+    && !findings.some((finding) => finding.classification !== "VALID" && finding.classification !== "LEGACY_COMPATIBLE")
     && !isCancelled;
   const isCancelledWithCreditEffect = isCancelled && (
     (creditApplied ?? 0) > 0
@@ -495,6 +568,7 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
   );
 
   return {
+    sortKey: stableValueKey(order),
     clientId,
     canReconstructCredit,
     isCancelledWithCreditEffect,
@@ -543,7 +617,32 @@ export function reconcileFinancialDocuments(
 ): ReconciliationResult {
   const parsedOrders = orderDocuments.map(parseOrder).sort((first, second) => (
     first.result.orderId.localeCompare(second.result.orderId)
+    || first.sortKey.localeCompare(second.sortKey)
   ));
+  const ordersById = new Map<string, ParsedOrder[]>();
+  parsedOrders.forEach((order) => {
+    const duplicates = ordersById.get(order.result.orderId) ?? [];
+    duplicates.push(order);
+    ordersById.set(order.result.orderId, duplicates);
+  });
+  ordersById.forEach((duplicates) => {
+    if (duplicates.length < 2) return;
+    duplicates.forEach((order) => {
+      order.result.findings.push({
+        code: "ORDER_ID_DUPLICATE",
+        classification: "INCONSISTENT",
+        description: "Há mais de um documento de entrada com o mesmo identificador de pedido; nenhum efeito foi contabilizado.",
+        recordType: "order",
+        recordId: order.result.orderId,
+        clientId: order.clientId,
+        field: "id",
+      });
+      order.result.findings = sortedFindings(order.result.findings);
+      order.result.classification = recordClassification(order.result.findings);
+      order.canReconstructCredit = false;
+      order.effect = undefined;
+    });
+  });
   const clients = new Map<string, ClientState>();
   parsedOrders.forEach((order) => {
     if (!order.clientId) return;
@@ -553,20 +652,15 @@ export function reconcileFinancialDocuments(
   });
 
   const snapshots = new Map<string, ClientFinancialSnapshot>();
+  const ambiguousSnapshotClientIds = new Set<string>();
   aggregatorSnapshots.forEach((snapshot) => {
     if (!isTechnicalId(snapshot.clientId)) return;
+    if (ambiguousSnapshotClientIds.has(snapshot.clientId)) {
+      return;
+    }
     if (snapshots.has(snapshot.clientId)) {
-      const state = clients.get(snapshot.clientId);
-      if (state) {
-        state.findings.push({
-          code: "AGGREGATOR_DUPLICATE_SNAPSHOT",
-          classification: "INDETERMINATE",
-          description: "Há mais de um snapshot experimental para o mesmo cliente; nenhum foi escolhido automaticamente.",
-          recordType: "aggregator",
-          recordId: snapshot.clientId,
-          clientId: snapshot.clientId,
-        });
-      }
+      snapshots.delete(snapshot.clientId);
+      ambiguousSnapshotClientIds.add(snapshot.clientId);
       return;
     }
     snapshots.set(snapshot.clientId, snapshot);
@@ -576,6 +670,9 @@ export function reconcileFinancialDocuments(
     const findings = [...state.findings];
     const base = { recordType: "client" as const, recordId: clientId, clientId };
     const invalidFacts = state.orders.some((order) => order.result.classification === "INCONSISTENT");
+    const unresolvedCommercialDependency = state.orders.some((order) => (
+      order.result.classification === "INDETERMINATE" || order.result.classification === "BLOCKED_BY_PRODUCT_DECISION"
+    ));
     const unresolvedCancellation = state.orders.some((order) => order.isCancelledWithCreditEffect);
     if (invalidFacts) {
       findings.push({
@@ -593,8 +690,16 @@ export function reconcileFinancialDocuments(
         description: "O saldo depende de crédito ligado a pedido cancelado sem contrato de acerto aprovado.",
       });
     }
+    if (unresolvedCommercialDependency) {
+      findings.push({
+        ...base,
+        code: "CLIENT_CREDIT_RECONSTRUCTION_COMMERCIAL_DEPENDENCY",
+        classification: "INDETERMINATE",
+        description: "A reconstrução depende de coerência comercial ou arredondamento ainda não resolvidos.",
+      });
+    }
 
-    let conclusive = !invalidFacts && !unresolvedCancellation;
+    let conclusive = !invalidFacts && !unresolvedCancellation && !unresolvedCommercialDependency;
     let availableCreditCents: MoneyCents | null = null;
     let deficitCents: MoneyCents | null = null;
     const effects = state.orders.filter((order) => order.canReconstructCredit).flatMap((order) => (
@@ -610,23 +715,54 @@ export function reconcileFinancialDocuments(
           description: "A reconstrução de crédito é positiva ou zerada a partir dos fatos elegíveis.",
         });
       } catch (error) {
-        if (!(error instanceof FinancialDomainError) || error.code !== "INSUFFICIENT_AVAILABLE_CREDIT") throw error;
-        const generated = sumMoneyCents(effects.map((effect) => effect.generatedCents));
-        const consumed = sumMoneyCents(effects.map((effect) => effect.appliedCents));
-        deficitCents = subtractMoneyCents(consumed, generated);
-        conclusive = true;
-        findings.push({
-          ...base,
-          code: "CLIENT_CREDIT_DEFICIT",
-          classification: "INCONSISTENT",
-          description: "A reconstrução determinística encontrou crédito consumido acima do crédito gerado; o déficit não foi mascarado.",
-        });
+        if (!(error instanceof FinancialDomainError)) throw error;
+        if (error.code !== "INSUFFICIENT_AVAILABLE_CREDIT") {
+          conclusive = false;
+          availableCreditCents = null;
+          findings.push({
+            ...base,
+            code: "CLIENT_CREDIT_RECONSTRUCTION_ARITHMETIC_INVALID",
+            classification: "INDETERMINATE",
+            description: "A agregação de crédito excede o intervalo seguro; o saldo não foi aproximado.",
+          });
+        } else {
+          try {
+            const generated = sumMoneyCents(effects.map((effect) => effect.generatedCents));
+            const consumed = sumMoneyCents(effects.map((effect) => effect.appliedCents));
+            deficitCents = subtractMoneyCents(consumed, generated);
+            findings.push({
+              ...base,
+              code: "CLIENT_CREDIT_DEFICIT",
+              classification: "INCONSISTENT",
+              description: "A reconstrução determinística encontrou crédito consumido acima do crédito gerado; o déficit não foi mascarado.",
+            });
+          } catch (deficitError) {
+            if (!(deficitError instanceof FinancialDomainError)) throw deficitError;
+            conclusive = false;
+            availableCreditCents = null;
+            deficitCents = null;
+            findings.push({
+              ...base,
+              code: "CLIENT_CREDIT_RECONSTRUCTION_ARITHMETIC_INVALID",
+              classification: "INDETERMINATE",
+              description: "O déficit não cabe no intervalo seguro de centavos e não foi aproximado.",
+            });
+          }
+        }
       }
     }
 
     let aggregatorComparison: ClientCreditReconstruction["aggregatorComparison"] = "not_available";
     const snapshot = snapshots.get(clientId);
-    if (!snapshot) {
+    if (ambiguousSnapshotClientIds.has(clientId)) {
+      aggregatorComparison = "not_compared";
+      findings.push({
+        ...base,
+        code: "AGGREGATOR_DUPLICATE_SNAPSHOT",
+        classification: "INDETERMINATE",
+        description: "Há mais de um snapshot experimental para o mesmo cliente; nenhum foi escolhido automaticamente.",
+      });
+    } else if (!snapshot) {
       findings.push({
         ...base,
         code: "AGGREGATOR_ABSENT",
@@ -649,13 +785,18 @@ export function reconcileFinancialDocuments(
         classification: "INDETERMINATE",
         description: "O agregador experimental está ausente de estado ready; nenhuma inicialização foi realizada.",
       });
-    } else if (typeof snapshot.availableCreditCents !== "number" || !Number.isSafeInteger(snapshot.availableCreditCents) || snapshot.availableCreditCents < 0) {
+    } else if (typeof snapshot.availableCreditCents !== "number"
+      || !Number.isSafeInteger(snapshot.availableCreditCents)
+      || snapshot.availableCreditCents < 0
+      || typeof snapshot.revision !== "number"
+      || !Number.isSafeInteger(snapshot.revision)
+      || snapshot.revision < 0) {
       aggregatorComparison = "not_compared";
       findings.push({
         ...base,
-        code: "AGGREGATOR_VALUE_INVALID",
+        code: "AGGREGATOR_READY_CONTRACT_INVALID",
         classification: "INCONSISTENT",
-        description: "O valor do agregador experimental não é um saldo não negativo em centavos inteiros.",
+        description: "O agregador ready não possui saldo e revision válidos em centavos inteiros seguros.",
       });
     } else if (!conclusive || availableCreditCents === null) {
       aggregatorComparison = "not_compared";

@@ -37,7 +37,7 @@ describe("read-only financial reconciliation", () => {
         ],
         creditGenerated: 20,
       }),
-    ], [{ clientId: "client-1", state: "ready", availableCreditCents: 2000 }]);
+    ], [{ clientId: "client-1", state: "ready", availableCreditCents: 2000, revision: 0 }]);
 
     expect(result.orders[0]).toMatchObject({
       classification: "VALID",
@@ -265,5 +265,115 @@ describe("read-only financial reconciliation", () => {
 
     expect(result.summary).toMatchObject({ ordersAnalyzed: 3, clientsAnalyzed: 1, inconsistentRecords: 1 });
     expect(codes(result)).toContain("AMOUNT_PAID_PAYMENTS_MISMATCH");
+  });
+
+  it("classifies an exact whole-item mismatch as inconsistent rather than a rounding decision", () => {
+    const result = reconcileFinancialDocuments([order({
+      items: [{ quantity: 1, unitPrice: 100, total: 90 }],
+      subtotal: 90,
+      total: 90,
+    })]);
+
+    expect(codes(result)).toContain("ORDER_ITEM_TOTAL_MISMATCH");
+    expect(codes(result)).not.toContain("ORDER_ITEM_ROUNDING_DECISION_REQUIRED");
+    expect(result.orders[0]?.classification).toBe("INCONSISTENT");
+  });
+
+  it("blocks fractional item arithmetic that requires an unapproved rounding rule", () => {
+    const result = reconcileFinancialDocuments([order({
+      items: [{ quantity: 0.333, unitPrice: 1, total: 0.33 }],
+      subtotal: 0.33,
+      total: 0.33,
+    })]);
+
+    expect(result.orders[0]?.classification).toBe("BLOCKED_BY_PRODUCT_DECISION");
+    expect(codes(result)).toContain("ORDER_ITEM_ROUNDING_DECISION_REQUIRED");
+    expect(result.clients[0]).toMatchObject({ conclusive: false, availableCreditCents: null });
+  });
+
+  it("does not claim a conclusion when commercial totals are absent", () => {
+    const result = reconcileFinancialDocuments([order({ subtotal: undefined, deliveryFee: undefined })]);
+
+    expect(codes(result)).toContain("ORDER_COMMERCIAL_TOTALS_INCOMPLETE");
+    expect(result.clients[0]).toMatchObject({ conclusive: false, availableCreditCents: null });
+  });
+
+  it("reports item aggregation overflow without stopping the remaining independent order", () => {
+    const largestSafeReais = Number.MAX_SAFE_INTEGER / 100;
+    const result = reconcileFinancialDocuments([
+      order({
+        id: "overflow-items",
+        total: 0,
+        subtotal: 0,
+        items: [
+          { quantity: 1, unitPrice: largestSafeReais, total: largestSafeReais },
+          { quantity: 1, unitPrice: largestSafeReais, total: largestSafeReais },
+        ],
+      }),
+      order({ id: "healthy", clientId: "client-2" }),
+    ]);
+
+    expect(codes(result)).toContain("MONETARY_ARITHMETIC_INVALID");
+    expect(result.orders.find((entry) => entry.orderId === "healthy")?.classification).toBe("VALID");
+  });
+
+  it("reports client credit aggregation overflow as inconclusive", () => {
+    const largestSafeReais = Number.MAX_SAFE_INTEGER / 100;
+    const overflowingOrder = (id: string) => order({
+      id,
+      total: 0,
+      subtotal: 0,
+      items: [],
+      amountPaid: largestSafeReais,
+      creditGenerated: largestSafeReais,
+      payments: [{ id: `payment-${id}`, amount: largestSafeReais, receivedAt: "2026-01-01T10:00:00.000Z" }],
+    });
+    const result = reconcileFinancialDocuments([overflowingOrder("first"), overflowingOrder("second")]);
+
+    expect(codes(result)).toContain("CLIENT_CREDIT_RECONSTRUCTION_ARITHMETIC_INVALID");
+    expect(result.clients[0]).toMatchObject({ conclusive: false, availableCreditCents: null, deficitCents: null });
+  });
+
+  it("does not double-count duplicate order IDs and makes the affected client inconclusive", () => {
+    const first = order({ id: "duplicate", amountPaid: 120, creditGenerated: 20, payments: [{ id: "p-1", amount: 120, receivedAt: "2026-01-01T10:00:00.000Z" }] });
+    const second = order({ id: "duplicate", amountPaid: 130, creditGenerated: 30, payments: [{ id: "p-2", amount: 130, receivedAt: "2026-01-01T10:00:00.000Z" }] });
+    const result = reconcileFinancialDocuments([first, second]);
+
+    expect(result.orders).toHaveLength(2);
+    expect(result.orders.every((entry) => entry.classification === "INCONSISTENT")).toBe(true);
+    expect(result.clients[0]).toMatchObject({ conclusive: false, availableCreditCents: null });
+    expect(codes(result).filter((code) => code === "ORDER_ID_DUPLICATE")).toHaveLength(2);
+  });
+
+  it("keeps duplicate-order diagnostics deterministic when input order changes", () => {
+    const first = order({ id: "duplicate", amountPaid: 120, creditGenerated: 20, payments: [{ id: "p-1", amount: 120, receivedAt: "2026-01-01T10:00:00.000Z" }] });
+    const second = order({ id: "duplicate", amountPaid: 130, creditGenerated: 30, payments: [{ id: "p-2", amount: 130, receivedAt: "2026-01-01T10:00:00.000Z" }] });
+
+    expect(reconcileFinancialDocuments([first, second])).toEqual(reconcileFinancialDocuments([second, first]));
+  });
+
+  it("does not select ambiguous aggregator snapshots and remains deterministic when their order changes", () => {
+    const snapshots: ClientFinancialSnapshot[] = [
+      { clientId: "client-1", state: "ready", availableCreditCents: 0, revision: 0 },
+      { clientId: "client-1", state: "ready", availableCreditCents: 100, revision: 1 },
+    ];
+    const forward = reconcileFinancialDocuments([order()], snapshots);
+    const reverse = reconcileFinancialDocuments([order()], [...snapshots].reverse());
+
+    expect(forward).toEqual(reverse);
+    expect(forward.clients[0]).toMatchObject({ aggregatorComparison: "not_compared", classification: "INDETERMINATE" });
+    expect(codes(forward)).toContain("AGGREGATOR_DUPLICATE_SNAPSHOT");
+  });
+
+  it("rejects a ready aggregator without a safe non-negative revision", () => {
+    const result = reconcileFinancialDocuments([order()], [{
+      clientId: "client-1",
+      state: "ready",
+      availableCreditCents: 0,
+      revision: -1,
+    }]);
+
+    expect(codes(result)).toContain("AGGREGATOR_READY_CONTRACT_INVALID");
+    expect(result.clients[0]?.aggregatorComparison).toBe("not_compared");
   });
 });

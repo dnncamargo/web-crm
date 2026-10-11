@@ -36,9 +36,16 @@ Rules ou ativação da API financeira.
 | valor sem precisão de centavos, não finito ou negativo | `INCONSISTENT` | Não arredonda nem normaliza silenciosamente. |
 | aplicação e geração de crédito no mesmo pedido | `VALID` + `CREDIT_APPLIED_AND_GENERATED` | É combinação admitida; os efeitos permanecem distintos. |
 | `creditGenerated` persistido divergente | `INCONSISTENT` + `CREDIT_GENERATED_MISMATCH` | Reporta a divergência, sem recálculo persistente. |
+| total de item diverge de multiplicação verificável | `INCONSISTENT` + `ORDER_ITEM_TOTAL_MISMATCH` | É divergência matemática, não arredondamento presumido. |
+| multiplicação fracionária sem precisão de centavo | `BLOCKED_BY_PRODUCT_DECISION` + `ORDER_ITEM_ROUNDING_DECISION_REQUIRED` | Não inventa arredondamento; bloqueia a conclusão dependente. |
+| subtotal ou taxa de entrega ausentes | `INDETERMINATE` + `ORDER_COMMERCIAL_TOTALS_INCOMPLETE` | Não há compatibilidade legada aprovada para omitir a coerência comercial. |
+| soma monetária fora do intervalo seguro | `INCONSISTENT`/`INDETERMINATE` + código aritmético | Não aproxima valores e continua os demais registros independentes. |
+| ID de pedido repetido | `INCONSISTENT` + `ORDER_ID_DUPLICATE` | Não escolhe documento nem duplica efeitos de crédito. |
 | pedido cancelado com efeito de crédito | `BLOCKED_BY_PRODUCT_DECISION` no pedido e `INDETERMINATE` no cliente | Preserva fatos e não afirma saldo dependente do acerto. |
 | agregador ausente | `LEGACY_COMPATIBLE` + `AGGREGATOR_ABSENT` | Não é prova de corrupção e não é criado. |
+| snapshots duplicados de agregador | `INDETERMINATE` + `AGGREGATOR_DUPLICATE_SNAPSHOT` | Nenhum snapshot ambíguo é escolhido para comparação. |
 | agregador `blocked`/não `ready` | `INDETERMINATE` | Não é comparado, desbloqueado nem inicializado. |
+| agregador `ready` sem saldo/revision seguros | `INCONSISTENT` + `AGGREGATOR_READY_CONTRACT_INVALID` | Não é tratado como correspondente. |
 | agregador pronto divergente | `INCONSISTENT` + `AGGREGATOR_RECONSTRUCTION_MISMATCH` | Requer revisão humana; não é reparado. |
 
 ## Contrato do diagnóstico
@@ -57,13 +64,20 @@ códigos estáveis, descrição objetiva, valores em centavos reconstruídos e u
 resumo de quantidades. Não contém nome, endereço, e-mail, payload do pedido ou
 logs de fatos financeiros completos. A ordem de entrada não altera o resultado.
 
+Uma reconstrução só é conclusiva se todos os Pedidos relevantes possuírem fatos
+financeiros e coerência comercial suficientes. Uma decisão pendente de
+arredondamento, totais comerciais ausentes, identidade de Pedido duplicada ou
+overflow torna `availableCreditCents` nulo para o Cliente afetado. Isso não
+oculta os demais diagnósticos nem interrompe Clientes independentes.
+
 Os códigos relevantes incluem `PAYMENTS_LEGACY_ABSENT`,
 `PAYMENTS_EMPTY_WITH_ZERO_CACHE`, `PAYMENT_ID_DUPLICATE`,
 `PAYMENT_DATE_INVALID_OR_MISSING`, `AMOUNT_PAID_PAYMENTS_MISMATCH`,
 `CREDIT_GENERATED_MISMATCH`, `CLIENT_CREDIT_DEFICIT`,
 `CANCELLED_ORDER_SETTLEMENT_REQUIRED`, `AGGREGATOR_ABSENT`,
 `AGGREGATOR_BLOCKED`, `AGGREGATOR_UNINITIALIZED` e
-`AGGREGATOR_RECONSTRUCTION_MISMATCH`.
+`AGGREGATOR_RECONSTRUCTION_MISMATCH`, `ORDER_ID_DUPLICATE`,
+`AGGREGATOR_DUPLICATE_SNAPSHOT` e `MONETARY_ARITHMETIC_INVALID`.
 
 ## Reconstrução de crédito
 
@@ -91,8 +105,10 @@ npx vitest run src/features/financial/reconciliation.test.ts
 
 A fixture cobre pedido válido, legado, cache divergente, pagamentos/datas
 inválidos, IDs duplicados, crédito aplicado e gerado, déficit, cancelamentos,
-agregadores ausente/bloqueado/não inicializado/divergente, estabilidade sob
-ordem diferente e imutabilidade dos documentos de entrada.
+itens com divergência matemática ou arredondamento pendente, totais comerciais
+ausentes, overflows, Pedidos e snapshots duplicados, agregadores
+ausente/bloqueado/não inicializado/inválido/divergente, estabilidade sob ordem
+diferente e imutabilidade dos documentos de entrada.
 
 O resultado esperado do dry-run sintético é: três pedidos analisados, um
 cliente, um registro inconsistente e a identificação de
