@@ -9,15 +9,15 @@ import {
   legacyReaisToMoneyCents,
   moneyCentsToLegacyReais,
   sumMoneyCents,
-} from "../../src/features/financial/money";
-import type { MoneyCents } from "../../src/features/financial/money";
-import { confirmCreditApplication } from "../../src/features/financial/credit";
-import { getOrderCashPaid } from "../../src/features/orders/orderUtils";
-import type { OrderPayment, OrderStatus } from "../../src/features/orders/orderTypes";
+} from "../../src/features/financial/money.js";
+import type { MoneyCents } from "../../src/features/financial/money.js";
+import { confirmCreditApplication } from "../../src/features/financial/credit.js";
+import { getOrderCashPaid } from "../../src/features/orders/orderUtils.js";
+import type { OrderPayment, OrderStatus } from "../../src/features/orders/orderTypes.js";
 
-import { FinancialApiError } from "./errors";
-import type { FinancialActor } from "./auth";
-import { createCommandFingerprint, type ApplyCreditCommand } from "./validation";
+import { FinancialApiError } from "./errors.js";
+import type { FinancialActor } from "./auth.js";
+import { createCommandFingerprint, type ApplyCreditCommand } from "./validation.js";
 
 export interface ApplyCreditResult {
   operationId: string;

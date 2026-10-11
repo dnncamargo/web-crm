@@ -4,8 +4,8 @@ import {
   calculateApplicableCreditCents,
   subtractMoneyCents,
   sumMoneyCents,
-} from "./money";
-import type { MoneyCents } from "./money";
+} from "./money.js";
+import type { MoneyCents } from "./money.js";
 
 export interface CreditEffectInput {
   generatedCents: MoneyCents;

@@ -10,8 +10,8 @@ import {
 } from "firebase/auth";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { getFinancialAdminDb } from "../_financial/admin";
-import { handleApplyCreditRequest } from "./apply-credit";
+import { getFinancialAdminDb } from "../../api/_financial/admin";
+import { handleApplyCreditRequest } from "../../api/financial/apply-credit";
 
 const projectId = "demo-web-crm-financial";
 const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;

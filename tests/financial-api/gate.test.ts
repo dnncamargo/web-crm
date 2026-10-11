@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { isFinancialApiError } from "./errors";
-import { assertFinancialWriteTestGate } from "./gate";
+import { isFinancialApiError } from "../../api/_financial/errors";
+import { assertFinancialWriteTestGate } from "../../api/_financial/gate";
 
 const enabledEnvironment: NodeJS.ProcessEnv = {
   FINANCIAL_TEST_MODE: "enabled",

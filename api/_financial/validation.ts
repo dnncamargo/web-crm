@@ -1,4 +1,4 @@
-import { FinancialApiError } from "./errors";
+import { FinancialApiError } from "./errors.js";
 
 export interface ApplyCreditCommand {
   operationId: string;

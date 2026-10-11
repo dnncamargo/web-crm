@@ -2,11 +2,11 @@ import { randomUUID } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { getFinancialAdminDb } from "./admin";
-import { applyCreditTransaction } from "./applyCredit";
-import type { FinancialActor } from "./auth";
-import { isFinancialApiError } from "./errors";
-import type { ApplyCreditCommand } from "./validation";
+import { getFinancialAdminDb } from "../../api/_financial/admin";
+import { applyCreditTransaction } from "../../api/_financial/applyCredit";
+import type { FinancialActor } from "../../api/_financial/auth";
+import { isFinancialApiError } from "../../api/_financial/errors";
+import type { ApplyCreditCommand } from "../../api/_financial/validation";
 
 const actor: FinancialActor = { uid: "emulator-user", email: "allowed@example.test" };
 

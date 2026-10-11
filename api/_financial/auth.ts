@@ -1,8 +1,8 @@
 import type { DecodedIdToken } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 
-import { getFinancialAdminAuth, getFinancialAdminDb } from "./admin";
-import { FinancialApiError } from "./errors";
+import { getFinancialAdminAuth, getFinancialAdminDb } from "./admin.js";
+import { FinancialApiError } from "./errors.js";
 
 export interface FinancialActor {
   uid: string;

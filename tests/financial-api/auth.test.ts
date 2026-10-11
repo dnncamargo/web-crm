@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { authorizeFinancialIdentity, authorizeFinancialRequest } from "./auth";
-import { isFinancialApiError } from "./errors";
+import { authorizeFinancialIdentity, authorizeFinancialRequest } from "../../api/_financial/auth";
+import { isFinancialApiError } from "../../api/_financial/errors";
 
 const admission = ["Allowed@Example.Test"];
 

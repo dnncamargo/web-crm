@@ -1,9 +1,9 @@
-import { getFinancialAdminDb } from "../_financial/admin";
-import { authorizeFinancialRequest } from "../_financial/auth";
-import { applyCreditTransaction } from "../_financial/applyCredit";
-import { isFinancialApiError, FinancialApiError } from "../_financial/errors";
-import { assertFinancialWriteTestGate } from "../_financial/gate";
-import { parseApplyCreditCommand } from "../_financial/validation";
+import { getFinancialAdminDb } from "../_financial/admin.js";
+import { authorizeFinancialRequest } from "../_financial/auth.js";
+import { applyCreditTransaction } from "../_financial/applyCredit.js";
+import { isFinancialApiError, FinancialApiError } from "../_financial/errors.js";
+import { assertFinancialWriteTestGate } from "../_financial/gate.js";
+import { parseApplyCreditCommand } from "../_financial/validation.js";
 
 function jsonError(error: FinancialApiError): Response {
   return Response.json({ error: { code: error.code } }, { status: error.status });

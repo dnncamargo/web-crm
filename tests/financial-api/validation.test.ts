@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { isFinancialApiError } from "./errors";
-import { parseApplyCreditCommand } from "./validation";
+import { isFinancialApiError } from "../../api/_financial/errors";
+import { parseApplyCreditCommand } from "../../api/_financial/validation";
 
 function command(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {

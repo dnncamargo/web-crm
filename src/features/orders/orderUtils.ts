@@ -1,5 +1,5 @@
-import type { Product } from "../products/productTypes";
-import type { Order, OrderItem, OrderPayment, OrderStatus, PaymentStatus } from "./orderTypes";
+import type { Product } from "../products/productTypes.js";
+import type { Order, OrderItem, OrderPayment, OrderStatus, PaymentStatus } from "./orderTypes.js";
 
 export type OrderBalanceType = "remaining" | "credit" | "settled";
 

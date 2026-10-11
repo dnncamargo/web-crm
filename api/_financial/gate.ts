@@ -1,4 +1,4 @@
-import { FinancialApiError } from "./errors";
+import { FinancialApiError } from "./errors.js";
 
 function isLoopbackEmulatorHost(value: string | undefined): boolean {
   if (!value) {
