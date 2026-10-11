@@ -157,3 +157,113 @@ A futura UX reutilizará `OrderForm`, `OrderPaymentForm`,
 `OrderDetailsPanelContent`, `SlidePanel` e `Button`. A ação **Corrigir** será
 acrescentada ao recebimento existente, sem painel técnico, dashboard de auditoria
 ou wizard. Nenhuma dessas alterações é implementada aqui.
+
+## Consolidação arquitetural e roteiro simplificado de entrega
+
+Esta seção organiza os incrementos posteriores sem autorizar implementação,
+mudança de schema, migração, ativação de API ou cutover nesta PR. Ela não
+substitui as classificações **CURRENT**, **DECIDED**, **PROPOSED** e **OPEN**
+dos contratos financeiros; em caso de conflito, o contrato marcado prevalece
+até uma nova aprovação explícita do Product Owner.
+
+### Objetivo funcional
+
+O Controle Financeiro precisa oferecer, em incrementos pequenos e verificáveis:
+
+- recebimentos com identidade estável e data real/declarada;
+- independência entre status operacional e financeiro;
+- correção de recebimentos existentes, sem duplicação;
+- recálculo consistente de saldos e créditos;
+- Página de Controle Financeiro; e
+- Relatório A4 com períodos independentes para Pedidos e movimentações efetivas
+  de dinheiro.
+
+### Regras de simplicidade
+
+- A allowlist Google existente admite somente os dois usuários configurados;
+  ambos têm acesso integral e equivalente.
+- Não serão introduzidos papéis, RBAC, permissões individuais ou uma camada de
+  autorização paralela.
+- O layout e os componentes canônicos existentes serão preservados.
+- Revisões, IDs técnicos, agregadores e mecanismos de idempotência não serão
+  expostos ao operador.
+- Não haverá histórico técnico de correções, `financialAudit`, lançamentos
+  compensatórios ou painéis de auditoria.
+- Relatórios não criarão uma fonte financeira paralela: serão projeções dos
+  fatos canônicos e dos cálculos de domínio.
+
+### Componentes a reutilizar
+
+Permanecem canônicos e não devem ser reimplementados sem necessidade comprovada:
+
+- `payments[]`, `payment.id` e `receivedAt`;
+- `amountPaid` como compatibilidade de leitura;
+- `OrderStatus` persistido e `PaymentStatus` derivado;
+- núcleo monetário em centavos e utilitários financeiros existentes;
+- APIs experimentais `record-payment`, `correct-payment` e `apply-credit`;
+- reconciliação somente leitura; e
+- Rules candidatas já testadas no Emulator.
+
+### Complexidade, mínimos e adiamentos seguros
+
+O agregador `clientFinancial` permanece parte da arquitetura **DECIDED** como
+projeção reconciliável, e não é removido, substituído ou reaberto nesta PR. Sua
+implementação definitiva deve passar pela revisão já exigida de necessidade,
+concorrência, desempenho e custo operacional, além da validação de schema e
+reconciliação. Essa revisão não autoriza trocar a fonte canônica de pagamentos
+nem descartar as invariantes transacionais aprovadas.
+
+O fluxo completo de acertos de cancelamento e devoluções pode ser entregue em
+incremento separado somente se o adiamento não introduzir inconsistência
+financeira. As decisões **DECIDED** sobre cancelamentos, crédito consumido,
+restituições e devoluções continuam válidas; os pontos ainda **OPEN** não são
+convertidos em regras por este roteiro.
+
+Antes de qualquer cutover, são indispensáveis: autoridade transacional para
+toda escrita financeira relevante; preservação de `payments[]` e de datas
+históricas desconhecidas; correção idempotente preservando `payment.id`;
+validação de concorrência e crédito; reconciliação controlada; Rules sem allow
+concorrente; e publicação coordenada com rollback. Podem aguardar, se isso não
+violar essas condições, a entrega completa de acertos/devoluções, refinamentos
+de apresentação financeira e a subdivisão dos incrementos abaixo.
+
+### Checkpoints reformulados
+
+Esta numeração é uma sequência planejada e pode ser subdividida em incrementos
+menores e verificáveis.
+
+| Checkpoint | Escopo planejado | Limite obrigatório |
+| --- | --- | --- |
+| 6 — Projeção financeira somente leitura | Unificar cálculos de recebimentos, saldos e créditos; corrigir a apresentação de pendências de Pedidos entregues; preservar recebimentos históricos sem data conhecida. | Não materializar ou corrigir dados legados em leitura. |
+| 7 — Autoridade financeira mínima | Completar caminhos transacionais para criar e editar Pedidos, registrar e corrigir pagamentos, aplicar crédito e preservar operações administrativas existentes. | Não ativar sem contratos, concorrência, agregador e Rules validados. |
+| 8 — Interface de recebimentos e correções | Acrescentar **Corrigir** ao histórico de recebimentos, reutilizando os componentes canônicos. | Não expor mecanismos técnicos nem criar interface de auditoria. |
+| 9 — Controle Financeiro e Relatório A4 | Implementar página financeira e impressão A4 com períodos independentes, sem dupla contagem. | Não usar data de Pedido como substituta de `receivedAt`. |
+| 10 — Reconciliação e integração | Validar fluxos, concorrência, dados legados, Rules candidatas, APIs e interface no Emulator. | Não acessar nem corrigir dados financeiros reais automaticamente. |
+| 11 — Cutover operacional | Executar somente com autorização explícita do Product Owner, publicação coordenada, proteção contra dupla autoridade, continuidade operacional e rollback validado. | STOP se existir inconsistência não aprovada ou caminho concorrente de escrita. |
+| 12 — Aceitação e fechamento | Validar operações e relatórios, atualizar documentação, concluir PRs e sincronizar a `main` local após merge autorizado. | Não realizar merge sem revisão independente e autorização do Product Owner. |
+
+### Invariantes de relatórios
+
+- Data do Pedido não substitui `receivedAt`.
+- Crédito aplicado não é dinheiro recebido.
+- Crédito gerado não é novo recebimento.
+- Status `completed` não significa quitação.
+- Correção preserva `payment.id`.
+- Recebimentos de data desconhecida não recebem data inventada.
+- Relatório de movimentações e posição atual de saldos são projeções distintas.
+- Devolução acordada não significa dinheiro efetivamente devolvido.
+- Nenhuma inconsistência histórica é corrigida automaticamente.
+
+### Cenários funcionais prioritários
+
+Os checkpoints posteriores devem cobrir, sem criar testes novos nesta PR:
+
+- Pedido em setembro com recebimento em outubro;
+- Pedido entregue ainda não quitado;
+- correção do valor de um recebimento;
+- correção da data de um recebimento;
+- repetição idempotente de pagamento;
+- pagamento excedente gerando crédito;
+- tentativa de redução de crédito já utilizado;
+- Pedido legado sem data conhecida; e
+- cancelamento envolvendo dinheiro ou crédito.
