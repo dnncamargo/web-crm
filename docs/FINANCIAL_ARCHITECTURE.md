@@ -564,6 +564,14 @@ operação. A projeção é reconstruível dos fatos da fixture: crédito dispon
 = créditos gerados - créditos aplicados; ela nunca mascara déficit com
 `Math.max`.
 
+Antes da mutação, pagamentos persistidos são validados defensivamente: cada
+lançamento requer ID não vazio e único, valor positivo finito em centavos e
+`receivedAt` nulo ou data/hora válida. Quando `payments[]` está presente, sua
+soma exata em centavos deve coincidir com o cache legado `amountPaid`; qualquer
+divergência bloqueia a operação sem reconciliar ou reescrever os fatos. A
+ausência de `payments[]` continua sendo o formato legado aceito e usa
+`amountPaid` válido, sem materializar datas ou lançamentos.
+
 **CURRENT — limitações preservadas**
 
 `ordersService` continua usando o SDK cliente em `createOrder`, `updateOrder`

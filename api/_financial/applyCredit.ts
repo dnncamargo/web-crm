@@ -98,12 +98,28 @@ function parsePayments(value: unknown): OrderPayment[] | undefined {
     throw new FinancialApiError(409, "INVALID_FINANCIAL_STATE", "Estado financeiro inválido.");
   }
 
+  const paymentIds = new Set<string>();
+
   return value.map((payment) => {
-    if (!isRecord(payment) || typeof payment.id !== "string" || typeof payment.amount !== "number") {
+    if (!isRecord(payment)
+      || typeof payment.id !== "string"
+      || payment.id.trim().length === 0
+      || typeof payment.amount !== "number") {
       throw new FinancialApiError(409, "INVALID_FINANCIAL_STATE", "Estado financeiro inválido.");
     }
 
-    if (payment.receivedAt !== null && typeof payment.receivedAt !== "string") {
+    if (paymentIds.has(payment.id)) {
+      throw new FinancialApiError(409, "INVALID_FINANCIAL_STATE", "Estado financeiro inválido.");
+    }
+    paymentIds.add(payment.id);
+
+    const amountCents = asNonNegativeLegacyCents(payment.amount, "Pagamento");
+    if (amountCents <= 0) {
+      throw new FinancialApiError(409, "INVALID_FINANCIAL_STATE", "Estado financeiro inválido.");
+    }
+
+    if (payment.receivedAt !== null
+      && (typeof payment.receivedAt !== "string" || Number.isNaN(new Date(payment.receivedAt).getTime()))) {
       throw new FinancialApiError(409, "INVALID_FINANCIAL_STATE", "Estado financeiro inválido.");
     }
 
@@ -116,19 +132,21 @@ function parseOrder(data: DocumentData): StoredOrder {
     throw new FinancialApiError(409, "INVALID_FINANCIAL_STATE", "Estado financeiro inválido.");
   }
 
+  const amountPaidCents = asNonNegativeLegacyCents(data.amountPaid, "Dinheiro recebido");
   const payments = parsePayments(data.payments);
-  const amountPaid = data.amountPaid;
-  if (typeof amountPaid !== "number") {
+  const cashPaidCents = payments === undefined
+    ? asNonNegativeLegacyCents(getOrderCashPaid({ amountPaid: data.amountPaid, payments }), "Dinheiro recebido")
+    : sumMoneyCents(payments.map((payment) => asNonNegativeLegacyCents(payment.amount, "Pagamento")));
+
+  if (payments !== undefined && cashPaidCents !== amountPaidCents) {
     throw new FinancialApiError(409, "INVALID_FINANCIAL_STATE", "Estado financeiro inválido.");
   }
-
-  const cashPaid = getOrderCashPaid({ amountPaid, payments });
 
   return {
     clientId: data.clientId,
     orderStatus: data.orderStatus as OrderStatus,
     totalCents: asNonNegativeLegacyCents(data.total, "Total do pedido"),
-    cashPaidCents: asNonNegativeLegacyCents(cashPaid, "Dinheiro recebido"),
+    cashPaidCents,
     creditAppliedCents: asNonNegativeLegacyCents(data.creditApplied ?? 0, "Crédito aplicado"),
   };
 }

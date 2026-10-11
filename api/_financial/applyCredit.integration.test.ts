@@ -15,7 +15,12 @@ function fixtureIds() {
   return { clientId: `client-${suffix}`, orderId: `order-${suffix}` };
 }
 
-async function createFixture(availableCreditCents = 5000) {
+interface FixtureOptions {
+  includeTargetPayments?: boolean;
+  targetOrder?: Record<string, unknown>;
+}
+
+async function createFixture(availableCreditCents = 5000, options: FixtureOptions = {}) {
   const db = getFinancialAdminDb();
   const { clientId, orderId } = fixtureIds();
   const generatedCredit = availableCreditCents / 100;
@@ -29,15 +34,19 @@ async function createFixture(availableCreditCents = 5000) {
     orderStatus: "active",
     tagIds: [],
   });
-  await db.doc(`orders/${orderId}`).set({
+  const targetOrder: Record<string, unknown> = {
     clientId,
     clientName: "Cliente de teste",
     total: 80,
     amountPaid: 0,
-    payments: [],
     orderStatus: "active",
     tagIds: [],
-  });
+    ...options.targetOrder,
+  };
+  if (options.includeTargetPayments !== false && !("payments" in targetOrder)) {
+    targetOrder.payments = [];
+  }
+  await db.doc(`orders/${orderId}`).set(targetOrder);
   await db.doc(`clientFinancial/${clientId}`).set({
     availableCreditCents,
     revision: 1,
@@ -59,6 +68,21 @@ function command(clientId: string, orderId: string, operationId = `operation-${r
 }
 
 describe("apply credit transaction with Firestore Emulator", () => {
+  async function expectInvalidPaymentState(targetOrder: Record<string, unknown>) {
+    const fixture = await createFixture(5000, { targetOrder });
+    const orderRef = fixture.db.doc(`orders/${fixture.orderId}`);
+    const aggregatorRef = fixture.db.doc(`clientFinancial/${fixture.clientId}`);
+    const orderBefore = (await orderRef.get()).data();
+    const aggregatorBefore = (await aggregatorRef.get()).data();
+
+    await expect(applyCreditTransaction(fixture.db, command(fixture.clientId, fixture.orderId), actor)).rejects.toSatisfy((error: unknown) => (
+      isFinancialApiError(error) && error.code === "INVALID_FINANCIAL_STATE"
+    ));
+
+    expect((await orderRef.get()).data()).toEqual(orderBefore);
+    expect((await aggregatorRef.get()).data()).toEqual(aggregatorBefore);
+  }
+
   it("atualiza pedido, agregador e registro idempotente em uma única transação", async () => {
     const fixture = await createFixture();
     const result = await applyCreditTransaction(fixture.db, command(fixture.clientId, fixture.orderId), actor);
@@ -70,6 +94,73 @@ describe("apply credit transaction with Firestore Emulator", () => {
       availableCreditCents: 2000,
       revision: 2,
       state: "ready",
+    });
+  });
+
+  it("aceita pagamentos persistidos válidos com amountPaid coerente", async () => {
+    const fixture = await createFixture(5000, {
+      targetOrder: {
+        amountPaid: 10,
+        payments: [{ id: "payment-valid", amount: 10, receivedAt: "2026-01-01T00:00:00.000Z" }],
+      },
+    });
+
+    await expect(applyCreditTransaction(fixture.db, command(fixture.clientId, fixture.orderId), actor)).resolves.toMatchObject({
+      appliedCreditCents: 3000,
+      availableCreditCents: 2000,
+    });
+  });
+
+  it("aceita documento legado sem payments usando amountPaid válido", async () => {
+    const fixture = await createFixture(5000, {
+      includeTargetPayments: false,
+      targetOrder: { amountPaid: 10 },
+    });
+
+    await expect(applyCreditTransaction(fixture.db, command(fixture.clientId, fixture.orderId), actor)).resolves.toMatchObject({
+      appliedCreditCents: 3000,
+    });
+    expect((await fixture.db.doc(`orders/${fixture.orderId}`).get()).data()).not.toHaveProperty("payments");
+  });
+
+  it("aceita payments vazio somente quando amountPaid é zero", async () => {
+    const fixture = await createFixture();
+
+    await expect(applyCreditTransaction(fixture.db, command(fixture.clientId, fixture.orderId), actor)).resolves.toMatchObject({
+      appliedCreditCents: 3000,
+    });
+  });
+
+  it.each([
+    ["payments vazio com amountPaid positivo", { amountPaid: 10, payments: [] }],
+    ["identificador vazio", { amountPaid: 10, payments: [{ id: " ", amount: 10, receivedAt: null }] }],
+    ["identificadores duplicados", {
+      amountPaid: 10,
+      payments: [
+        { id: "payment-duplicate", amount: 5, receivedAt: null },
+        { id: "payment-duplicate", amount: 5, receivedAt: null },
+      ],
+    }],
+    ["valor negativo", { amountPaid: 0, payments: [{ id: "payment-negative", amount: -1, receivedAt: null }] }],
+    ["valor zero", { amountPaid: 0, payments: [{ id: "payment-zero", amount: 0, receivedAt: null }] }],
+    ["valor infinito", { amountPaid: 0, payments: [{ id: "payment-infinite", amount: Number.POSITIVE_INFINITY, receivedAt: null }] }],
+    ["valor subcentavo", { amountPaid: 0, payments: [{ id: "payment-subcent", amount: 0.001, receivedAt: null }] }],
+    ["data inválida", { amountPaid: 10, payments: [{ id: "payment-date", amount: 10, receivedAt: "invalid" }] }],
+    ["soma divergente do cache legado", { amountPaid: 10, payments: [{ id: "payment-mismatch", amount: 9, receivedAt: null }] }],
+  ] as const)("recusa %s sem alterar pedido ou agregador", async (_caseName, targetOrder) => {
+    await expectInvalidPaymentState(targetOrder);
+  });
+
+  it("aceita receivedAt nulo em lançamento legado", async () => {
+    const fixture = await createFixture(5000, {
+      targetOrder: {
+        amountPaid: 10,
+        payments: [{ id: "payment-legacy-date", amount: 10, receivedAt: null }],
+      },
+    });
+
+    await expect(applyCreditTransaction(fixture.db, command(fixture.clientId, fixture.orderId), actor)).resolves.toMatchObject({
+      appliedCreditCents: 3000,
     });
   });
 
