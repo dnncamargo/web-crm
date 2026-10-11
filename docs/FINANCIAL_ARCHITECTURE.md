@@ -112,12 +112,22 @@ técnica de correções e ainda permite retries seguros.
 `POST /api/financial/record-payment` recebe `orderId`, `clientId`, `paymentId`,
 `amountCents`, `receivedAt`, `presentedAvailableCreditCents` e
 `presentedRevision`. O identificador do pagamento é a chave idempotente: mesma
-identidade, valor e data retorna o resultado persistido sem nova escrita;
+identidade, valor e data retorna `replayed: true` sem nova escrita;
 identidade com conteúdo diferente retorna conflito. Valores distintos com a
 mesma data continuam admitidos. A data exigida para um novo recebimento é ISO
 com fuso horário explícito e representa o recebimento real/declarado, nunca um
 timestamp técnico. O comando atualiza `payments`, o cache `amountPaid`,
 `creditGenerated` e o agregador no mesmo commit.
+
+**DECIDED — resposta idempotente simplificada**
+
+Não é necessário persistir nem reproduzir o resultado histórico da primeira
+tentativa. A resposta usa os campos explícitos `currentAmountPaidCents`,
+`currentCreditGeneratedCents`, `currentAvailableCreditCents` e
+`currentRevision`: eles são a projeção no instante da resposta, inclusive em
+um replay ocorrido depois de outro pagamento. Isso não cria armazenamento
+técnico adicional por `payment.id`; a idempotência impede duplicação dos fatos
+e efeitos financeiros, não congela a projeção de consulta.
 
 ### 2.3 Correção de recebimento
 
@@ -154,6 +164,12 @@ Um documento legado sem `payments[]` não possui uma identidade persistida para
 correção: o endpoint o recusa com conflito até uma decisão de produto aprovada.
 O registro de um novo recebimento pode materializar esse legado, na transação,
 como `legacy-{orderId}` com `receivedAt: null`.
+
+Uma correção pode manter `receivedAt: null` quando a data já era historicamente
+desconhecida, ou substituí-lo por uma data efetivamente conhecida. Pode também
+trocar uma data conhecida por outra válida. A remoção de uma data conhecida
+para `null` é bloqueada explicitamente; a operação nunca a substitui pelo
+momento técnico da correção.
 
 ## 3. Crédito por cliente
 
@@ -587,6 +603,11 @@ Cliente, o saldo/revisão apresentados e grava os dois documentos atomicamente.
 Retries idempotentes não alteram `updatedAt`, revisão ou crédito. O agregador
 continua obrigatório, `ready` e previamente inicializado por fixture; a API
 nunca o cria, desbloqueia ou inicializa.
+
+Um pedido cancelado não aceita novo recebimento. Ainda assim, depois de validar
+cliente, agregador e fatos persistidos, o replay de um `payment.id` já presente
+com o mesmo conteúdo é um no-op seguro; não altera o status operacional, saldo,
+crédito, revisão ou `updatedAt`.
 
 Na prova atual, fixtures explícitas do emulador criam o agregador em `ready`.
 O comando confirma saldo e revisão apresentados, confirma o valor em centavos,

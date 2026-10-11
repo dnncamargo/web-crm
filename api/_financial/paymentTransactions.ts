@@ -40,10 +40,10 @@ interface StoredAggregator {
 
 export interface PaymentTransactionResult {
   paymentId: string;
-  amountPaidCents: number;
-  creditGeneratedCents: number;
-  availableCreditCents: number;
-  revision: number;
+  currentAmountPaidCents: number;
+  currentCreditGeneratedCents: number;
+  currentAvailableCreditCents: number;
+  currentRevision: number;
   replayed: boolean;
 }
 
@@ -205,7 +205,14 @@ function result(
   revision: number,
   replayed: boolean,
 ): PaymentTransactionResult {
-  return { paymentId, amountPaidCents: cashPaidCents, creditGeneratedCents, availableCreditCents, revision, replayed };
+  return {
+    paymentId,
+    currentAmountPaidCents: cashPaidCents,
+    currentCreditGeneratedCents: creditGeneratedCents,
+    currentAvailableCreditCents: availableCreditCents,
+    currentRevision: revision,
+    replayed,
+  };
 }
 
 function writePaymentMutation(
@@ -264,9 +271,6 @@ async function readOrderAndAggregator(
     if (order.clientId !== command.clientId) {
       throw new FinancialApiError(409, "CLIENT_MISMATCH", "Pedido e agregador não pertencem ao mesmo cliente.");
     }
-    if (order.orderStatus === "cancelled") {
-      throw new FinancialApiError(409, "ORDER_CANCELLED", "Pedido cancelado não aceita recebimento.");
-    }
     return action(transaction, order, aggregator, orderRef, aggregatorRef);
   });
 }
@@ -281,6 +285,9 @@ export async function recordPaymentTransaction(db: Firestore, command: RecordPay
           throw new FinancialApiError(409, "PAYMENT_ID_COLLISION", "O pagamento já existe com conteúdo diferente.");
         }
         return result(command.paymentId, order.cashPaidCents, order.creditGeneratedCents, aggregator.availableCreditCents, aggregator.revision, true);
+      }
+      if (order.orderStatus === "cancelled") {
+        throw new FinancialApiError(409, "ORDER_CANCELLED", "Pedido cancelado não aceita recebimento.");
       }
       assertWritePrecondition(aggregator, command);
       const mutation = writePaymentMutation(transaction, orderRef, aggregatorRef, order, aggregator, [
@@ -298,6 +305,9 @@ export async function recordPaymentTransaction(db: Firestore, command: RecordPay
 export async function correctPaymentTransaction(db: Firestore, command: CorrectPaymentCommand): Promise<PaymentTransactionResult> {
   try {
     return await readOrderAndAggregator(db, command, (transaction, order, aggregator, orderRef, aggregatorRef) => {
+      if (order.orderStatus === "cancelled") {
+        throw new FinancialApiError(409, "ORDER_CANCELLED", "Pedido cancelado não aceita correção nesta etapa.");
+      }
       if (order.payments === undefined) {
         throw new FinancialApiError(409, "LEGACY_PAYMENT_CORRECTION_REQUIRES_DECISION", "Correção de pagamento legado requer decisão aprovada.");
       }
@@ -308,6 +318,13 @@ export async function correctPaymentTransaction(db: Firestore, command: CorrectP
       }
       if (current.amountCents !== command.expectedAmountCents || current.receivedAt !== command.expectedReceivedAt) {
         throw new FinancialApiError(409, "PAYMENT_PRECONDITION_CHANGED", "O pagamento mudou; confirme novamente.");
+      }
+      if (current.receivedAt !== null && command.receivedAt === null) {
+        throw new FinancialApiError(
+          409,
+          "RECEIVED_AT_REMOVAL_REQUIRES_DECISION",
+          "A remoção de uma data de recebimento conhecida não é permitida.",
+        );
       }
       assertWritePrecondition(aggregator, command);
       const mutation = writePaymentMutation(transaction, orderRef, aggregatorRef, order, aggregator, order.payments.map((payment) => (

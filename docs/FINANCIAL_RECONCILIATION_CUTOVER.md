@@ -22,6 +22,10 @@ Rules ou ativação da API financeira.
   inicialização de agregador. Documento legado sem `payments[]` pode ser
   materializado somente ao registrar novo pagamento; sua correção isolada fica
   bloqueada por falta de identidade persistida e requer decisão humana.
+- **DECIDED — UX futura:** cada recebimento terá uma ação explícita
+  **Corrigir** no visual canônico. A ação edita o lançamento identificado com
+  confirmação clara quando necessária; não haverá UI de auditoria técnica,
+  versões ou pagamentos compensatórios neste fluxo.
 - **PROPOSED:** uma auditoria futura autorizada poderá ler uma cópia
   controlada de pedidos reais e fornecer apenas os campos técnicos necessários
   ao módulo puro. Nenhum resultado bruto deve ser publicado.
