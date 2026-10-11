@@ -45,6 +45,7 @@ export function TodayOtherInforms({ pendingPayments, contactSuggestions, openTas
                         <div className="entity-row-main">
                           <strong className="entity-title">{order.clientName}</strong>
                           <span className="entity-subtitle">
+                            {order.orderStatus === "completed" ? "Entregue · " : ""}
                             {getPaymentStatusLabel(paymentStatus)} · Restante {formatCurrencyBR(remaining)}
                           </span>
                         </div>

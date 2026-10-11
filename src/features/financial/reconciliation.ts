@@ -125,7 +125,8 @@ function isTechnicalId(value: unknown): value is string {
 }
 
 function isValidDate(value: string): boolean {
-  return !Number.isNaN(new Date(value).getTime());
+  return /T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(value)
+    && !Number.isNaN(new Date(value).getTime());
 }
 
 function stableValueKey(value: unknown): string {

@@ -2,9 +2,10 @@ import { useMemo } from "react";
 
 import { useClients } from "../clients/useClients";
 import { useOrders } from "../orders/useOrders";
-import { getOrderBalanceInfo, getOrderItemProductName, getPaymentStatus } from "../orders/orderUtils";
+import { getOrderBalanceInfo, getOrderItemProductName } from "../orders/orderUtils";
 import { useProducts } from "../products/useProducts";
 import { useTasks } from "../tasks/useTasks";
+import { selectOperationalPendingOrders } from "../financial/projection";
 import {
   addDaysToDateKey,
   getClientNextContactDateKey,
@@ -110,19 +111,7 @@ export function useTodayDashboard() {
   }, [deliveryDateKeysWithOrders, products, upcomingDeliveries]);
 
   const pendingPayments = useMemo(() => {
-    return orders
-      .filter((order) => {
-        if (order.orderStatus !== "active") {
-          return false;
-        }
-
-        const paymentStatus = getPaymentStatus(order);
-
-        return paymentStatus === "unpaid" || paymentStatus === "partial";
-      })
-      .sort((firstOrder, secondOrder) =>
-        firstOrder.deliveryDateTime.localeCompare(secondOrder.deliveryDateTime)
-      );
+    return selectOperationalPendingOrders(orders);
   }, [orders]);
 
   const pendingPaymentsTotal = useMemo(() => {
