@@ -182,18 +182,21 @@ a restituir, e nenhum crédito relacionado pode ser liberado, consumido de novo
 ou redistribuído automaticamente. Essa regra vale mesmo quando o crédito foi
 gerado em um pedido e já consumido em outro.
 
-**OPEN — alocação de origem de crédito em cadeia**
+**OPEN — acerto de cancelamento com crédito já consumido**
 
-O modelo atual guarda apenas valores agregados por pedido e não liga um consumo
-de crédito à origem específica. Portanto, se o crédito gerado no pedido A foi
-consumido no pedido B e A é cancelado, não é possível decidir com segurança,
-somente com os campos atuais, qual saldo pode ser devolvido ou bloqueado. Antes
-do cutover, Produto deve aprovar uma regra para esse caso, incluindo o que
-ocorre se o crédito de origem já estiver consumido. A implementação precisa
-demonstrar estas invariantes: nenhum saldo disponível é criado duas vezes,
-nenhum consumo histórico é invalidado silenciosamente e o valor em acerto
-indefinido não volta a ficar disponível. Nenhum mecanismo de reserva/bloqueio é
-autorizado por este documento sem essa demonstração.
+Crédito é fungível por Cliente: não haverá lotes, FIFO ou vínculo obrigatório
+entre um consumo e o Pedido que o gerou. Portanto, se o crédito gerado no
+Pedido A já tiver sido consumido em B, cancelar ou corrigir A não desfaz B nem
+redistribui seu crédito. Uma redução retroativa só pode ser aplicada quando o
+saldo disponível cobrir integralmente a redução; caso contrário, a alteração é
+rejeitada e requer resolução explícita. Ainda falta definir o schema e a
+operação de acerto de cancelamento que decidirá o destino comercial do caso,
+sem liberar, bloquear ou restituir crédito automaticamente.
+
+A implementação precisa demonstrar estas invariantes: nenhum saldo disponível
+é criado duas vezes, nenhum consumo histórico é invalidado silenciosamente e o
+valor em acerto indefinido não volta a ficar disponível. Nenhum mecanismo de
+reserva/bloqueio é autorizado por este documento sem essa demonstração.
 
 ### 3.3 Exemplos de crédito
 
@@ -209,6 +212,53 @@ autorizado por este documento sem essa demonstração.
 3. Em **A combinar**, não se registra R$ 0 como restituição de crédito. A
    ausência de destino quantitativo é semanticamente diferente de nenhuma
    restituição acordada.
+
+### 3.4 Primeiro incremento do núcleo financeiro
+
+**DECIDED**
+
+- Crédito é fungível por Cliente. Não há lote, FIFO nem rastreamento obrigatório
+  da origem de cada parcela consumida.
+- Utilizações anteriores são preservadas. Corrigir ou cancelar um Pedido não
+  invalida silenciosamente crédito já aplicado em outros Pedidos.
+- Uma redução do crédito anteriormente gerado só é válida se o saldo disponível
+  cobrir integralmente a redução. Déficit é rejeitado explicitamente; outros
+  Pedidos não são modificados para compensá-lo.
+- A criação de Pedido pode receber uma sugestão de crédito limitada pelo saldo
+  disponível e pelo total do Pedido. Sugestão não é aplicação: a escolha do
+  operador, inclusive R$ 0 ou valor parcial, exige confirmação explícita.
+- Uma edição não financeira preserva o crédito já aplicado. Pagamento posterior
+  pode gerar novo crédito, mas não redistribui crédito aplicado anteriormente.
+- A confirmação do operador não substitui a futura validação transacional. Se o
+  saldo mudar antes da gravação, a API deve rejeitar o valor confirmado e exigir
+  nova decisão; nunca diminuí-lo automaticamente.
+
+No contrato de domínio, a confirmação recebe separadamente o saldo apresentado
+ao operador e o saldo atual. Qualquer diferença, inclusive aumento, exige nova
+confirmação. Na futura API, essa precondição deve incluir a versão do agregador
+lida pelo operador e ser validada dentro da transação que grava o Pedido; o
+saldo e sua versão precisam continuar iguais aos apresentados. O núcleo puro
+não implementa armazenamento de versão nem proteção concorrente.
+
+**IMPLEMENTED — contrato puro, ainda fora da produção**
+
+`src/features/financial/money.ts` estabelece cálculos determinísticos em
+centavos inteiros, conversão explícita da representação legada em reais e
+erros de domínio para valores não finitos, fora do intervalo seguro ou com
+fração inferior a um centavo. `src/features/financial/credit.ts` projeta saldo
+fungível, valida redução retroativa, sugere crédito e exige confirmação da
+aplicação. Esses módulos não escrevem Firestore, não alteram `Order`, não
+substituem `orderUtils.ts` e não tornam a concorrência protegida em produção.
+
+**OPEN — total de item com quantidade fracionária**
+
+O formulário atual calcula `quantity * unitPrice` em `number`. A regra comercial
+para arredondar uma quantidade fracionária multiplicada por preço unitário não
+foi aprovada. Por isso, o núcleo deste incremento soma totais de item já
+definidos e não introduz arredondamento arbitrário de linha. Antes de o núcleo
+substituir o cálculo produtivo, Produto deve escolher, documentar e testar uma
+regra (por exemplo, arredondamento por linha, por subtotal ou preço por unidade
+de medida mínima), inclusive para registros históricos suspeitos.
 
 ## 4. Cancelamento e acerto financeiro
 
@@ -501,9 +551,9 @@ alterar Rules nesta etapa documental.
 
 ## 10. Decisões ainda abertas
 
-1. Modelo de alocação para crédito originado em pedido cancelado e já consumido
-   em outro pedido; a regra deve preservar disponibilidade e histórico sem
-   inventar restituição automática.
+1. Schema e comando de acerto para Pedido cancelado cujo crédito já tenha sido
+   consumido. O saldo fungível e a redução protegida não autorizam restituição,
+   bloqueio ou redistribuição automática.
 2. Forma final e localização do agregado de crédito, dados mínimos para
    reconciliação e protocolo de reparo manual aprovado.
 3. Schema final do objeto de acerto e das devoluções, após auditoria de
@@ -512,5 +562,7 @@ alterar Rules nesta etapa documental.
 4. Regra para reabrir ou corrigir acerto já concluído.
 5. Política para divergências amountPaid versus payments descobertas na
    reconciliação: revisão humana, critério de aprovação e trilha operacional.
-6. Representação monetária e tolerância de arredondamento da API, pois a base
-   atual usa number; qualquer mudança exige migração compatível e validação.
+6. Representação monetária final da API e regra comercial de arredondamento de
+   quantidade fracionária. O núcleo puro usa centavos e rejeita frações de
+   centavo; a persistência atual continua em `number` e qualquer migração exige
+   validação compatível de registros legados.

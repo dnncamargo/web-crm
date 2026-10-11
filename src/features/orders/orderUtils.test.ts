@@ -69,6 +69,18 @@ describe("order payment calculations", () => {
     expect(getOrderGeneratedCreditAmount(order)).toBe(0);
   });
 
+  it("keeps payment status independent from operational order status", () => {
+    const completedUnpaidOrder = {
+      total: 100,
+      amountPaid: 0,
+      payments: [],
+      creditApplied: 0,
+      orderStatus: "completed" as const,
+    };
+
+    expect(getPaymentStatus(completedUnpaidOrder)).toBe("unpaid");
+  });
+
   it("gives payments precedence over stale amountPaid", () => {
     const order = financial({
       amountPaid: 999,
