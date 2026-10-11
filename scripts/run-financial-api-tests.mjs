@@ -14,7 +14,14 @@ if (runtimeCheck.status !== 0) {
   process.exit(runtimeCheck.status ?? 1);
 }
 
-const result = child.spawnSync("npx", ["vitest", "run", "tests/financial-api"], {
+const result = child.spawnSync("npx", [
+  "vitest",
+  "run",
+  "tests/financial-api",
+  "--no-file-parallelism",
+  "--testTimeout",
+  "15000",
+], {
   stdio: "inherit",
   shell: process.platform === "win32",
   env: process.env,
