@@ -9,12 +9,14 @@
     "lint": "eslint .",
     "test": "vitest run src",
     "test:firestore-rules": "firebase emulators:exec --only firestore \"vitest run tests/firestore.rules.test.ts\"",
+    "test:financial-api": "firebase emulators:exec --project demo-web-crm-financial --only auth,firestore \"node scripts/run-financial-api-tests.mjs\"",
     "preview": "vite preview",
     "css:unused": "node scripts/find-unused-css-classes.mjs",
     "print:bridge": "node tools/windows-print-bridge/server.mjs"
   },
   "dependencies": {
     "firebase": "^12.15.0",
+    "firebase-admin": "^13.10.0",
     "lucide-react": "^1.23.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.7",

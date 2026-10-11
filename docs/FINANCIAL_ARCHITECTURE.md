@@ -510,6 +510,89 @@ validação de diff que prove que nenhum campo financeiro ou relação de crédi
 pode ser alcançada. A opção mais segura para a primeira versão é autoridade
 única da API para qualquer escrita em orders.
 
+### 7.4 Fundação experimental da API financeira
+
+**IMPLEMENTED — isolada de produção**
+
+O primeiro endpoint da fundação é `POST /api/financial/apply-credit`. Ele é uma
+Vercel Function Node.js, usa exclusivamente Firebase Admin SDK no servidor e
+reutiliza `src/features/financial/money.ts` e
+`src/features/financial/credit.ts`; não há novo núcleo monetário nem SDK Admin
+no bundle Vite. O rewrite da SPA exclui `/api`, de forma que a rota não pode
+responder `index.html`.
+
+A rota exige Firebase ID token válido, e-mail válido e verificado, provider
+`google.com` e correspondência normalizada com
+`config/authAdmission.allowedGoogleEmails`, lido no servidor. A API não aceita
+e-mail, UID ou identidade vinda do payload. `401` representa token ausente ou
+inválido; `403`, identidade autenticada não autorizada; `400`, payload inválido;
+`409`, conflito ou estado financeiro incompatível; `503`, a operação está
+desativada. Respostas não expõem tokens, allowlist, credenciais ou detalhes do
+Admin SDK.
+
+As escritas estão fail-closed. Para habilitar testes é necessário, ao mesmo
+tempo: `FINANCIAL_TEST_MODE=enabled`,
+`FINANCIAL_LOCAL_EXECUTION=enabled`, `FIRESTORE_EMULATOR_HOST` em loopback,
+`FINANCIAL_TEST_PROJECT_ID` iniciado por `demo-` e projeto atual idêntico. O
+processo também deve ser local (ou `vercel dev`). Vercel Preview e produção são
+sempre recusados; nenhum parâmetro HTTP pode alterar esse gate. Assim, esta
+rota não é uma autoridade financeira produtiva e não pode inicializar,
+migrar ou modificar pedidos reais.
+
+**PROPOSED — schema experimental de agregador**
+
+`clientFinancial/{clientId}` contém somente:
+
+| Campo | Semântica |
+| --- | --- |
+| `availableCreditCents` | saldo projetado, inteiro não negativo em centavos |
+| `revision` | versão incrementada em cada mutação transacional |
+| `state` | `ready`, `blocked` ou `uninitialized`; um único estado substitui marcadores redundantes de inicialização e reconciliação |
+
+`clientFinancial/{clientId}/operations/{operationId}` guarda o fingerprint
+normalizado e o resultado mínimo da operação. Ele é criado no mesmo commit que
+o Pedido e o agregador. Mesmo ID com mesmo fingerprint devolve o resultado
+anterior; mesmo ID com conteúdo diferente gera conflito. O pedido, agregador e
+registro idempotente são lidos antes de qualquer escrita da transação.
+
+Na prova atual, fixtures explícitas do emulador criam o agregador em `ready`.
+O comando confirma saldo e revisão apresentados, confirma o valor em centavos,
+verifica o Cliente do Pedido e atualiza `creditApplied`, `creditGenerated` e o
+agregador atomicamente. `payments[]` não é alterado. Agregador ausente,
+bloqueado ou não inicializado não é criado silenciosamente e bloqueia a
+operação. A projeção é reconstruível dos fatos da fixture: crédito disponível
+= créditos gerados - créditos aplicados; ela nunca mascara déficit com
+`Math.max`.
+
+**CURRENT — limitações preservadas**
+
+`ordersService` continua usando o SDK cliente em `createOrder`, `updateOrder`
+e `registerOrderPayment`. Esta fundação não os substitui, não altera
+`firestore.rules` e não ativa qualquer fluxo da UI. A regra recursiva atual
+ainda permite escrita direta de usuário admitido: no cutover, será necessário
+remover esse allow concorrente para `orders`, `clientFinancial` e registros de
+idempotência, preservando somente leituras autorizadas e as demais coleções
+necessárias. Uma regra específica de negação não bastará enquanto esse allow
+existir.
+
+**OPEN — cutover e reconciliação**
+
+O schema permanece experimental até aprovação do Product Owner. Continuam
+abertos o protocolo de reconciliação e reparo, cancelamentos, devoluções,
+crédito já consumido, acertos concluídos, quantidade fracionária e a política
+de arredondamento. A fundação não escolhe essas regras.
+
+### 7.5 Execução local verificável
+
+Sem credenciais de produção, execute `npm run test:financial-api`. O comando
+inicia Authentication e Firestore Emulator com o projeto
+`demo-web-crm-financial`, habilita as flags somente no processo de teste e roda
+as fixtures isoladas. Os testes cobrem aplicação atômica, retry idempotente e
+concorrência entre Pedidos; a ausência do emulador impede a escrita antes de
+qualquer conexão produtiva. Em máquinas sem JDK 21 ou superior, o Firebase CLI
+não inicia os emuladores e essa validação deve ser tratada como pendência do
+ambiente, não substituída por dados reais.
+
 ## 8. Compatibilidade, legado e cutover
 
 **DECIDED — plano obrigatório antes de ativação**
