@@ -16,6 +16,12 @@ Rules ou ativação da API financeira.
   qualquer documento. Ele converte valores legados com o núcleo de centavos,
   classifica problemas estáveis e reconstrói crédito fungível somente quando
   há fatos suficientes.
+- **IMPLEMENTED — Incremento 4, Emulator local:** as operações de registrar e
+  corrigir recebimento validam esses fatos defensivamente e alteram Pedido e
+  agregador em transação. Elas não executam reconciliação, migração, reparo ou
+  inicialização de agregador. Documento legado sem `payments[]` pode ser
+  materializado somente ao registrar novo pagamento; sua correção isolada fica
+  bloqueada por falta de identidade persistida e requer decisão humana.
 - **PROPOSED:** uma auditoria futura autorizada poderá ler uma cópia
   controlada de pedidos reais e fornecer apenas os campos técnicos necessários
   ao módulo puro. Nenhum resultado bruto deve ser publicado.
@@ -145,6 +151,11 @@ O diagnóstico não aplica essa aprovação e não é uma trilha técnica de cor
 Permanecem abertas: schema/comando de acerto de cancelamento, devoluções,
 crédito já consumido, regra de arredondamento de itens fracionários, política
 de aprovação de divergências e schema definitivo do agregador.
+
+Também permanece aberta a semântica aprovada para corrigir um recebimento
+legado que ainda existe apenas em `amountPaid`: não há `payment.id` persistido
+e não é permitido inventar um em uma correção. A recusa atual é deliberada e
+não autoriza materialização por leitura, migração ou reparo.
 
 Antes de inicializar qualquer agregador, é necessário: reconciliação conclusiva
 por cliente sem déficit; ausência de cancelamento que afete crédito sem acerto

@@ -7,8 +7,12 @@ const repositoryRoot = process.cwd();
 const outputDirectory = mkdtempSync(path.join(repositoryRoot, ".financial-api-runtime-"));
 
 try {
-  const entryPoint = path.join(repositoryRoot, "api/financial/apply-credit.ts");
-  const program = ts.createProgram([entryPoint], {
+  const entryPoints = [
+    "api/financial/apply-credit.ts",
+    "api/financial/record-payment.ts",
+    "api/financial/correct-payment.ts",
+  ].map((entryPoint) => path.join(repositoryRoot, entryPoint));
+  const program = ts.createProgram(entryPoints, {
     target: ts.ScriptTarget.ES2023,
     lib: ["lib.es2023.d.ts", "lib.dom.d.ts"],
     module: ts.ModuleKind.NodeNext,
@@ -40,11 +44,12 @@ try {
       }));
       process.exitCode = 1;
     } else {
-      const emittedEntry = path.join(outputDirectory, "api/financial/apply-credit.js");
-      const route = await import(pathToFileURL(emittedEntry).href);
-
-      if (typeof route.POST !== "function") {
-        throw new Error("The compiled financial API module does not export POST.");
+      for (const entryPoint of entryPoints) {
+        const emittedEntry = path.join(outputDirectory, path.relative(repositoryRoot, entryPoint)).replace(/\.ts$/, ".js");
+        const route = await import(pathToFileURL(emittedEntry).href);
+        if (typeof route.POST !== "function") {
+          throw new Error(`The compiled financial API module ${path.relative(repositoryRoot, entryPoint)} does not export POST.`);
+        }
       }
 
       console.log("Financial API runtime import passed under Node.js ESM.");
