@@ -74,6 +74,41 @@ export function legacyReaisToMoneyCents(value: number, fieldName = "Valor monet�
   return asMoneyCents(cents);
 }
 
+/** Calculates a line total in cents without binary-float multiplication or commercial rounding. */
+export function calculateOrderItemTotalCents(quantity: number, unitPriceCents: MoneyCents): MoneyCents {
+  assertNonNegativeMoneyCents(unitPriceCents, "Preço unitário");
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    throw new FinancialDomainError("INVALID_MONETARY_VALUE", "A quantidade do item deve ser finita e não negativa.");
+  }
+
+  const decimal = String(quantity).match(/^(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i);
+  if (!decimal) {
+    throw new FinancialDomainError("INVALID_MONETARY_VALUE", "A quantidade do item não pode ser representada com segurança.");
+  }
+  const fraction = decimal[2] ?? "";
+  const exponent = Number(decimal[3] ?? 0);
+  const digits = BigInt(`${decimal[1]}${fraction}`);
+  const scale = fraction.length - exponent;
+  const numerator = scale < 0 ? digits * (10n ** BigInt(-scale)) : digits;
+  const denominator = scale > 0 ? 10n ** BigInt(scale) : 1n;
+  const product = numerator * BigInt(unitPriceCents);
+  if (product % denominator !== 0n) {
+    throw new FinancialDomainError(
+      "MONETARY_VALUE_REQUIRES_CENT_PRECISION",
+      "Total do item precisa ter precisão de centavos; nenhum arredondamento foi aplicado.",
+    );
+  }
+
+  const total = product / denominator;
+  if (total > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new FinancialDomainError(
+      "MONETARY_ARITHMETIC_OVERFLOW",
+      "O total do item excede o intervalo seguro de centavos.",
+    );
+  }
+  return asMoneyCents(Number(total));
+}
+
 export function moneyCentsToLegacyReais(value: MoneyCents, fieldName = "Valor monetário"): number {
   assertValidMoneyCents(value, fieldName);
   return value / 100;

@@ -12,6 +12,7 @@ import {
   FinancialDomainError,
   calculateEffectivePaidCents,
   calculateGeneratedCreditCents,
+  calculateOrderItemTotalCents,
   calculateOrderBalanceCents,
   calculateOrderSubtotalCents,
   calculateOrderTotalCents,
@@ -54,6 +55,29 @@ describe("financial money core", () => {
 
   it("keeps compatibility with exact legacy reais values", () => {
     expect(moneyCentsToLegacyReais(cents(1234.56))).toBe(1234.56);
+  });
+
+  it.each([
+    [3, 10010, 30030],
+    [3, 30030, 90090],
+    [7, 4002, 28014],
+    [1.5, 250, 375],
+  ])("calculates exact item cents for %s × %s cents", (quantity, unitPriceCents, expectedCents) => {
+    expect(calculateOrderItemTotalCents(quantity, unitPriceCents as ReturnType<typeof cents>)).toBe(expectedCents);
+  });
+
+  it.each([
+    [1.5, 101],
+    [0.5, 525],
+  ])("rejects fractional item cents for %s × %s cents", (quantity, unitPriceCents) => {
+    expect(() => calculateOrderItemTotalCents(quantity, unitPriceCents as ReturnType<typeof cents>))
+      .toThrow("precisão de centavos");
+  });
+
+  it("rejects item arithmetic overflow and invalid quantities", () => {
+    expect(() => calculateOrderItemTotalCents(2, Number.MAX_SAFE_INTEGER as ReturnType<typeof cents>))
+      .toThrow("intervalo seguro");
+    expect(() => calculateOrderItemTotalCents(Number.POSITIVE_INFINITY, cents(1))).toThrow("finita");
   });
 });
 

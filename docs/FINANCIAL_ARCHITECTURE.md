@@ -665,6 +665,34 @@ idempotência, preservando somente leituras autorizadas e as demais coleções
 necessárias. Uma regra específica de negação não bastará enquanto esse allow
 existir.
 
+**IMPLEMENTED — Incremento 7A, somente Emulator local**
+
+`POST /api/financial/create-order` adiciona um comando experimental de criação
+com identidade explícita `orderId`. Ele reutiliza o gate de escrita local, a
+autorização Google/allowlist, Admin SDK, `money.ts` e `credit.ts`. O comando
+aceita os campos comerciais atuais do Pedido, valores monetários em centavos,
+um `initialPayment` opcional com `payment.id` e `receivedAt`, e uma
+`creditApplication` opcional que exige confirmação explícita, saldo e revisão
+apresentados. `amountPaid` e `creditGenerated` não são aceitos do chamador.
+
+O endpoint deriva subtotal, total, recebimento, crédito aplicado e crédito
+gerado. A criação sem recebimento grava `payments: []`; não inventa pagamento.
+Quando há pagamento inicial ou aplicação de crédito, Pedido e agregador
+`ready` são lidos e escritos na mesma transação. O agregador ausente, inválido,
+bloqueado ou com revisão/saldo incompatíveis não é inicializado nem corrigido.
+O ID determinístico do Pedido torna o retry idempotente: conteúdo igual é
+no-op; conteúdo comercial ou financeiro divergente gera conflito. O ID e a
+data do pagamento inicial são preservados. A suíte integrada reutiliza
+`reconciliation.ts` em modo somente leitura para confirmar a coerência do
+Pedido criado e do agregador.
+
+O contrato ainda bloqueia multiplicações quantidade/preço que não resultem em
+centavos inteiros. A criação com status `cancelled` retorna
+`CANCELLED_ORDER_CREATION_UNSUPPORTED`, pois o comando de acerto necessário
+permanece OPEN. `completed` continua sendo somente status operacional e não
+cria recebimento. O endpoint não substitui `createOrder`, não altera Rules,
+listeners ou UI e permanece indisponível em Preview e Production.
+
 **IMPLEMENTED — diagnóstico local somente leitura**
 
 O Incremento 3 adiciona `src/features/financial/reconciliation.ts`, um módulo

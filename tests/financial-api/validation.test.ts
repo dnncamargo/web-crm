@@ -4,6 +4,7 @@ import { isFinancialApiError } from "../../api/_financial/errors";
 import {
   parseApplyCreditCommand,
   parseCorrectPaymentCommand,
+  parseCreateOrderCommand,
   parseRecordPaymentCommand,
 } from "../../api/_financial/validation";
 
@@ -89,5 +90,82 @@ describe("payment request validation", () => {
       receivedAt: null,
     };
     await expect(parseCorrectPaymentCommand(request(command))).resolves.toMatchObject(command);
+  });
+});
+
+describe("create order command validation", () => {
+  const createCommand = {
+    orderId: "order-123456",
+    clientId: "client-1",
+    clientName: "Cliente sintético",
+    deliveryDateTime: "2026-11-01T12:00:00-03:00",
+    items: [{ id: "item-1", productId: "product-1", productName: "Produto", quantity: 1, unitPriceCents: 1000, totalCents: 1000 }],
+    subtotalCents: 1000,
+    deliveryFeeCents: 0,
+    totalCents: 1000,
+    orderStatus: "active",
+    tagIds: [],
+  };
+
+  it("aceita campos comerciais e fatos iniciais com identidade explícita", async () => {
+    const body = {
+      ...createCommand,
+      initialPayment: { id: "payment-123456", amountCents: 250, receivedAt: "2026-10-11T12:30:00-03:00" },
+      creditApplication: { applyCreditCents: 300, presentedAvailableCreditCents: 500, presentedRevision: 3, confirmed: true },
+    };
+    await expect(parseCreateOrderCommand(request(body))).resolves.toMatchObject(body);
+  });
+
+  it.each(["Bolo de cenoura", "Pão de queijo", "Café com leite", "Bolo (sem açúcar)"])(
+    "preserva o nome comercial %s",
+    async (productName) => {
+      const body = { ...createCommand, items: [{ ...createCommand.items[0], productName }] };
+      await expect(parseCreateOrderCommand(request(body))).resolves.toMatchObject({ items: [{ productName }] });
+    },
+  );
+
+  it.each(["", "   ", "x".repeat(4097)])("rejeita nome comercial vazio ou excessivamente longo", async (productName) => {
+    const body = { ...createCommand, items: [{ ...createCommand.items[0], productName }] };
+    await expect(parseCreateOrderCommand(request(body))).rejects.toSatisfy((error: unknown) => (
+      isFinancialApiError(error) && error.status === 400
+    ));
+  });
+
+  it.each(["2026-11-01T12:00", "2026-11-01T12:00:00-03:00", "2026-11-01T15:00:00.000Z"])(
+    "preserva deliveryDateTime válido %s",
+    async (deliveryDateTime) => {
+      await expect(parseCreateOrderCommand(request({ ...createCommand, deliveryDateTime })))
+        .resolves.toMatchObject({ deliveryDateTime });
+    },
+  );
+
+  it.each(["2026-02-30T12:00", "2026-11-01T25:00", "texto arbitrário", ""])(
+    "rejeita deliveryDateTime inválido %s",
+    async (deliveryDateTime) => {
+      await expect(parseCreateOrderCommand(request({ ...createCommand, deliveryDateTime }))).rejects.toSatisfy((error: unknown) => (
+        isFinancialApiError(error) && error.status === 400
+      ));
+    },
+  );
+
+  it.each([
+    { ...createCommand, amountPaid: 10 },
+    { ...createCommand, creditGenerated: 10 },
+    { ...createCommand, totalCents: Number.MAX_SAFE_INTEGER + 1 },
+    { ...createCommand, initialPayment: { id: "payment-123456", amountCents: 0, receivedAt: "2026-10-11T12:30:00Z" } },
+    { ...createCommand, initialPayment: { id: "payment-123456", amountCents: 10, receivedAt: "2026-10-11" } },
+    { ...createCommand, creditApplication: { applyCreditCents: 1, presentedAvailableCreditCents: 10, presentedRevision: 1, confirmed: false } },
+    { ...createCommand, items: [{ ...createCommand.items[0], unitPriceCents: 1.5 }] },
+  ])("rejeita autoridade financeira ou valor inválido no payload", async (body) => {
+    await expect(parseCreateOrderCommand(request(body))).rejects.toSatisfy((error: unknown) => (
+      isFinancialApiError(error) && error.status === 400
+    ));
+  });
+
+  it("não modifica o objeto usado para construir a requisição", async () => {
+    const body = structuredClone(createCommand);
+    const before = structuredClone(body);
+    await parseCreateOrderCommand(request(body));
+    expect(body).toEqual(before);
   });
 });

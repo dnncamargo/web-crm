@@ -1,6 +1,7 @@
 import {
   FinancialDomainError,
   calculateGeneratedCreditCents,
+  calculateOrderItemTotalCents,
   calculateOrderBalanceCents,
   calculateOrderSubtotalCents,
   calculateOrderTotalCents,
@@ -305,13 +306,8 @@ function examineItems(
     const unitPrice = centsFromLegacy(item.unitPrice, `${itemField}.unitPrice`, findings, base);
     if (unitPrice === null || total === null) return;
 
-    const lineProduct = item.quantity * (unitPrice / 100);
-    if (!Number.isFinite(lineProduct)) {
-      addArithmeticFinding(findings, base, itemField);
-      return;
-    }
     try {
-      const productCents = legacyReaisToMoneyCents(lineProduct, `${itemField}.quantity × unitPrice`);
+      const productCents = calculateOrderItemTotalCents(item.quantity, unitPrice);
       if (productCents !== total) {
         findings.push({
           ...base,
