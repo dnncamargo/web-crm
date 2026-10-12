@@ -61,6 +61,31 @@ describe("create order transaction with Firestore Emulator", () => {
     expect(stored).not.toHaveProperty("creditGenerated");
   });
 
+  it.each([
+    [3, 10010, 30030],
+    [3, 30030, 90090],
+    [7, 4002, 28014],
+    [1.5, 250, 375],
+  ])("persiste item e reconcilia total exato para quantidade %s e preço unitário em centavos %s", async (quantity, unitPriceCents, totalCents) => {
+    const db = getFinancialAdminDb();
+    const ids = fixtureIds();
+    const name = "Bolo (sem açúcar)";
+    const input = command(ids.clientId, ids.orderId, {
+      deliveryDateTime: "2026-11-01T12:00",
+      items: [{ id: "item-test", productId: "product-test", productName: name, quantity, unit: "unidade", unitPriceCents, totalCents, notes: "", tagIds: [] }],
+      subtotalCents: totalCents,
+      totalCents,
+    });
+    const before = structuredClone(input);
+    await createOrderTransaction(db, input);
+    const stored = (await db.doc(`orders/${ids.orderId}`).get()).data();
+
+    expect(input).toEqual(before);
+    expect(stored?.deliveryDateTime).toBe("2026-11-01T12:00");
+    expect(stored?.items).toMatchObject([{ productName: name, quantity, unitPrice: unitPriceCents / 100, total: totalCents / 100 }]);
+    expect(reconcileFinancialDocuments([{ id: ids.orderId, ...stored }]).orders[0]?.classification).toBe("VALID");
+  });
+
   it("preserva completed como status operacional sem inventar quitação ou recebimento", async () => {
     const db = getFinancialAdminDb();
     const ids = fixtureIds();
@@ -200,7 +225,7 @@ describe("create order transaction with Firestore Emulator", () => {
     await expect(createOrderTransaction(db, command(ids.clientId, ids.orderId, {
       items: [{ id: "item-test", productId: "product-test", productName: "Produto", quantity: 2, unitPriceCents: Number.MAX_SAFE_INTEGER, totalCents: Number.MAX_SAFE_INTEGER }],
       subtotalCents: Number.MAX_SAFE_INTEGER, totalCents: Number.MAX_SAFE_INTEGER,
-    }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INVALID_MONETARY_VALUE");
+    }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "MONETARY_ARITHMETIC_OVERFLOW");
     await expect(createOrderTransaction(db, command(ids.clientId, ids.orderId, { totalCents: 10001 }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "ORDER_TOTAL_MISMATCH");
     await expect(createOrderTransaction(db, command(ids.clientId, ids.orderId, { orderStatus: "cancelled" }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "CANCELLED_ORDER_CREATION_UNSUPPORTED");
     expect((await db.doc(`orders/${ids.orderId}`).get()).exists).toBe(false);

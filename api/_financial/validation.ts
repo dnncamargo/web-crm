@@ -154,6 +154,33 @@ function assertString(value: unknown, fieldName: string, allowEmpty = false): as
   }
 }
 
+function assertDeliveryDateTime(value: unknown): asserts value is string {
+  assertString(value, "deliveryDateTime");
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,9}))?)?(Z|[+-]\d{2}:\d{2})?$/.exec(value);
+  if (!match) throw new FinancialApiError(400, "INVALID_PAYLOAD", "deliveryDateTime inválido.");
+
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, , zone] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText ?? 0);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (daysInMonth[month - 1] ?? 0)
+    || hour > 23 || minute > 59 || second > 59) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "deliveryDateTime inválido.");
+  }
+  if (zone && zone !== "Z") {
+    const offsetHour = Number(zone.slice(1, 3));
+    const offsetMinute = Number(zone.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) {
+      throw new FinancialApiError(400, "INVALID_PAYLOAD", "deliveryDateTime inválido.");
+    }
+  }
+}
+
 function assertOnlyFields(value: Record<string, unknown>, fields: ReadonlySet<string>): void {
   if (Object.keys(value).some((key) => !fields.has(key))) {
     throw new FinancialApiError(400, "INVALID_PAYLOAD", "Payload inválido.");
@@ -185,7 +212,9 @@ function parseOrderItems(value: unknown): CreateOrderCommand["items"] {
   return value.map((entry) => {
     if (!isRecord(entry)) throw new FinancialApiError(400, "INVALID_PAYLOAD", "Item inválido.");
     assertOnlyFields(entry, ITEM_FIELDS);
-    for (const key of ["id", "productId", "productName"] as const) assertIdentifier(entry[key], `item.${key}`);
+    assertIdentifier(entry.id, "item.id");
+    assertIdentifier(entry.productId, "item.productId");
+    assertString(entry.productName, "item.productName");
     const id = entry.id as string;
     const productId = entry.productId as string;
     const productName = entry.productName as string;
@@ -246,7 +275,7 @@ export async function parseCreateOrderCommand(request: Request): Promise<CreateO
   assertString(body.clientName, "clientName");
   if (body.addressId !== undefined && body.addressId !== null) assertIdentifier(body.addressId, "addressId");
   const addressSnapshot = body.addressSnapshot === undefined ? undefined : parseAddressSnapshot(body.addressSnapshot);
-  assertString(body.deliveryDateTime, "deliveryDateTime");
+  assertDeliveryDateTime(body.deliveryDateTime);
   const items = parseOrderItems(body.items);
   assertNonNegativeSafeInteger(body.subtotalCents, "subtotalCents");
   assertNonNegativeSafeInteger(body.deliveryFeeCents, "deliveryFeeCents");

@@ -4,9 +4,9 @@ import {
   FinancialDomainError,
   assertNonNegativeMoneyCents,
   calculateGeneratedCreditCents,
+  calculateOrderItemTotalCents,
   calculateOrderSubtotalCents,
   calculateOrderTotalCents,
-  legacyReaisToMoneyCents,
   moneyCentsToLegacyReais,
   subtractMoneyCents,
   sumMoneyCents,
@@ -67,10 +67,7 @@ function expectedOrder(command: CreateOrderCommand) {
   const itemTotalCents = command.items.map((item) => {
     const unitPriceCents = item.unitPriceCents as MoneyCents;
     assertNonNegativeMoneyCents(unitPriceCents, "Preço unitário");
-    const calculated = legacyReaisToMoneyCents(
-      item.quantity * moneyCentsToLegacyReais(unitPriceCents),
-      "Total do item",
-    );
+    const calculated = calculateOrderItemTotalCents(item.quantity, unitPriceCents);
     if (calculated !== item.totalCents) {
       throw new FinancialApiError(400, "ORDER_TOTAL_MISMATCH", "O total de um item não corresponde à quantidade e ao preço.");
     }

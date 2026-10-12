@@ -116,6 +116,38 @@ describe("create order command validation", () => {
     await expect(parseCreateOrderCommand(request(body))).resolves.toMatchObject(body);
   });
 
+  it.each(["Bolo de cenoura", "Pão de queijo", "Café com leite", "Bolo (sem açúcar)"])(
+    "preserva o nome comercial %s",
+    async (productName) => {
+      const body = { ...createCommand, items: [{ ...createCommand.items[0], productName }] };
+      await expect(parseCreateOrderCommand(request(body))).resolves.toMatchObject({ items: [{ productName }] });
+    },
+  );
+
+  it.each(["", "   ", "x".repeat(4097)])("rejeita nome comercial vazio ou excessivamente longo", async (productName) => {
+    const body = { ...createCommand, items: [{ ...createCommand.items[0], productName }] };
+    await expect(parseCreateOrderCommand(request(body))).rejects.toSatisfy((error: unknown) => (
+      isFinancialApiError(error) && error.status === 400
+    ));
+  });
+
+  it.each(["2026-11-01T12:00", "2026-11-01T12:00:00-03:00", "2026-11-01T15:00:00.000Z"])(
+    "preserva deliveryDateTime válido %s",
+    async (deliveryDateTime) => {
+      await expect(parseCreateOrderCommand(request({ ...createCommand, deliveryDateTime })))
+        .resolves.toMatchObject({ deliveryDateTime });
+    },
+  );
+
+  it.each(["2026-02-30T12:00", "2026-11-01T25:00", "texto arbitrário", ""])(
+    "rejeita deliveryDateTime inválido %s",
+    async (deliveryDateTime) => {
+      await expect(parseCreateOrderCommand(request({ ...createCommand, deliveryDateTime }))).rejects.toSatisfy((error: unknown) => (
+        isFinancialApiError(error) && error.status === 400
+      ));
+    },
+  );
+
   it.each([
     { ...createCommand, amountPaid: 10 },
     { ...createCommand, creditGenerated: 10 },

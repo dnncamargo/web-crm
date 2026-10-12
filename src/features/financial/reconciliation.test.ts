@@ -345,6 +345,36 @@ describe("read-only financial reconciliation", () => {
     expect(result.clients[0]).toMatchObject({ conclusive: false, availableCreditCents: null });
   });
 
+  it.each([
+    [3, 100.1, 300.3],
+    [3, 300.3, 900.9],
+    [7, 40.02, 280.14],
+    [1.5, 2.5, 3.75],
+  ])("reconciles exact item arithmetic for %s × %s without a rounding decision", (quantity, unitPrice, total) => {
+    const result = reconcileFinancialDocuments([order({
+      total,
+      subtotal: total,
+      items: [{ quantity, unitPrice, total }],
+    })]);
+
+    expect(result.orders[0]?.classification).toBe("VALID");
+    expect(codes(result)).not.toContain("ORDER_ITEM_ROUNDING_DECISION_REQUIRED");
+  });
+
+  it.each([
+    [1.5, 1.01, 1.52],
+    [0.5, 5.25, 2.63],
+  ])("keeps fractional-cent item arithmetic OPEN for %s × %s", (quantity, unitPrice, total) => {
+    const result = reconcileFinancialDocuments([order({
+      total,
+      subtotal: total,
+      items: [{ quantity, unitPrice, total }],
+    })]);
+
+    expect(result.orders[0]?.classification).toBe("BLOCKED_BY_PRODUCT_DECISION");
+    expect(codes(result)).toContain("ORDER_ITEM_ROUNDING_DECISION_REQUIRED");
+  });
+
   it("does not claim a conclusion when commercial totals are absent", () => {
     const result = reconcileFinancialDocuments([order({ subtotal: undefined, deliveryFee: undefined })]);
 
