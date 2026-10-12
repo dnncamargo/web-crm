@@ -57,7 +57,13 @@ function asNonNegativeLegacyCents(value: unknown, field: string): MoneyCents {
 }
 
 function isValidDate(value: unknown): value is string {
-  return typeof value === "string" && !Number.isNaN(new Date(value).getTime());
+  return typeof value === "string"
+    && /T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(value)
+    && !Number.isNaN(new Date(value).getTime());
+}
+
+function isStableEventId(value: string): boolean {
+  return /^[A-Za-z0-9_-]{8,128}$/.test(value);
 }
 
 function parsePayments(value: unknown): StoredPayment[] | undefined {
@@ -83,7 +89,7 @@ function parseRefunds(value: unknown): StoredRefund[] {
   return value.map((entry: unknown) => {
     if (entry === null || typeof entry !== "object" || Array.isArray(entry)) throw invalidState();
     const refund = entry as Record<string, unknown>;
-    if (typeof refund.id !== "string" || refund.id.trim().length === 0 || ids.has(refund.id) || !isValidDate(refund.refundedAt)) {
+    if (typeof refund.id !== "string" || !isStableEventId(refund.id) || ids.has(refund.id) || !isValidDate(refund.refundedAt)) {
       throw invalidState();
     }
     ids.add(refund.id);

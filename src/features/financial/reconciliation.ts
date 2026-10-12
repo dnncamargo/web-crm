@@ -61,6 +61,9 @@ export interface ReconciledOrder {
   orderId: string;
   clientId?: string;
   classification: ReconciliationClassification;
+  /** Event facts can remain identifiable when independent commercial totals are inconclusive. */
+  receiptsProjectable: boolean;
+  refundsProjectable: boolean;
   cashPaidCents: number | null;
   balanceCents: number | null;
   calculatedGeneratedCreditCents: number | null;
@@ -705,6 +708,35 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
   }
 
   const classification = recordClassification(findings);
+  const receiptIntegrityFinding = findings.some((finding) => (
+    finding.code === "PAYMENT_INVALID_STRUCTURE"
+    || finding.code === "PAYMENT_ID_INVALID"
+    || finding.code === "PAYMENT_ID_DUPLICATE"
+    || finding.code === "PAYMENT_AMOUNT_NON_POSITIVE"
+    || finding.code === "PAYMENT_DATE_INVALID_OR_MISSING"
+    || finding.code === "PAYMENTS_INVALID_STRUCTURE"
+    || finding.code === "AMOUNT_PAID_PAYMENTS_MISMATCH"
+    || (finding.code === "MONETARY_ARITHMETIC_INVALID"
+      && (finding.field === "payments" || finding.field === "amountPaid"))
+    || (finding.code === "MONETARY_VALUE_INVALID" && finding.field?.startsWith("payments[") === true)
+    || (finding.code === "MONETARY_VALUE_NEGATIVE" && finding.field?.startsWith("payments[") === true)
+    || (finding.code === "MONETARY_VALUE_INVALID" && finding.field === "amountPaid")
+    || (finding.code === "MONETARY_VALUE_NEGATIVE" && finding.field === "amountPaid")
+  ));
+  const receiptsProjectable = clientId !== undefined && cashPaid !== null && !receiptIntegrityFinding;
+  const refundIntegrityFinding = findings.some((finding) => (
+    finding.code === "REFUNDS_INVALID_STRUCTURE"
+    || finding.code === "REFUND_INVALID_STRUCTURE"
+    || finding.code === "REFUND_ID_INVALID"
+    || finding.code === "REFUND_ID_DUPLICATE"
+    || finding.code === "REFUND_AMOUNT_NON_POSITIVE"
+    || finding.code === "REFUND_DATE_INVALID_OR_MISSING"
+    || finding.code === "REFUNDS_EXCEED_RECEIPTS"
+    || (finding.code === "MONETARY_VALUE_INVALID" && finding.field?.startsWith("refunds[") === true)
+    || (finding.code === "MONETARY_VALUE_NEGATIVE" && finding.field?.startsWith("refunds[") === true)
+    || (finding.code === "MONETARY_ARITHMETIC_INVALID" && finding.field === "refunds")
+  ));
+  const refundsProjectable = receiptsProjectable && !refundIntegrityFinding;
   const canReconstructCredit = clientId !== undefined
     && total !== null
     && cashPaid !== null
@@ -729,6 +761,8 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
       orderId: order.id,
       clientId,
       classification,
+      receiptsProjectable,
+      refundsProjectable,
       cashPaidCents: cashPaid,
       balanceCents: balance,
       calculatedGeneratedCreditCents: calculatedGeneratedCredit,
@@ -790,6 +824,8 @@ export function reconcileFinancialDocuments(
       order.result.findings = sortedFindings(order.result.findings);
       order.result.classification = recordClassification(order.result.findings);
       order.canReconstructCredit = false;
+      order.result.receiptsProjectable = false;
+      order.result.refundsProjectable = false;
       order.effect = undefined;
     });
   });

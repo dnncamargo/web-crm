@@ -8,6 +8,8 @@ import { FinancialApiError } from "../../api/_financial/errors";
 import { editOrderTransaction } from "../../api/_financial/orderEdit";
 import { recordPaymentTransaction } from "../../api/_financial/paymentTransactions";
 import type { CancelOrderCommand } from "../../api/_financial/validation";
+import { projectFinancialReadModel } from "../../src/features/financial/projection";
+import type { Order } from "../../src/features/orders/orderTypes";
 
 const db = getFinancialAdminDb();
 
@@ -25,23 +27,44 @@ async function seedOrder(options: {
   refunds?: unknown;
   omitPayments?: boolean;
   total?: number;
+  subtotal?: number;
+  deliveryFee?: number;
+  items?: unknown;
+  omitCommercialFields?: boolean;
 } = {}): Promise<Fixture> {
   const suffix = randomUUID();
   const fixture = { orderId: `order-${suffix}`, clientId: `client-${suffix}` };
+  const total = options.total ?? 100;
+  const deliveryFee = options.deliveryFee ?? 0;
+  const subtotal = options.subtotal ?? total - deliveryFee;
   const data: Record<string, unknown> = {
     clientId: fixture.clientId,
     clientName: "Cliente sintético",
     orderStatus: options.orderStatus ?? "active",
-    total: options.total ?? 100,
+    total,
     amountPaid: options.amountPaid ?? 0,
     payments: options.payments ?? [],
     creditApplied: options.creditApplied ?? 0,
     creditGenerated: options.creditGenerated ?? 0,
+    items: options.items ?? (subtotal > 0 ? [{
+      id: "item-1", productId: "product-1", productName: "Produto",
+      quantity: 1, unitPrice: subtotal, total: subtotal,
+    }] : []),
+    subtotal,
+    deliveryFee,
   };
   if (options.omitPayments) delete data.payments;
   if (options.refunds !== undefined) data.refunds = options.refunds;
+  if (options.omitCommercialFields) {
+    delete data.subtotal;
+    delete data.deliveryFee;
+  }
   await db.doc(`orders/${fixture.orderId}`).set(data);
   return fixture;
+}
+
+function persistedOrderForProjection(fixture: Fixture, data: Record<string, unknown>): Order {
+  return { id: fixture.orderId, ...data } as unknown as Order;
 }
 
 function command(fixture: Fixture, overrides: Partial<CancelOrderCommand> = {}): CancelOrderCommand {
@@ -96,6 +119,10 @@ describe("cancel order transaction", () => {
       payments,
       refunds: [{ id: expect.stringMatching(/^cancel-operation-/), amount: 100, refundedAt: "2026-10-12T10:00:00.000-03:00" }],
     });
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
+    expect(projection.knownRefunds).toHaveLength(1);
+    expect(projection.knownRefunds[0]?.amountCents).toBe(10000);
   });
 
   it("registra devolução parcial como fato separado", async () => {
@@ -105,6 +132,9 @@ describe("cancel order transaction", () => {
     expect(saved?.amountPaid).toBe(100);
     expect(saved?.payments).toEqual([{ id: "payment", amount: 100, receivedAt: null }]);
     expect(saved?.refunds).toMatchObject([{ amount: 25, refundedAt: "2026-10-12T10:00:00Z" }]);
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
+    expect(projection.knownRefunds).toHaveLength(1);
+    expect(projection.knownRefunds[0]?.amountCents).toBe(2500);
   });
 
   it("preserva a retenção quando não há saída efetiva", async () => {
@@ -117,10 +147,14 @@ describe("cancel order transaction", () => {
     const previous = [{ id: "legacy-known", amount: 25, receivedAt: null }];
     const fixture = await seedOrder({ amountPaid: 25, payments: previous });
     await cancelOrderTransaction(db, command(fixture, { movement: { kind: "receipt", amountCents: 2500, occurredAt: "2026-10-11T12:30:00-03:00" } }));
-    expect((await db.doc(`orders/${fixture.orderId}`).get()).data()).toMatchObject({
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
+    expect(saved).toMatchObject({
       amountPaid: 50,
       payments: [...previous, { id: expect.stringMatching(/^cancel-operation-/), amount: 25, receivedAt: "2026-10-11T12:30:00-03:00" }],
     });
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
+    expect(projection.knownReceipts).toHaveLength(1);
+    expect(projection.knownReceipts[0]?.amountCents).toBe(2500);
   });
 
   it("materializa recebimento legado sem inventar sua data", async () => {
@@ -136,7 +170,117 @@ describe("cancel order transaction", () => {
     const payments = [{ id: "ieee-a", amount: 100.1, receivedAt: null }, { id: "ieee-b", amount: 200.2, receivedAt: null }];
     const fixture = await seedOrder({ total: 300.3, amountPaid: 100.1 + 200.2, payments });
     await cancelOrderTransaction(db, command(fixture));
-    expect((await db.doc(`orders/${fixture.orderId}`).get()).data()).toMatchObject({ payments, amountPaid: 100.1 + 200.2 });
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
+    expect(saved).toMatchObject({ payments, amountPaid: 100.1 + 200.2 });
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
+    expect(projection.knownReceipts).toHaveLength(0);
+    expect(projection.historicalDateUnknownReceipts).toHaveLength(2);
+  });
+
+  it("projeta devolução com fatos de caixa confiáveis mesmo sem dados comerciais", async () => {
+    const fixture = await seedOrder({
+      amountPaid: 100,
+      payments: [{ id: "payment-incomplete", amount: 100, receivedAt: "2026-10-01T13:00:00Z" }],
+      items: [],
+      omitCommercialFields: true,
+    });
+    await cancelOrderTransaction(db, command(fixture, {
+      movement: { kind: "refund", amountCents: 2500, occurredAt: "2026-10-12T10:00:00Z" },
+    }));
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
+    expect(saved?.refunds).toHaveLength(1);
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
+    expect(projection.reconciliation.orders[0]?.classification).toBe("INDETERMINATE");
+    expect(projection.knownRefunds).toHaveLength(1);
+    expect(projection.knownRefunds[0]?.amountCents).toBe(2500);
+  });
+
+  it("projeta novo recebimento com fatos confiáveis mesmo sem reconstrução comercial", async () => {
+    const fixture = await seedOrder({ items: [], omitCommercialFields: true });
+    await cancelOrderTransaction(db, command(fixture, {
+      movement: { kind: "receipt", amountCents: 2500, occurredAt: "2026-10-12T10:00:00Z" },
+    }));
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
+    expect(projection.reconciliation.orders[0]?.classification).toBe("INDETERMINATE");
+    expect(projection.knownReceipts).toHaveLength(1);
+    expect(projection.knownReceipts[0]?.amountCents).toBe(2500);
+  });
+
+  it("mantém diagnóstico comercial de subtotal divergente sem ocultar devolução identificável", async () => {
+    const fixture = await seedOrder({
+      amountPaid: 100,
+      payments: [{ id: "payment-subtotal", amount: 100, receivedAt: "2026-10-01T13:00:00Z" }],
+      subtotal: 90,
+      total: 100,
+      items: [{ id: "item-1", productId: "product-1", productName: "Produto", quantity: 1, unitPrice: 100, total: 100 }],
+    });
+    await cancelOrderTransaction(db, command(fixture, {
+      movement: { kind: "refund", amountCents: 10000, occurredAt: "2026-10-12T10:00:00Z" },
+    }));
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
+    expect(projection.reconciliation.orders[0]?.findings.map((finding) => finding.code)).toContain("ORDER_SUBTOTAL_DIVERGENT");
+    expect(projection.knownRefunds).toHaveLength(1);
+  });
+
+  it("mantém devolução projetável quando total diverge do subtotal e da taxa", async () => {
+    const fixture = await seedOrder({
+      amountPaid: 100,
+      payments: [{ id: "payment-total", amount: 100, receivedAt: "2026-10-01T13:00:00Z" }],
+      subtotal: 100,
+      deliveryFee: 0,
+      total: 110,
+    });
+    await cancelOrderTransaction(db, command(fixture, {
+      movement: { kind: "refund", amountCents: 10000, occurredAt: "2026-10-12T10:00:00Z" },
+    }));
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
+    expect(projection.reconciliation.orders[0]?.findings.map((finding) => finding.code)).toContain("ORDER_TOTAL_DIVERGENT");
+    expect(projection.knownRefunds).toHaveLength(1);
+  });
+
+  it("recusa cache de recebimentos divergente antes de gravar cancelamento", async () => {
+    const fixture = await seedOrder({ amountPaid: 99, payments: [{ id: "payment-cache", amount: 100, receivedAt: null }] });
+    await expectFinancialCode(cancelOrderTransaction(db, command(fixture)), "INVALID_FINANCIAL_STATE");
+    expect((await db.doc(`orders/${fixture.orderId}`).get()).data()?.orderStatus).toBe("active");
+  });
+
+  it("recusa IDs duplicados de recebimento e devolução antes de qualquer gravação", async () => {
+    const duplicatePayments = await seedOrder({
+      amountPaid: 20,
+      payments: [
+        { id: "payment-duplicate", amount: 10, receivedAt: null },
+        { id: "payment-duplicate", amount: 10, receivedAt: null },
+      ],
+    });
+    await expectFinancialCode(cancelOrderTransaction(db, command(duplicatePayments)), "INVALID_FINANCIAL_STATE");
+
+    const duplicateRefunds = await seedOrder({
+      amountPaid: 20,
+      payments: [{ id: "payment-refund-dup", amount: 20, receivedAt: null }],
+      refunds: [
+        { id: "refund-duplicate", amount: 5, refundedAt: "2026-10-01T10:00:00Z" },
+        { id: "refund-duplicate", amount: 5, refundedAt: "2026-10-02T10:00:00Z" },
+      ],
+    });
+    await expectFinancialCode(cancelOrderTransaction(db, command(duplicateRefunds)), "INVALID_FINANCIAL_STATE");
+  });
+
+  it("recusa datas de caixa sem fuso antes de aceitar uma movimentação", async () => {
+    const invalidPaymentDate = await seedOrder({
+      amountPaid: 20,
+      payments: [{ id: "payment-local-time", amount: 20, receivedAt: "2026-10-01T10:00:00" }],
+    });
+    await expectFinancialCode(cancelOrderTransaction(db, command(invalidPaymentDate)), "INVALID_FINANCIAL_STATE");
+
+    const invalidRefundDate = await seedOrder({
+      amountPaid: 20,
+      payments: [{ id: "payment-valid-date", amount: 20, receivedAt: null }],
+      refunds: [{ id: "refund-local-time", amount: 5, refundedAt: "2026-10-02T10:00:00" }],
+    });
+    await expectFinancialCode(cancelOrderTransaction(db, command(invalidRefundDate)), "INVALID_FINANCIAL_STATE");
   });
 
   it("rejeita devolução acima do dinheiro recebido não devolvido sem escrita parcial", async () => {
@@ -161,10 +305,16 @@ describe("cancel order transaction", () => {
 
   it("aceita retry idêntico e rejeita reutilização divergente da identidade", async () => {
     const fixture = await seedOrder();
-    const operation = command(fixture);
+    const operation = command(fixture, {
+      movement: { kind: "receipt", amountCents: 2500, occurredAt: "2026-10-12T10:00:00Z" },
+    });
     await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: false });
     await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: true });
     await expectFinancialCode(cancelOrderTransaction(db, { ...operation, agreement: "Texto diferente" }), "CANCEL_OPERATION_ID_REUSED");
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
+    expect(saved?.payments).toHaveLength(1);
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
+    expect(projection.knownReceipts).toHaveLength(1);
   });
 
   it("serializa tentativas concorrentes e não cancela duas vezes", async () => {

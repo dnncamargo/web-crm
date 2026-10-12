@@ -86,9 +86,7 @@ function hasReadablePaymentHistory(order: Order): boolean {
 }
 
 function canProjectReceipt(payment: OrderPayment, reconciledOrder: ReconciledOrder | undefined): boolean {
-  if (reconciledOrder === undefined
-    || reconciledOrder.classification === "INCONSISTENT"
-    || reconciledOrder.classification === "INDETERMINATE") {
+  if (reconciledOrder === undefined || !reconciledOrder.receiptsProjectable) {
     return false;
   }
 
@@ -196,9 +194,7 @@ export function projectFinancialReadModel(orders: readonly Order[]): FinancialPr
       });
     }
 
-    if (reconciledOrder === undefined
-      || reconciledOrder.classification === "INCONSISTENT"
-      || reconciledOrder.classification === "INDETERMINATE") return;
+    if (reconciledOrder === undefined || !reconciledOrder.refundsProjectable) return;
     if (!Array.isArray(order.refunds)) return;
     order.refunds.forEach((refund: OrderRefund) => {
       if (!isExplicitIsoInstant(refund.refundedAt)) return;
