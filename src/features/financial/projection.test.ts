@@ -6,6 +6,7 @@ import {
   selectOperationalPendingOrders,
   sumProjectedReceipts,
 } from "./projection";
+import { reconcileFinancialDocuments } from "./reconciliation";
 import type { Order } from "../orders/orderTypes";
 
 function order(overrides: Partial<Order> = {}): Order {
@@ -180,6 +181,33 @@ describe("financial read-only projection", () => {
     });
 
     expect(selectOperationalPendingOrders([exactSettlement])).toEqual([]);
+  });
+
+  it("projects an exact cent total from a compatible floating-point amountPaid cache without duplicating receipts", () => {
+    const documents = [order({
+      id: "compatible-cache",
+      items: [{ id: "item", productId: "product", productName: "Produto", quantity: 1, unitPrice: 300.3, total: 300.3 }],
+      subtotal: 300.3,
+      total: 300.3,
+      amountPaid: 100.1 + 200.2,
+      payments: [
+        { id: "first", amount: 100.1, receivedAt: "2026-10-10T12:00:00.000Z" },
+        { id: "second", amount: 200.2, receivedAt: "2026-10-11T12:00:00.000Z" },
+      ],
+    })];
+    const before = structuredClone(documents);
+    const reconciliation = reconcileFinancialDocuments(documents);
+    const projection = projectFinancialReadModel(documents);
+
+    expect(documents).toEqual(before);
+    expect(reconciliation.orders[0]).toMatchObject({
+      classification: "LEGACY_COMPATIBLE",
+      cashPaidCents: 30030,
+      balanceCents: 0,
+    });
+    expect(projection.knownReceipts).toHaveLength(2);
+    expect(sumProjectedReceipts(projection.knownReceipts)).toBe(30030);
+    expect(projection.orderBalances[0]).toMatchObject({ balanceCents: 0, paymentStatus: "paid" });
   });
 
   it("preserves invalid facts as diagnostics instead of assigning an invented date or definitive balance", () => {
