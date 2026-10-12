@@ -590,12 +590,36 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
   }
 
   let cancellationAgreementValid = false;
+  let cancellationCreditDecision: { appliedRestoredCents: MoneyCents; generatedRetainedCents: MoneyCents } | undefined;
+  let cancellationCreditDecisionInvalid = false;
   if (order.cancellationAgreement !== undefined) {
     if (isRecord(order.cancellationAgreement)
       && isStableOperationId(order.cancellationAgreement.operationId)
       && typeof order.cancellationAgreement.text === "string"
       && order.cancellationAgreement.text.trim().length > 0) {
       cancellationAgreementValid = true;
+      const decision = order.cancellationAgreement.creditDecision;
+      if (decision !== undefined) {
+        if (isRecord(decision)
+          && Number.isSafeInteger(decision.appliedRestoredCents)
+          && (decision.appliedRestoredCents as number) >= 0
+          && Number.isSafeInteger(decision.generatedRetainedCents)
+          && (decision.generatedRetainedCents as number) >= 0) {
+          cancellationCreditDecision = {
+            appliedRestoredCents: decision.appliedRestoredCents as MoneyCents,
+            generatedRetainedCents: decision.generatedRetainedCents as MoneyCents,
+          };
+        } else {
+          cancellationCreditDecisionInvalid = true;
+          findings.push({
+            ...base,
+            code: "CANCELLATION_CREDIT_DECISION_INVALID",
+            classification: "INCONSISTENT",
+            description: "A decisão de crédito do cancelamento possui valores ausentes, negativos ou fora do intervalo seguro de centavos.",
+            field: "cancellationAgreement.creditDecision",
+          });
+        }
+      }
     } else {
       findings.push({
         ...base,
@@ -608,6 +632,7 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
   }
 
   let refundsValid = true;
+  let totalRefundedCents: MoneyCents | null = 0 as MoneyCents;
   if (order.refunds !== undefined && !Array.isArray(order.refunds)) {
     findings.push({
       ...base,
@@ -674,6 +699,7 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
     if (refundsValid) {
       try {
         const refundedCents = sumMoneyCents(refundAmounts);
+        totalRefundedCents = refundedCents;
         if (cashPaid !== null && refundedCents > cashPaid) {
           findings.push({
             ...base,
@@ -692,16 +718,70 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
     }
   }
 
+  let effectiveCreditEffect: CreditEffectInput | undefined;
+  const hasOriginalCreditEffects = (creditApplied ?? 0) > 0
+    || (calculatedGeneratedCredit ?? persistedCreditGenerated ?? 0) > 0;
+  let cancellationCreditDecisionValid = false;
+  if (isCancelled && cancellationCreditDecision && !cancellationCreditDecisionInvalid) {
+    if (!hasOriginalCreditEffects) {
+      findings.push({
+        ...base,
+        code: "CANCELLATION_CREDIT_DECISION_NOT_APPLICABLE",
+        classification: "INCONSISTENT",
+        description: "A decisão de crédito está registrada em um Pedido sem efeito original de crédito.",
+        field: "cancellationAgreement.creditDecision",
+      });
+      cancellationCreditDecisionInvalid = true;
+    } else if (creditApplied === null || calculatedGeneratedCredit === null || total === null || cashPaid === null
+      || totalRefundedCents === null
+      || cancellationCreditDecision.appliedRestoredCents > creditApplied
+      || cancellationCreditDecision.generatedRetainedCents > calculatedGeneratedCredit) {
+      findings.push({
+        ...base,
+        code: "CANCELLATION_CREDIT_DECISION_EXCEEDS_ORDER_EFFECTS",
+        classification: "INCONSISTENT",
+        description: "A decisão de crédito excede os efeitos originais ou depende de fatos monetários incompletos.",
+        field: "cancellationAgreement.creditDecision",
+      });
+      cancellationCreditDecisionInvalid = true;
+    } else {
+      try {
+        const appliedRetainedCents = subtractMoneyCents(creditApplied, cancellationCreditDecision.appliedRestoredCents);
+        const cashRetainedCents = subtractMoneyCents(cashPaid, totalRefundedCents);
+        const supportedGeneratedCents = calculateGeneratedCreditCents(total, cashRetainedCents, appliedRetainedCents);
+        if (cancellationCreditDecision.generatedRetainedCents > supportedGeneratedCents) {
+          findings.push({
+            ...base,
+            code: "CANCELLATION_CREDIT_DECISION_DOUBLE_RESTITUTION",
+            classification: "INCONSISTENT",
+            description: "O crédito mantido excede o excedente após devoluções em dinheiro e crédito aplicado não restituído.",
+            field: "cancellationAgreement.creditDecision.generatedRetainedCents",
+          });
+          cancellationCreditDecisionInvalid = true;
+        } else {
+          cancellationCreditDecisionValid = true;
+          effectiveCreditEffect = {
+            generatedCents: cancellationCreditDecision.generatedRetainedCents,
+            appliedCents: appliedRetainedCents,
+          };
+        }
+      } catch (error) {
+        if (error instanceof FinancialDomainError) {
+          addArithmeticFinding(findings, base, "cancellationAgreement.creditDecision");
+          cancellationCreditDecisionInvalid = true;
+        } else throw error;
+      }
+    }
+  }
+
   if (isCancelled) {
-    const hasNoCreditEffects = creditApplied === 0
-      && calculatedGeneratedCredit === 0
-      && (persistedCreditGenerated ?? 0) === 0;
-    if (!cancellationAgreementValid || !refundsValid || !hasNoCreditEffects) {
+    const hasResolvedCredit = !hasOriginalCreditEffects || cancellationCreditDecisionValid;
+    if (!cancellationAgreementValid || !refundsValid || !hasResolvedCredit || cancellationCreditDecisionInvalid) {
       findings.push({
         ...base,
         code: "CANCELLED_ORDER_SETTLEMENT_REQUIRED",
         classification: "BLOCKED_BY_PRODUCT_DECISION",
-        description: "O Pedido cancelado legado ou com efeito de crédito ainda exige decisão explícita; uma negociação válida sem crédito mantém seus fatos identificáveis.",
+        description: "O Pedido cancelado legado ou com efeito de crédito sem decisão explícita válida permanece sem acerto financeiro conclusivo.",
         field: "orderStatus",
       });
     }
@@ -743,20 +823,18 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
     && creditApplied !== null
     && calculatedGeneratedCredit !== null
     && !findings.some((finding) => finding.classification !== "VALID" && finding.classification !== "LEGACY_COMPATIBLE")
-    && !isCancelled;
-  const isCancelledWithCreditEffect = isCancelled && (
-    (creditApplied ?? 0) > 0
-    || (calculatedGeneratedCredit ?? persistedCreditGenerated ?? 0) > 0
-  );
+    && (!isCancelled || (cancellationAgreementValid && refundsValid && (!hasOriginalCreditEffects || cancellationCreditDecisionValid)));
+  const isCancelledWithCreditEffect = isCancelled && hasOriginalCreditEffects && !cancellationCreditDecisionValid;
+  if (canReconstructCredit && !isCancelled && calculatedGeneratedCredit !== null && creditApplied !== null) {
+    effectiveCreditEffect = { generatedCents: calculatedGeneratedCredit, appliedCents: creditApplied };
+  }
 
   return {
     sortKey: stableValueKey(order),
     clientId,
     canReconstructCredit,
     isCancelledWithCreditEffect,
-    effect: canReconstructCredit && calculatedGeneratedCredit !== null && creditApplied !== null
-      ? { generatedCents: calculatedGeneratedCredit, appliedCents: creditApplied }
-      : undefined,
+    effect: canReconstructCredit ? effectiveCreditEffect : undefined,
     result: {
       orderId: order.id,
       clientId,

@@ -79,6 +79,15 @@ function command(fixture: Fixture, overrides: Partial<CancelOrderCommand> = {}):
   };
 }
 
+function creditDecision(
+  appliedRestoredCents: number,
+  generatedRetainedCents: number,
+  presentedAvailableCreditCents = 0,
+  presentedRevision = 1,
+): NonNullable<CancelOrderCommand["creditDecision"]> {
+  return { appliedRestoredCents, generatedRetainedCents, presentedAvailableCreditCents, presentedRevision, confirmed: true };
+}
+
 async function expectFinancialCode(promise: Promise<unknown>, code: string): Promise<void> {
   await expect(promise).rejects.toSatisfy((error: unknown) => (
     error instanceof FinancialApiError && error.code === code
@@ -123,6 +132,54 @@ describe("cancel order transaction", () => {
     const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved ?? {})]);
     expect(projection.knownRefunds).toHaveLength(1);
     expect(projection.knownRefunds[0]?.amountCents).toBe(10000);
+  });
+
+  it.each(["receipt", "refund"] as const)("aceita operationId de 121 caracteres para %s, reconcilia o ID derivado e repete com segurança", async (kind) => {
+    const operationId = "derived-id-".padEnd(121, "a");
+    const derivedId = `cancel-${operationId}`;
+    const fixture = kind === "refund"
+      ? await seedOrder({ amountPaid: 100, payments: [{ id: "payment-original", amount: 100, receivedAt: null }] })
+      : await seedOrder({ total: 200, amountPaid: 100, payments: [{ id: "payment-original", amount: 100, receivedAt: null }] });
+    const operation = command(fixture, {
+      operationId,
+      movement: { kind, amountCents: 1000, occurredAt: "2026-10-12T10:00:00Z" },
+    });
+    await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: false });
+    await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: true });
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data() ?? {};
+    if (kind === "receipt") {
+      expect(saved.payments).toContainEqual({ id: derivedId, amount: 10, receivedAt: "2026-10-12T10:00:00Z" });
+    } else {
+      expect(saved.refunds).toContainEqual({ id: derivedId, amount: 10, refundedAt: "2026-10-12T10:00:00Z" });
+    }
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved)]);
+    expect(projection.reconciliation.orders[0]?.classification).toBe("LEGACY_COMPATIBLE");
+    expect(projection.reconciliation.orders[0]?.findings.map((finding) => finding.code)).not.toContain("REFUND_ID_INVALID");
+    expect(kind === "receipt" ? projection.knownReceipts : projection.knownRefunds).toHaveLength(1);
+  });
+
+  it.each(["receipt", "refund"] as const)("rejeita operationId de 122 caracteres para %s antes de qualquer escrita", async (kind) => {
+    const fixture = kind === "refund"
+      ? await seedOrder({ amountPaid: 100, payments: [{ id: "payment-original", amount: 100, receivedAt: null }] })
+      : await seedOrder({ total: 200, amountPaid: 100, payments: [{ id: "payment-original", amount: 100, receivedAt: null }] });
+    const aggregator = db.doc(`clientFinancial/${fixture.clientId}`);
+    const aggregatorData = { state: "ready", availableCreditCents: 375, revision: 12 };
+    await aggregator.set(aggregatorData);
+    const operation = command(fixture, {
+      operationId: "a".repeat(122),
+      movement: { kind, amountCents: 1000, occurredAt: "2026-10-12T10:00:00Z" },
+    });
+    await expectFinancialCode(cancelOrderTransaction(db, operation), "INVALID_PAYLOAD");
+    expect((await db.doc(`orders/${fixture.orderId}`).get()).data()?.orderStatus).toBe("active");
+    expect((await db.doc(`orders/${fixture.orderId}/cancellationOperations/${operation.operationId}`).get()).exists).toBe(false);
+    expect((await aggregator.get()).data()).toEqual(aggregatorData);
+  });
+
+  it("preserva operationId de 128 caracteres quando não há movimentação", async () => {
+    const fixture = await seedOrder();
+    const operation = command(fixture, { operationId: "a".repeat(128) });
+    await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: false });
+    expect((await db.doc(`orders/${fixture.orderId}/cancellationOperations/${operation.operationId}`).get()).exists).toBe(true);
   });
 
   it("registra devolução parcial como fato separado", async () => {
@@ -301,6 +358,13 @@ describe("cancel order transaction", () => {
     const fixture = await seedOrder();
     const movement = { kind: "receipt" as const, amountCents: 10001, occurredAt: "2026-10-12T10:00:00Z" };
     await expectFinancialCode(cancelOrderTransaction(db, command(fixture, { movement })), "CANCEL_RECEIPT_WOULD_GENERATE_CREDIT");
+
+    const applied = await seedOrder({ total: 100, amountPaid: 80, payments: [{ id: "payment", amount: 80, receivedAt: null }], creditApplied: 20 });
+    await db.doc(`clientFinancial/${applied.clientId}`).set({ state: "ready", availableCreditCents: 0, revision: 1 });
+    await expectFinancialCode(cancelOrderTransaction(db, command(applied, {
+      movement: { kind: "receipt", amountCents: 1, occurredAt: "2026-10-12T10:00:00Z" },
+      creditDecision: creditDecision(0, 0),
+    })), "CANCEL_RECEIPT_WOULD_GENERATE_CREDIT");
   });
 
   it("aceita retry idêntico e rejeita reutilização divergente da identidade", async () => {
@@ -329,11 +393,115 @@ describe("cancel order transaction", () => {
     expect(outcomes.filter((entry) => entry.status === "rejected")).toHaveLength(1);
   });
 
-  it("bloqueia pedido com crédito aplicado ou gerado", async () => {
+  it("exige uma decisão explícita e restaura somente o crédito aplicado acordado", async () => {
     const applied = await seedOrder({ creditApplied: 10 });
-    await expectFinancialCode(cancelOrderTransaction(db, command(applied)), "ORDER_CREDIT_SETTLEMENT_UNSUPPORTED");
+    await expectFinancialCode(cancelOrderTransaction(db, command(applied)), "CREDIT_DECISION_REQUIRED");
+    await db.doc(`clientFinancial/${applied.clientId}`).set({ state: "ready", availableCreditCents: 0, revision: 1 });
+    const operation = command(applied, { creditDecision: creditDecision(500, 0) });
+    await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: false });
+    const saved = (await db.doc(`orders/${applied.orderId}`).get()).data();
+    expect(saved).toMatchObject({
+      creditApplied: 10,
+      creditGenerated: 0,
+      cancellationAgreement: { creditDecision: { appliedRestoredCents: 500, generatedRetainedCents: 0 } },
+    });
+    expect((await db.doc(`clientFinancial/${applied.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 500, revision: 2 });
+
+    const fullyRestored = await seedOrder({ creditApplied: 10 });
+    await db.doc(`clientFinancial/${fullyRestored.clientId}`).set({ state: "ready", availableCreditCents: 0, revision: 1 });
+    await cancelOrderTransaction(db, command(fullyRestored, { creditDecision: creditDecision(1000, 0) }));
+    expect((await db.doc(`clientFinancial/${fullyRestored.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 1000, revision: 2 });
+
+    const cashAndCreditRefund = await seedOrder({ total: 100, amountPaid: 90, payments: [{ id: "payment", amount: 90, receivedAt: null }], creditApplied: 10 });
+    await db.doc(`clientFinancial/${cashAndCreditRefund.clientId}`).set({ state: "ready", availableCreditCents: 0, revision: 1 });
+    await cancelOrderTransaction(db, command(cashAndCreditRefund, {
+      movement: { kind: "refund", amountCents: 5000, occurredAt: "2026-10-12T10:00:00Z" },
+      creditDecision: creditDecision(1000, 0),
+    }));
+    const cashAndCreditSaved = (await db.doc(`orders/${cashAndCreditRefund.orderId}`).get()).data();
+    expect(cashAndCreditSaved?.payments).toEqual([{ id: "payment", amount: 90, receivedAt: null }]);
+    expect(cashAndCreditSaved?.refunds).toMatchObject([{ amount: 50 }]);
+    expect((await db.doc(`clientFinancial/${cashAndCreditRefund.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 1000, revision: 2 });
+  });
+
+  it("retém crédito gerado parcialmente, atualiza revisão e valida replay integral", async () => {
     const generated = await seedOrder({ amountPaid: 120, payments: [{ id: "payment", amount: 120, receivedAt: null }], creditGenerated: 20 });
-    await expectFinancialCode(cancelOrderTransaction(db, command(generated)), "ORDER_CREDIT_SETTLEMENT_UNSUPPORTED");
+    const aggregator = db.doc(`clientFinancial/${generated.clientId}`);
+    await aggregator.set({ state: "ready", availableCreditCents: 2000, revision: 4 });
+    const operation = command(generated, { creditDecision: creditDecision(0, 1000, 2000, 4) });
+    await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: false });
+    await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: true });
+    await expectFinancialCode(cancelOrderTransaction(db, {
+      ...operation,
+      creditDecision: creditDecision(0, 0, 2000, 4),
+    }), "CANCEL_OPERATION_ID_REUSED");
+    expect((await db.doc(`orders/${generated.orderId}`).get()).data()).toMatchObject({
+      creditGenerated: 20,
+      cancellationAgreement: { creditDecision: { appliedRestoredCents: 0, generatedRetainedCents: 1000 } },
+    });
+    expect((await aggregator.get()).data()).toMatchObject({ availableCreditCents: 1000, revision: 5 });
+
+    const fullyWithdrawn = await seedOrder({ amountPaid: 120, payments: [{ id: "payment", amount: 120, receivedAt: null }], creditGenerated: 20 });
+    const fullWithdrawalAggregator = db.doc(`clientFinancial/${fullyWithdrawn.clientId}`);
+    await fullWithdrawalAggregator.set({ state: "ready", availableCreditCents: 2000, revision: 1 });
+    await cancelOrderTransaction(db, command(fullyWithdrawn, { creditDecision: creditDecision(0, 0, 2000, 1) }));
+    expect((await fullWithdrawalAggregator.get()).data()).toMatchObject({ availableCreditCents: 0, revision: 2 });
+  });
+
+  it("preserva o agregador e a revisão quando o efeito líquido é zero", async () => {
+    const fixture = await seedOrder({ amountPaid: 100, payments: [{ id: "payment", amount: 100, receivedAt: null }], creditApplied: 10, creditGenerated: 10 });
+    const aggregator = db.doc(`clientFinancial/${fixture.clientId}`);
+    await aggregator.set({ state: "ready", availableCreditCents: 1000, revision: 9 });
+    await cancelOrderTransaction(db, command(fixture, { creditDecision: creditDecision(500, 500, 1000, 9) }));
+    expect((await aggregator.get()).data()).toMatchObject({ availableCreditCents: 1000, revision: 9 });
+
+    const zeroDecision = await seedOrder({ total: 100, amountPaid: 80, payments: [{ id: "payment", amount: 80, receivedAt: null }], creditApplied: 20 });
+    const zeroAggregator = db.doc(`clientFinancial/${zeroDecision.clientId}`);
+    await zeroAggregator.set({ state: "ready", availableCreditCents: 0, revision: 2 });
+    await cancelOrderTransaction(db, command(zeroDecision, { creditDecision: creditDecision(0, 0, 0, 2) }));
+    expect((await zeroAggregator.get()).data()).toMatchObject({ availableCreditCents: 0, revision: 2 });
+  });
+
+  it("bloqueia retirada de crédito consumido e devolução em dinheiro duplicada", async () => {
+    const generated = await seedOrder({ amountPaid: 120, payments: [{ id: "payment", amount: 120, receivedAt: null }], creditGenerated: 20 });
+    await db.doc(`clientFinancial/${generated.clientId}`).set({ state: "ready", availableCreditCents: 0, revision: 1 });
+    const operation = command(generated, { creditDecision: creditDecision(0, 0) });
+    await expectFinancialCode(cancelOrderTransaction(db, operation), "INSUFFICIENT_AVAILABLE_CREDIT");
+    expect((await db.doc(`orders/${generated.orderId}`).get()).data()?.orderStatus).toBe("active");
+
+    const doubleRestitution = await seedOrder({ amountPaid: 120, payments: [{ id: "payment", amount: 120, receivedAt: null }], creditGenerated: 20 });
+    await db.doc(`clientFinancial/${doubleRestitution.clientId}`).set({ state: "ready", availableCreditCents: 2000, revision: 1 });
+    await expectFinancialCode(cancelOrderTransaction(db, command(doubleRestitution, {
+      movement: { kind: "refund", amountCents: 10000, occurredAt: "2026-10-12T10:00:00Z" },
+      creditDecision: creditDecision(0, 2000, 2000, 1),
+    })), "CREDIT_DECISION_INCOMPATIBLE_WITH_CASH_REFUND");
+  });
+
+  it("exige agregador pronto e snapshot apresentado atual", async () => {
+    const fixture = await seedOrder({ creditApplied: 10 });
+    await expectFinancialCode(cancelOrderTransaction(db, command(fixture, { creditDecision: creditDecision(0, 0) })), "AGGREGATOR_UNAVAILABLE");
+    await db.doc(`clientFinancial/${fixture.clientId}`).set({ state: "ready", availableCreditCents: 50, revision: 2 });
+    await expectFinancialCode(cancelOrderTransaction(db, command(fixture, {
+      creditDecision: creditDecision(0, 0, 0, 1),
+    })), "AGGREGATOR_REVISION_CHANGED");
+    await expectFinancialCode(cancelOrderTransaction(db, command(fixture, {
+      creditDecision: creditDecision(0, 0, 0, 2),
+    })), "CREDIT_BALANCE_CHANGED");
+  });
+
+  it("não permite restaurar ou manter mais crédito do que o Pedido registrou", async () => {
+    const fixture = await seedOrder({ creditApplied: 10 });
+    await db.doc(`clientFinancial/${fixture.clientId}`).set({ state: "ready", availableCreditCents: 0, revision: 1 });
+    await expectFinancialCode(cancelOrderTransaction(db, command(fixture, {
+      creditDecision: creditDecision(1001, 0),
+    })), "CREDIT_DECISION_EXCEEDS_ORDER_EFFECTS");
+    expect((await db.doc(`orders/${fixture.orderId}`).get()).data()?.orderStatus).toBe("active");
+
+    const generated = await seedOrder({ amountPaid: 120, payments: [{ id: "payment", amount: 120, receivedAt: null }], creditGenerated: 20 });
+    await db.doc(`clientFinancial/${generated.clientId}`).set({ state: "ready", availableCreditCents: 2000, revision: 1 });
+    await expectFinancialCode(cancelOrderTransaction(db, command(generated, {
+      creditDecision: creditDecision(0, 2001, 2000, 1),
+    })), "CREDIT_DECISION_EXCEEDS_ORDER_EFFECTS");
   });
 
   it("rejeita pedido inexistente, cliente divergente e pedido já cancelado", async () => {
@@ -375,6 +543,35 @@ describe("cancel order transaction", () => {
     const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
     expect(saved?.orderStatus).toBe(outcomes[0]?.status === "fulfilled" ? "cancelled" : "active");
     expect(saved?.payments).toHaveLength(outcomes[0]?.status === "fulfilled" ? 0 : 1);
+  });
+
+  it("serializa decisão de crédito com pagamento concorrente no mesmo Pedido", async () => {
+    const fixture = await seedOrder({ amountPaid: 120, payments: [{ id: "payment-original", amount: 120, receivedAt: null }], creditGenerated: 20 });
+    await db.doc(`clientFinancial/${fixture.clientId}`).set({ state: "ready", availableCreditCents: 2000, revision: 1 });
+    const cancellation = command(fixture, { creditDecision: creditDecision(0, 2000, 2000, 1) });
+    const payment = {
+      orderId: fixture.orderId,
+      clientId: fixture.clientId,
+      paymentId: "payment-concurrent-credit",
+      amountCents: 100,
+      receivedAt: "2026-10-12T12:00:00Z",
+      presentedAvailableCreditCents: 2000,
+      presentedRevision: 1,
+    };
+    const outcomes = await Promise.allSettled([
+      cancelOrderTransaction(db, cancellation),
+      recordPaymentTransaction(db, payment),
+    ]);
+    expect(outcomes.filter((entry) => entry.status === "fulfilled")).toHaveLength(1);
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data();
+    const aggregate = (await db.doc(`clientFinancial/${fixture.clientId}`).get()).data();
+    if (saved?.orderStatus === "cancelled") {
+      expect(saved.payments).toHaveLength(1);
+      expect(aggregate).toMatchObject({ availableCreditCents: 2000, revision: 1 });
+    } else {
+      expect(saved?.payments).toHaveLength(2);
+      expect(aggregate).toMatchObject({ availableCreditCents: 2100, revision: 2 });
+    }
   });
 
   it("serializa cancelamento com edição operacional e transferência", async () => {
@@ -449,8 +646,10 @@ describe("cancel order transaction", () => {
   });
 
   it("não grava status nem marcador quando uma falha acontece depois da escrita transacional", async () => {
-    const fixture = await seedOrder();
-    const operation = command(fixture);
+    const fixture = await seedOrder({ amountPaid: 120, payments: [{ id: "payment", amount: 120, receivedAt: null }], creditGenerated: 20 });
+    const aggregator = db.doc(`clientFinancial/${fixture.clientId}`);
+    await aggregator.set({ state: "ready", availableCreditCents: 2000, revision: 7 });
+    const operation = command(fixture, { creditDecision: creditDecision(0, 1000, 2000, 7) });
     const originalRunTransaction = db.runTransaction.bind(db);
     const failingDb = Object.create(db) as typeof db;
     failingDb.runTransaction = ((updateFunction, options) => originalRunTransaction(async (transaction) => {
@@ -466,5 +665,6 @@ describe("cancel order transaction", () => {
     await expect(cancelOrderTransaction(failingDb, operation)).rejects.toThrow("falha injetada");
     expect((await db.doc(`orders/${fixture.orderId}`).get()).data()?.orderStatus).toBe("active");
     expect((await db.doc(`orders/${fixture.orderId}/cancellationOperations/${operation.operationId}`).get()).exists).toBe(false);
+    expect((await aggregator.get()).data()).toMatchObject({ availableCreditCents: 2000, revision: 7 });
   });
 });

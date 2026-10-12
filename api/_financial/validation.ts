@@ -43,6 +43,13 @@ export interface CancelOrderCommand {
     amountCents: number;
     occurredAt: string | null;
   };
+  creditDecision?: {
+    appliedRestoredCents: number;
+    generatedRetainedCents: number;
+    presentedAvailableCreditCents: number;
+    presentedRevision: number;
+    confirmed: true;
+  };
 }
 
 export interface CreateOrderCommand {
@@ -179,7 +186,7 @@ const CORRECT_PAYMENT_FIELDS = new Set([
   "presentedRevision",
 ]);
 const CANCEL_ORDER_FIELDS = new Set([
-  "orderId", "clientId", "operationId", "expected", "agreement", "movement",
+  "orderId", "clientId", "operationId", "expected", "agreement", "movement", "creditDecision",
 ]);
 
 const CREATE_ORDER_FIELDS = new Set([
@@ -413,6 +420,9 @@ export async function parseCancelOrderCommand(request: Request): Promise<CancelO
   if (body.movement.kind !== "none" && body.movement.kind !== "receipt" && body.movement.kind !== "refund") {
     throw new FinancialApiError(400, "INVALID_PAYLOAD", "movement.kind inválido.");
   }
+  if (body.movement.kind !== "none" && body.operationId.length > 121) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "operationId excede o limite para o identificador financeiro derivado.");
+  }
   assertNonNegativeSafeInteger(body.movement.amountCents, "movement.amountCents");
   if (body.movement.kind === "none") {
     if (body.movement.amountCents !== 0 || body.movement.occurredAt !== null) {
@@ -422,6 +432,7 @@ export async function parseCancelOrderCommand(request: Request): Promise<CancelO
     if (body.movement.amountCents <= 0) throw new FinancialApiError(400, "INVALID_PAYLOAD", "A movimentação precisa ter valor positivo.");
     assertReceivedAt(body.movement.occurredAt, "movement.occurredAt", false);
   }
+  const creditDecision = body.creditDecision === undefined ? undefined : parseCancelCreditDecision(body.creditDecision);
   return {
     orderId: body.orderId,
     clientId: body.clientId,
@@ -433,6 +444,30 @@ export async function parseCancelOrderCommand(request: Request): Promise<CancelO
       amountCents: body.movement.amountCents,
       occurredAt: body.movement.occurredAt as string | null,
     },
+    ...(creditDecision === undefined ? {} : { creditDecision }),
+  };
+}
+
+function parseCancelCreditDecision(value: unknown): NonNullable<CancelOrderCommand["creditDecision"]> {
+  if (!isRecord(value)) throw new FinancialApiError(400, "INVALID_PAYLOAD", "creditDecision inválida.");
+  assertOnlyFields(value, new Set([
+    "appliedRestoredCents",
+    "generatedRetainedCents",
+    "presentedAvailableCreditCents",
+    "presentedRevision",
+    "confirmed",
+  ]));
+  assertNonNegativeSafeInteger(value.appliedRestoredCents, "appliedRestoredCents");
+  assertNonNegativeSafeInteger(value.generatedRetainedCents, "generatedRetainedCents");
+  assertNonNegativeSafeInteger(value.presentedAvailableCreditCents, "presentedAvailableCreditCents");
+  assertNonNegativeSafeInteger(value.presentedRevision, "presentedRevision");
+  if (value.confirmed !== true) throw new FinancialApiError(400, "INVALID_PAYLOAD", "Confirmação explícita de crédito necessária.");
+  return {
+    appliedRestoredCents: value.appliedRestoredCents,
+    generatedRetainedCents: value.generatedRetainedCents,
+    presentedAvailableCreditCents: value.presentedAvailableCreditCents,
+    presentedRevision: value.presentedRevision,
+    confirmed: true,
   };
 }
 

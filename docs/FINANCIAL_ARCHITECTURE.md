@@ -212,34 +212,19 @@ compatibilidade do modelo atual e pelo plano de cutover da seção 8.
 
 ### 3.2 Cancelamento e crédito
 
-**DECIDED**
-
-O destino de crédito que já foi aplicado a pedido cancelado é parte explícita
-do acerto financeiro. As opções são restituição integral, restituição parcial,
-nenhuma restituição ou destino indefinido. Restituir crédito volta a
-disponibilizá-lo ao cliente; não representa dinheiro novo. Reter crédito não é
-novo recebimento.
-
-Enquanto o acerto estiver **A combinar**, não se persiste quantidade de crédito
-a restituir, e nenhum crédito relacionado pode ser liberado, consumido de novo
-ou redistribuído automaticamente. Essa regra vale mesmo quando o crédito foi
-gerado em um pedido e já consumido em outro.
-
-**OPEN — acerto de cancelamento com crédito já consumido**
+**DECIDED — Checkpoint 7C.2**
 
 Crédito é fungível por Cliente: não haverá lotes, FIFO ou vínculo obrigatório
-entre um consumo e o Pedido que o gerou. Portanto, se o crédito gerado no
-Pedido A já tiver sido consumido em B, cancelar ou corrigir A não desfaz B nem
-redistribui seu crédito. Uma redução retroativa só pode ser aplicada quando o
-saldo disponível cobrir integralmente a redução; caso contrário, a alteração é
-rejeitada e requer resolução explícita. Ainda falta definir o schema e a
-operação de acerto de cancelamento que decidirá o destino comercial do caso,
-sem liberar, bloquear ou restituir crédito automaticamente.
+entre um consumo e o Pedido que o gerou. O cancelamento escolhe explicitamente
+o crédito aplicado a restaurar (R) e o crédito gerado a manter (M). A transação
+aplica `delta = R + M − G` ao agregador pronto e rejeita apenas quando o saldo
+resultante fica negativo. Assim, crédito já consumido não é removido
+silenciosamente; outros Pedidos não são reescritos e não há reserva ou
+redistribuição automática.
 
-A implementação precisa demonstrar estas invariantes: nenhum saldo disponível
-é criado duas vezes, nenhum consumo histórico é invalidado silenciosamente e o
-valor em acerto indefinido não volta a ficar disponível. Nenhum mecanismo de
-reserva/bloqueio é autorizado por este documento sem essa demonstração.
+Reabrir ou alterar uma decisão de cancelamento concluída permanece **OPEN**.
+O comando atual é único e idempotente; não implementa máquina de estados nem
+caminho de edição de um cancelamento concluído.
 
 ### 3.3 Exemplos de crédito
 
@@ -320,9 +305,8 @@ cria saldo a cobrar e não gera saída projetada. Não há valor de devolução
 acordado separado do texto, etapas artificiais, estado de acerto ou fluxo
 automático de pagamento/crédito. Pagamentos anteriores permanecem intactos.
 Devoluções efetivas são fatos próprios em refunds[], nunca pagamentos
-negativos. O primeiro comando atende somente Pedidos com creditApplied e
-creditGenerated iguais a zero; qualquer efeito de crédito retorna conflito e
-continua OPEN para tratamento explícito em incremento posterior.
+negativos. O Checkpoint 7C.2 estende o comando para Pedidos com crédito por
+meio de decisão explícita, conforme a seção 4.4.
 
 **CURRENT — comportamento legado:** serviços e UI produtivos ainda permitem
 alterar status pelo SDK e excluem Pedidos cancelados do saldo local de crédito.
@@ -420,6 +404,37 @@ o acordado abaixo do já devolvido nem tornar disponível crédito que continua
 destinado a outro uso. A semântica de reabertura após concluido é **OPEN** e
 exige decisão de produto antes de implementação.
 
+### 4.4 Checkpoint 7C.2 — decisão explícita de crédito
+
+**DECIDED — Product Owner:** um cancelamento com crédito aplicado (A) ou
+gerado (G) exige confirmação explícita, ainda que os valores escolhidos sejam
+zero. O comando persiste no acordo `appliedRestoredCents` (R) e
+`generatedRetainedCents` (M), ambos em centavos inteiros não negativos, com
+`R ≤ A` e `M ≤ G`. A ausência da decisão nunca equivale a zero. Os fatos
+originais `creditApplied` e `creditGenerated` permanecem inalterados.
+
+O efeito líquido no crédito disponível é `delta = R + M − G`; a nova posição
+é o saldo atual mais esse delta. Só se rejeita uma redução se o saldo final
+ficar negativo, inclusive quando o crédito gerado já foi consumido. Efeito
+líquido zero valida saldo e revisão apresentados, mas não regrava nem avança a
+revisão do agregador. O agregador `clientFinancial/{clientId}` precisa existir
+e estar `ready`; cancelamento não o inicializa nem corrige.
+
+Dinheiro e crédito são restituições distintas. Crédito mantido não pode superar
+o excedente que restar após devoluções efetivas em dinheiro e o crédito
+aplicado que não for restaurado. Devoluções continuam fatos separados em
+`refunds[]`; pagamentos e suas identidades/datas permanecem preservados. Um
+novo recebimento durante o cancelamento não pode elevar o crédito gerado. O
+marcador idempotente inclui toda a decisão; payloads 7C.1 sem decisão continuam
+válidos para Pedidos sem efeitos de crédito.
+
+**IMPLEMENTED — somente Emulator local:** acordo, movimento, marcador de
+operação e eventual projeção do agregador são gravados atomicamente. A
+reconciliação usa M e A−R para cancelamentos válidos; cancelamentos históricos
+com crédito sem essa decisão continuam inconclusivos. Não foram adicionados
+ledger, reserva, máquina de estados, reversão automática ou alteração dos
+fluxos produtivos.
+
 ## 5. Devoluções de dinheiro
 
 **DECIDED**
@@ -472,10 +487,11 @@ posição atual do Pedido; nenhum deles é somado como dinheiro recebido.
 
 O resultado expõe a reconciliação completa e devolve saldo de crédito `null`
 quando a reconstrução não é segura. Divergência de cache, pagamento inválido,
-identidade duplicada, data inválida, déficit de crédito ou cancelamento sem
-cancelamento legado ou com crédito sem destino explícito continuam diagnósticos;
-a leitura não escolhe nem repara uma fonte. Um cancelamento 7C.1 válido sem
-efeito de crédito pode ser identificado sem inferir cobrança. A
+identidade duplicada, data inválida, déficit de crédito ou cancelamento com
+decisão de crédito ausente/incoerente continuam diagnósticos; a leitura não
+escolhe nem repara uma fonte. Um cancelamento 7C.1 sem efeito de crédito e um
+cancelamento 7C.2 com decisão válida podem ser identificados sem inferir
+cobrança. A
 posição de saldo atual também permanece distinta de entradas de dinheiro por
 período.
 
@@ -859,23 +875,20 @@ alterar Rules nesta etapa documental.
 | --- | --- | --- |
 | Recebimentos | payments[] já é canônico para novos pedidos; criação local usa ID aleatório | API usa identidade estável e idempotência |
 | Correção | pagamentos são append-only na UI e serviço | editar lançamento mantendo ID, sem auditoria técnica |
-| Cancelamento | serviço/UI produtivos ainda usam SDK; comando 7C.1 está isolado no Emulator | negociação textual e movimentações efetivas explícitas; crédito permanece OPEN |
-| Crédito | calculado de pedidos e exclui cancelados | agregador transacional reconciliável; 7C.1 rejeita efeitos de crédito sem alterá-los |
+| Cancelamento | serviço/UI produtivos ainda usam SDK; comandos 7C.1/7C.2 estão isolados no Emulator | negociação, movimentos efetivos e decisão explícita de crédito |
+| Crédito | calculado de pedidos e exclui cancelados | agregador transacional reconciliável; 7C.2 aplica R/M e rejeita saldo final negativo |
 | Hoje | pendências de pagamento apenas para active | seção independente de acertos pendentes |
 | Backend | SDK cliente escreve diretamente no Firestore | API Vercel/Admin é autoridade financeira |
 | Rules | escrita recursiva para usuário admitido | bloqueio real de escrita financeira direta, sem allow concorrente |
 
 ## 10. Decisões ainda abertas
 
-1. Destino e operação explícitos de crédito em Pedido cancelado, inclusive
-   crédito consumido em outro Pedido. O checkpoint 7C.1 recusa esses casos sem
-   restituição, bloqueio ou redistribuição automática.
-2. Forma final e localização do agregado de crédito, dados mínimos para
+1. Forma final e localização do agregado de crédito, dados mínimos para
    reconciliação e protocolo de reparo manual aprovado.
-3. Regra para reabrir ou corrigir uma negociação/cancelamento já gravado.
-5. Política para divergências amountPaid versus payments descobertas na
+2. Regra para reabrir ou corrigir uma negociação/cancelamento já gravado.
+3. Política para divergências amountPaid versus payments descobertas na
    reconciliação: revisão humana, critério de aprovação e trilha operacional.
-6. Representação monetária final da API e regra comercial de arredondamento de
+4. Representação monetária final da API e regra comercial de arredondamento de
    quantidade fracionária. O núcleo puro usa centavos e rejeita frações de
    centavo; a persistência atual continua em `number` e qualquer migração exige
    validação compatível de registros legados.
@@ -893,9 +906,9 @@ orderStatus, cancellationAgreement, recebimento opcional em payments[] ou
 devolução opcional em refunds[], além da identidade idempotente, em transação.
 O recebimento mantém os fatos anteriores e não pode gerar crédito; devolução
 usa valor positivo e refundedAt e é limitada aos recebimentos ainda não
-devolvidos. Pedidos com crédito aplicado ou gerado conflitam sem escrita.
-Reconciliação reconhece apenas negociação válida sem efeito de crédito; legado
-cancelado ou histórico inconsistente continua diagnosticado. A projeção separa
-saídas de entradas e não apresenta saldo original cancelado como cobrança.
+devolvidos. O Checkpoint 7C.2 acrescenta decisão explícita de crédito; consulte
+a seção 4.4. Reconciliação reconhece o acerto válido e mantém cancelamentos
+legados com crédito sem decisão como inconclusivos. A projeção separa saídas de
+entradas e não apresenta saldo original cancelado como cobrança.
 
 O comando não altera serviços produtivos, UI, Rules, agregadores ou cutover.

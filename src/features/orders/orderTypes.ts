@@ -41,6 +41,10 @@ export interface OrderRefund {
 export interface OrderCancellationAgreement {
   operationId: string;
   text: string;
+  creditDecision?: {
+    appliedRestoredCents: number;
+    generatedRetainedCents: number;
+  };
 }
 
 export interface Order {
