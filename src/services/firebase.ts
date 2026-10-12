@@ -1,9 +1,11 @@
 // src/services/firebase.ts
 
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { connectAuthEmulator, getAuth } from "firebase/auth";
+import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+
+import { isLocalFinancialPaymentCorrectionEnabled } from "../features/orders/financialPaymentCorrectionEnvironment";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,3 +21,9 @@ export const firebaseApp = initializeApp(firebaseConfig);
 export const db = getFirestore(firebaseApp);
 export const auth = getAuth(firebaseApp);
 export const storage = getStorage(firebaseApp);
+
+if (isLocalFinancialPaymentCorrectionEnabled()) {
+  const [firestoreHost, firestorePort] = import.meta.env.VITE_FIRESTORE_EMULATOR_HOST.split(":");
+  connectFirestoreEmulator(db, firestoreHost, Number(firestorePort));
+  connectAuthEmulator(auth, import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_HOST, { disableWarnings: true });
+}

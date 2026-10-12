@@ -509,10 +509,11 @@ Portanto, não tratar geração de crédito como mutuamente exclusiva com aplica
   reativá-lo volta a considerar as movimentações registradas, salvo recálculo
   decorrente de alteração financeira. O comportamento será substituído pelo
   tratamento explícito descrito no contrato financeiro durante o cutover;
-- **CURRENT**: pagamentos são append-only nesta versão: não há edição,
-  exclusão, pagamento negativo, estorno ou reembolso. O contrato aprovado
-  substitui essa limitação por correção do lançamento existente, preservando a
-  identidade e sem trilha técnica adicional, após a migração;
+- **CURRENT**: o fluxo produtivo mantém pagamentos append-only: não há edição,
+  exclusão, pagamento negativo, estorno ou reembolso. O Checkpoint 8 liga a
+  correção do lançamento existente, preservando identidade e sem trilha técnica
+  adicional, somente à interface local Emulator; não altera o fluxo produtivo.
+  O contrato de cutover continua sendo correção do lançamento existente;
 - **DECIDED — Checkpoints 7C.1/7C.2:** o novo comando experimental cancela por
   negociação textual obrigatória e registra, se já ocorrido, recebimento ou
   devolução efetiva. Pagamentos anteriores permanecem; devolução tem identidade
