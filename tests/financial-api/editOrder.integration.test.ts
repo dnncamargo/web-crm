@@ -44,6 +44,7 @@ async function seedOrder(input: {
   creditGeneratedCents?: number;
   payments?: Array<{ id: string; amount: number; receivedAt: string | null }>;
   legacy?: boolean;
+  amountPaidOverride?: number;
   orderStatus?: "active" | "completed" | "cancelled";
 }) {
   const totalCents = input.totalCents ?? 10_000;
@@ -56,7 +57,7 @@ async function seedOrder(input: {
     addressSnapshot: { label: "Casa", street: "Rua A", city: "São Paulo" },
     items: [{ id: "item-1", productId: "product-1", productName: "Produto", quantity: 1, unitPrice: totalCents / 100, total: totalCents / 100, notes: "", tagIds: [] }],
     subtotal: totalCents / 100, deliveryFee: 0, total: totalCents / 100,
-    amountPaid: cashPaidCents / 100,
+    amountPaid: input.amountPaidOverride ?? cashPaidCents / 100,
     ...(input.legacy ? {} : { payments: input.payments ?? [] }),
     ...(creditAppliedCents > 0 ? { creditApplied: creditAppliedCents / 100 } : {}),
     ...(creditGeneratedCents > 0 ? { creditGenerated: creditGeneratedCents / 100 } : {}),
@@ -94,6 +95,41 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     await seedOrder({ ...ids, cashPaidCents: 2500, payments: [{ id: "payment-existing", amount: 25, receivedAt: "2026-10-01T12:00:00Z" }] });
     await editOrderTransaction(getFinancialAdminDb(), operationalCommand(ids.clientId, ids.orderId, { orderStatus: "completed" }));
     expect((await getFinancialAdminDb().doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ orderStatus: "completed", amountPaid: 25, payments: [{ id: "payment-existing", amount: 25 }] });
+  });
+
+  it("edita operacionalmente cache IEEE comprovado sem tocar nas finanças ou no agregador", async () => {
+    const ids = fixtureIds();
+    const db = getFinancialAdminDb();
+    const payments = [
+      { id: "payment-100-10", amount: 100.1, receivedAt: null },
+      { id: "payment-200-20", amount: 200.2, receivedAt: null },
+    ];
+    const original = await seedOrder({ ...ids, cashPaidCents: 30_030, payments, amountPaidOverride: 100.1 + 200.2 });
+    const createdAt = Timestamp.fromDate(new Date("2026-10-01T12:00:00Z"));
+    await db.doc(`orders/${ids.orderId}`).update({ createdAt });
+    await seedAggregator(ids.clientId, 1234, 7);
+    const aggregateBefore = (await db.doc(`clientFinancial/${ids.clientId}`).get()).data();
+
+    await editOrderTransaction(db, operationalCommand(ids.clientId, ids.orderId, { notes: "Nota operacional" }));
+
+    const saved = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    expect(saved?.amountPaid).toBe(300.29999999999995);
+    expect(saved?.payments).toEqual(original.payments);
+    expect(saved?.createdAt).toEqual(createdAt);
+    expect(saved?.updatedAt).toBeInstanceOf(Timestamp);
+    expect((await db.doc(`clientFinancial/${ids.clientId}`).get()).data()).toEqual(aggregateBefore);
+  });
+
+  it("permite edição operacional de legado sem payments e de histórico financeiro inconclusivo", async () => {
+    const legacy = fixtureIds();
+    await seedOrder({ ...legacy, legacy: true, cashPaidCents: 2500 });
+    await editOrderTransaction(getFinancialAdminDb(), operationalCommand(legacy.clientId, legacy.orderId, { notes: "Legado atualizado" }));
+    expect((await getFinancialAdminDb().doc(`orders/${legacy.orderId}`).get()).data()?.notes).toBe("Legado atualizado");
+
+    const inconclusive = fixtureIds();
+    await seedOrder({ ...inconclusive, amountPaidOverride: 12.345 });
+    await editOrderTransaction(getFinancialAdminDb(), operationalCommand(inconclusive.clientId, inconclusive.orderId, { deliveryDateTime: "2026-11-03T12:00:00Z" }));
+    expect((await getFinancialAdminDb().doc(`orders/${inconclusive.orderId}`).get()).data()).toMatchObject({ amountPaid: 12.345, deliveryDateTime: "2026-11-03T12:00:00Z" });
   });
 
   it("não toca updatedAt em repetição operacional idêntica", async () => {
@@ -159,6 +195,102 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     expect(saved).toMatchObject({ amountPaid: 120, creditGenerated: 10, payments: [{ id: "payment-1", amount: 120, receivedAt: "2026-10-01T12:00:00Z" }] });
   });
 
+  it("aceita comercialmente apenas cache IEEE exatamente comprovado pelas parcelas canônicas", async () => {
+    const ids = fixtureIds();
+    const payments = [
+      { id: "payment-100-10", amount: 100.1, receivedAt: null },
+      { id: "payment-200-20", amount: 200.2, receivedAt: null },
+    ];
+    await seedOrder({ ...ids, totalCents: 10_000, cashPaidCents: 30_030, creditGeneratedCents: 20_030, payments, amountPaidOverride: 100.1 + 200.2 });
+    await seedAggregator(ids.clientId, 20_030, 1);
+    const command = commercialCommand(ids.clientId, ids.orderId, { items: [item(11_000)], subtotalCents: 11_000, totalCents: 11_000 });
+    await editOrderTransaction(getFinancialAdminDb(), command);
+    const order = (await getFinancialAdminDb().doc(`orders/${ids.orderId}`).get()).data();
+    const aggregator = (await getFinancialAdminDb().doc(`clientFinancial/${ids.clientId}`).get()).data();
+    expect(order?.amountPaid).toBe(300.29999999999995);
+    expect(order?.payments).toEqual(payments);
+    const report = reconcileFinancialDocuments([{ id: ids.orderId, ...order }], [{ clientId: ids.clientId, ...aggregator }]);
+    expect(report.orders[0]).toMatchObject({ classification: "LEGACY_COMPATIBLE" });
+    expect(report.clients[0]).toMatchObject({ conclusive: true, availableCreditCents: 19_030, aggregatorComparison: "matches" });
+  });
+
+  it("consome somente o delta ao aumentar aplicação de crédito existente", async () => {
+    const ids = fixtureIds();
+    await seedOrder({ ...ids, creditAppliedCents: 2000 });
+    await seedAggregator(ids.clientId, 1000, 4);
+    const command = commercialCommand(ids.clientId, ids.orderId, {
+      items: [item(11_000)], subtotalCents: 11_000, totalCents: 11_000,
+      creditApplication: { applyCreditCents: 2500, presentedAvailableCreditCents: 1000, presentedRevision: 4, confirmed: true },
+    });
+    await editOrderTransaction(getFinancialAdminDb(), command);
+    expect((await getFinancialAdminDb().doc(`orders/${ids.orderId}`).get()).data()?.creditApplied).toBe(25);
+    expect((await getFinancialAdminDb().doc(`clientFinancial/${ids.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 500, revision: 5 });
+  });
+
+  it("libera a redução da aplicação existente sem exigir saldo disponível", async () => {
+    const ids = fixtureIds();
+    await seedOrder({ ...ids, creditAppliedCents: 2000 });
+    await seedAggregator(ids.clientId, 0, 2);
+    const command = commercialCommand(ids.clientId, ids.orderId, {
+      items: [item(11_000)], subtotalCents: 11_000, totalCents: 11_000,
+      creditApplication: { applyCreditCents: 1000, presentedAvailableCreditCents: 0, presentedRevision: 2, confirmed: true },
+    });
+    await editOrderTransaction(getFinancialAdminDb(), command);
+    expect((await getFinancialAdminDb().doc(`orders/${ids.orderId}`).get()).data()?.creditApplied).toBe(10);
+    expect((await getFinancialAdminDb().doc(`clientFinancial/${ids.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 1000, revision: 3 });
+  });
+
+  it("rejeita aumento quando o saldo cobre menos que o delta, sem gravar parcialmente", async () => {
+    const ids = fixtureIds();
+    await seedOrder({ ...ids, creditAppliedCents: 2000 });
+    await seedAggregator(ids.clientId, 1000, 2);
+    const command = commercialCommand(ids.clientId, ids.orderId, {
+      items: [item(11_000)], subtotalCents: 11_000, totalCents: 11_000,
+      creditApplication: { applyCreditCents: 3500, presentedAvailableCreditCents: 1000, presentedRevision: 2, confirmed: true },
+    });
+    await expect(editOrderTransaction(getFinancialAdminDb(), command)).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INSUFFICIENT_AVAILABLE_CREDIT");
+    expect((await getFinancialAdminDb().doc(`orders/${ids.orderId}`).get()).data()?.creditApplied).toBe(20);
+    expect((await getFinancialAdminDb().doc(`clientFinancial/${ids.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 1000, revision: 2 });
+  });
+
+  it("não consome novamente uma aplicação confirmada sem alteração do valor aplicado", async () => {
+    const ids = fixtureIds();
+    await seedOrder({ ...ids, creditAppliedCents: 2000 });
+    await seedAggregator(ids.clientId, 1000, 2);
+    const command = commercialCommand(ids.clientId, ids.orderId, {
+      items: [item(11_000)], subtotalCents: 11_000, totalCents: 11_000,
+      creditApplication: { applyCreditCents: 2000, presentedAvailableCreditCents: 1000, presentedRevision: 2, confirmed: true },
+    });
+    await editOrderTransaction(getFinancialAdminDb(), command);
+    expect((await getFinancialAdminDb().doc(`clientFinancial/${ids.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 1000, revision: 2 });
+  });
+
+  it("valida liberação da aplicação contra redução retroativa do crédito gerado", async () => {
+    const ids = fixtureIds();
+    const payments = [{ id: "payment-full", amount: 120, receivedAt: "2026-10-01T12:00:00Z" }];
+    await seedOrder({ ...ids, totalCents: 10_000, cashPaidCents: 12_000, creditAppliedCents: 2000, creditGeneratedCents: 4000, payments });
+    await seedAggregator(ids.clientId, 2000, 6);
+    const command = commercialCommand(ids.clientId, ids.orderId, {
+      items: [item(11_000)], subtotalCents: 11_000, totalCents: 11_000,
+      creditApplication: { applyCreditCents: 1000, presentedAvailableCreditCents: 2000, presentedRevision: 6, confirmed: true },
+    });
+    await editOrderTransaction(getFinancialAdminDb(), command);
+    const order = (await getFinancialAdminDb().doc(`orders/${ids.orderId}`).get()).data();
+    const aggregator = (await getFinancialAdminDb().doc(`clientFinancial/${ids.clientId}`).get()).data();
+    expect(order).toMatchObject({ creditApplied: 10, creditGenerated: 20 });
+    expect(aggregator).toMatchObject({ availableCreditCents: 1000, revision: 7 });
+    const report = reconcileFinancialDocuments([{ id: ids.orderId, ...order }], [{ clientId: ids.clientId, ...aggregator }]);
+    expect(report.orders[0]).toMatchObject({ classification: "VALID", calculatedGeneratedCreditCents: 2000 });
+    expect(report.clients[0]).toMatchObject({ conclusive: true, availableCreditCents: 1000, aggregatorComparison: "matches" });
+  });
+
+  it("rejeita comercialmente cache divergente das parcelas canônicas", async () => {
+    const ids = fixtureIds();
+    await seedOrder({ ...ids, cashPaidCents: 1000, payments: [{ id: "payment-10", amount: 10, receivedAt: null }], amountPaidOverride: 11 });
+    await seedAggregator(ids.clientId);
+    await expect(editOrderTransaction(getFinancialAdminDb(), commercialCommand(ids.clientId, ids.orderId, { items: [item(11_000)], subtotalCents: 11_000, totalCents: 11_000 }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INVALID_FINANCIAL_STATE");
+  });
+
   it("faz rollback integral quando redução retroativa não tem cobertura", async () => {
     const ids = fixtureIds();
     await seedOrder({ ...ids, totalCents: 10_000, cashPaidCents: 12_000, payments: [{ id: "payment-1", amount: 120, receivedAt: null }] });
@@ -197,6 +329,8 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     await seedAggregator(ids.clientId, 3000, 4);
     const stale = commercialCommand(ids.clientId, ids.orderId, { creditApplication: { applyCreditCents: 1000, presentedAvailableCreditCents: 3000, presentedRevision: 3, confirmed: true } });
     await expect(editOrderTransaction(getFinancialAdminDb(), stale)).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "AGGREGATOR_REVISION_CHANGED");
+    const staleBalance = commercialCommand(ids.clientId, ids.orderId, { creditApplication: { applyCreditCents: 1000, presentedAvailableCreditCents: 2500, presentedRevision: 4, confirmed: true } });
+    await expect(editOrderTransaction(getFinancialAdminDb(), staleBalance)).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "CREDIT_BALANCE_CHANGED");
     const incompatible = commercialCommand(ids.clientId, ids.orderId, { items: [item(500)], subtotalCents: 500, totalCents: 500 });
     await seedOrder({ ...ids, totalCents: 10_000, creditAppliedCents: 700 });
     await expect(editOrderTransaction(getFinancialAdminDb(), incompatible)).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "CREDIT_APPLICATION_EXCEEDS_ORDER_TOTAL");

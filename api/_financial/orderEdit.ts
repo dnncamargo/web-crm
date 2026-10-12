@@ -107,8 +107,9 @@ function parseStoredOrder(data: DocumentData): StoredOrder {
   if (calculateOrderSubtotalCents(items.map((item) => item.totalCents)) !== subtotalCents
     || calculateOrderTotalCents(subtotalCents, deliveryFeeCents) !== totalCents) throw invalidState();
 
-  const cashPaidCents = asNonNegativeLegacyCents(data.amountPaid, "Dinheiro recebido");
+  let cashPaidCents: MoneyCents;
   let payments: StoredPayment[] | undefined;
+  const paymentAmounts: number[] = [];
   if (data.payments !== undefined) {
     if (!Array.isArray(data.payments)) throw invalidState();
     const ids = new Set<string>();
@@ -120,12 +121,28 @@ function parseStoredOrder(data: DocumentData): StoredOrder {
         throw invalidState();
       }
       ids.add(payment.id);
+      if (typeof payment.amount !== "number" || !Number.isFinite(payment.amount)) throw invalidState();
+      paymentAmounts.push(payment.amount);
       const amountCents = asNonNegativeLegacyCents(payment.amount, "Pagamento");
       if (amountCents <= 0) throw invalidState();
       return { id: payment.id, amountCents, receivedAt: payment.receivedAt as string | null };
     });
-    if (sumMoneyCents(payments.map((payment) => payment.amountCents)) !== cashPaidCents) throw invalidState();
   }
+
+  if (typeof data.amountPaid !== "number") throw invalidState();
+  try {
+    cashPaidCents = legacyReaisToMoneyCents(data.amountPaid, "Dinheiro recebido");
+    assertNonNegativeMoneyCents(cashPaidCents, "Dinheiro recebido");
+  } catch (error) {
+    const isProvenPrecisionResidue = error instanceof FinancialDomainError
+      && error.code === "MONETARY_VALUE_REQUIRES_CENT_PRECISION"
+      && data.payments !== undefined
+      && Number.isFinite(data.amountPaid)
+      && data.amountPaid === paymentAmounts.reduce((sum, amount) => sum + amount, 0);
+    if (!isProvenPrecisionResidue) throw invalidState();
+    cashPaidCents = sumMoneyCents((payments ?? []).map((payment) => payment.amountCents));
+  }
+  if (payments && sumMoneyCents(payments.map((payment) => payment.amountCents)) !== cashPaidCents) throw invalidState();
 
   const creditAppliedCents = asNonNegativeLegacyCents(data.creditApplied ?? 0, "Crédito aplicado");
   const creditGeneratedCents = asNonNegativeLegacyCents(data.creditGenerated ?? 0, "Crédito gerado");
@@ -149,6 +166,14 @@ function parseStoredOrder(data: DocumentData): StoredOrder {
     creditGeneratedCents,
     payments,
   };
+}
+
+function parseOperationalOrder(data: DocumentData): Pick<StoredOrder, "clientId" | "orderStatus"> {
+  if (typeof data.clientId !== "string"
+    || (data.orderStatus !== "active" && data.orderStatus !== "completed" && data.orderStatus !== "cancelled")) {
+    throw invalidState();
+  }
+  return { clientId: data.clientId, orderStatus: data.orderStatus };
 }
 
 function parseAggregator(data: DocumentData): StoredAggregator {
@@ -186,7 +211,7 @@ async function editOperationalOrder(db: Firestore, command: OperationalOrderEdit
     if (!snapshot.exists) throw new FinancialApiError(409, "ORDER_NOT_FOUND", "Pedido não encontrado.");
     const data = snapshot.data();
     if (!data) throw invalidState();
-    const order = parseStoredOrder(data);
+    const order = parseOperationalOrder(data);
     if (order.clientId !== command.clientId) throw new FinancialApiError(409, "CLIENT_MISMATCH", "Pedido e cliente não correspondem.");
     if (order.orderStatus === "cancelled") throw new FinancialApiError(409, "ORDER_SETTLEMENT_UNSUPPORTED", "Pedido cancelado depende do contrato de acerto financeiro.");
 
@@ -286,23 +311,27 @@ async function editCommercialOrder(db: Firestore, command: Extract<EditOrderComm
       if (creditInput && aggregator.availableCreditCents !== creditInput.presentedAvailableCreditCents) {
         throw new FinancialApiError(409, "CREDIT_BALANCE_CHANGED", "O saldo de crédito mudou; confirme novamente.");
       }
-      const nextAppliedCents = creditInput
-        ? confirmCreditApplication({
+      if (requestedAppliedCents > totalCents) throw new FinancialApiError(409, "CREDIT_APPLICATION_EXCEEDS_ORDER_TOTAL", "O total não comporta o crédito aplicado; escolha explicitamente outro valor.");
+      const appliedDeltaCents = creditInput && requestedAppliedCents > order.creditAppliedCents
+        ? subtractMoneyCents(requestedAppliedCents, order.creditAppliedCents)
+        : 0 as MoneyCents;
+      if (creditInput) {
+        confirmCreditApplication({
             presentedAvailableCreditCents: creditInput.presentedAvailableCreditCents as MoneyCents,
             currentAvailableCreditCents: aggregator.availableCreditCents,
             orderTotalCents: totalCents,
-            selectedCents: creditInput.applyCreditCents as MoneyCents,
+            selectedCents: appliedDeltaCents,
             confirmed: creditInput.confirmed,
-          }).appliedCents
-        : order.creditAppliedCents;
-      if (nextAppliedCents > totalCents) throw new FinancialApiError(409, "CREDIT_APPLICATION_EXCEEDS_ORDER_TOTAL", "O total não comporta o crédito aplicado; escolha explicitamente outro valor.");
+          });
+      }
+      const nextAppliedCents = requestedAppliedCents;
       const nextGeneratedCents = calculateGeneratedCreditCents(totalCents, order.cashPaidCents, nextAppliedCents);
 
       let nextAvailableCents = aggregator.availableCreditCents;
-      if (nextAppliedCents < order.creditAppliedCents) {
-        nextAvailableCents = sumMoneyCents([nextAvailableCents, subtractMoneyCents(order.creditAppliedCents, nextAppliedCents)]);
-      } else if (nextAppliedCents > order.creditAppliedCents) {
-        nextAvailableCents = subtractMoneyCents(nextAvailableCents, subtractMoneyCents(nextAppliedCents, order.creditAppliedCents));
+      if (requestedAppliedCents < order.creditAppliedCents) {
+        nextAvailableCents = sumMoneyCents([nextAvailableCents, subtractMoneyCents(order.creditAppliedCents, requestedAppliedCents)]);
+      } else if (appliedDeltaCents > 0) {
+        nextAvailableCents = subtractMoneyCents(nextAvailableCents, appliedDeltaCents);
       }
       if (nextGeneratedCents < order.creditGeneratedCents) {
         nextAvailableCents = validateRetroactiveCreditReduction({
