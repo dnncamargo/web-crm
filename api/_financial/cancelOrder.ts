@@ -7,6 +7,7 @@ import {
   calculateGeneratedCreditCents,
   legacyReaisToMoneyCents,
   moneyCentsToLegacyReais,
+  subtractMoneyCents,
   sumMoneyCents,
 } from "../../src/features/financial/money.js";
 import type { MoneyCents } from "../../src/features/financial/money.js";
@@ -30,9 +31,15 @@ interface StoredOrder {
   totalCents: MoneyCents;
   creditAppliedCents: MoneyCents;
   creditGeneratedCents: MoneyCents;
+  refundedCents: MoneyCents;
   payments?: StoredPayment[];
   refunds: StoredRefund[];
   orderStatus: "active" | "completed" | "cancelled";
+}
+
+interface StoredAggregator {
+  availableCreditCents: MoneyCents;
+  revision: number;
 }
 
 export interface CancelOrderResult {
@@ -130,7 +137,30 @@ function parseOrder(data: DocumentData): StoredOrder {
   const refundedCents = sumMoneyCents(refunds.map((refund) => refund.amountCents));
   if (refundedCents > cashPaidCents) throw invalidState();
   if (data.orderStatus !== "active" && data.orderStatus !== "completed" && data.orderStatus !== "cancelled") throw invalidState();
-  return { totalCents, cashPaidCents, creditAppliedCents, creditGeneratedCents, payments, refunds, orderStatus: data.orderStatus };
+  return { totalCents, cashPaidCents, creditAppliedCents, creditGeneratedCents, refundedCents, payments, refunds, orderStatus: data.orderStatus };
+}
+
+function parseAggregator(data: DocumentData | undefined): StoredAggregator {
+  if (data?.state !== "ready"
+    || !Number.isSafeInteger(data.revision)
+    || data.revision < 0
+    || !Number.isSafeInteger(data.availableCreditCents)
+    || data.availableCreditCents < 0) {
+    throw new FinancialApiError(409, "AGGREGATOR_UNAVAILABLE", "Agregador financeiro indisponível.");
+  }
+  return {
+    availableCreditCents: data.availableCreditCents as MoneyCents,
+    revision: data.revision as number,
+  };
+}
+
+function assertCreditPrecondition(aggregator: StoredAggregator, command: NonNullable<CancelOrderCommand["creditDecision"]>): void {
+  if (aggregator.revision !== command.presentedRevision) {
+    conflict("AGGREGATOR_REVISION_CHANGED", "O estado financeiro mudou; confirme novamente.");
+  }
+  if (aggregator.availableCreditCents !== command.presentedAvailableCreditCents) {
+    conflict("CREDIT_BALANCE_CHANGED", "O saldo de crédito mudou; confirme novamente.");
+  }
 }
 
 function canonical(value: unknown): string {
@@ -165,6 +195,18 @@ function assertValidCommand(command: CancelOrderCommand): void {
     || !Number.isSafeInteger(command.movement.amountCents) || command.movement.amountCents < 0) {
     throw new FinancialApiError(400, "INVALID_PAYLOAD", "Negociação ou movimentação inválida.");
   }
+  if (command.creditDecision !== undefined
+    && (!Number.isSafeInteger(command.creditDecision.appliedRestoredCents)
+      || command.creditDecision.appliedRestoredCents < 0
+      || !Number.isSafeInteger(command.creditDecision.generatedRetainedCents)
+      || command.creditDecision.generatedRetainedCents < 0
+      || !Number.isSafeInteger(command.creditDecision.presentedAvailableCreditCents)
+      || command.creditDecision.presentedAvailableCreditCents < 0
+      || !Number.isSafeInteger(command.creditDecision.presentedRevision)
+      || command.creditDecision.presentedRevision < 0
+      || command.creditDecision.confirmed !== true)) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "Decisão explícita de crédito inválida.");
+  }
   if (command.movement.kind === "none") {
     if (command.movement.amountCents !== 0 || command.movement.occurredAt !== null) {
       throw new FinancialApiError(400, "INVALID_PAYLOAD", "Movimentação inexistente exige valor zero e data nula.");
@@ -192,79 +234,167 @@ export async function cancelOrderTransaction(db: Firestore, command: CancelOrder
   const operationRef = orderRef.collection("cancellationOperations").doc(command.operationId);
   const requestFingerprint = fingerprint(command);
 
-  return db.runTransaction(async (transaction) => {
-    assertValidCommand(command);
-    const [orderSnapshot, operationSnapshot] = await transaction.getAll(orderRef, operationRef);
-    if (!orderSnapshot.exists) conflict("ORDER_NOT_FOUND", "Pedido não encontrado.");
-    const data = orderSnapshot.data();
-    if (!data) throw invalidState();
-    const order = parseOrder(data);
-    if (data.clientId !== command.clientId) conflict("CLIENT_MISMATCH", "Pedido e Cliente não correspondem.");
+  try {
+    return await db.runTransaction(async (transaction) => {
+      assertValidCommand(command);
+      const [orderSnapshot, operationSnapshot] = await transaction.getAll(orderRef, operationRef);
+      if (!orderSnapshot.exists) conflict("ORDER_NOT_FOUND", "Pedido não encontrado.");
+      const data = orderSnapshot.data();
+      if (!data) throw invalidState();
+      const order = parseOrder(data);
+      if (data.clientId !== command.clientId) conflict("CLIENT_MISMATCH", "Pedido e Cliente não correspondem.");
 
-    if (operationSnapshot.exists) {
-      if (operationSnapshot.data()?.fingerprint !== requestFingerprint) {
-        conflict("CANCEL_OPERATION_ID_REUSED", "A identidade da operação já foi usada com conteúdo diferente.");
+      if (operationSnapshot.exists) {
+        if (operationSnapshot.data()?.fingerprint !== requestFingerprint) {
+          conflict("CANCEL_OPERATION_ID_REUSED", "A identidade da operação já foi usada com conteúdo diferente.");
+        }
+        return { orderId: command.orderId, replayed: true };
       }
-      return { orderId: command.orderId, replayed: true };
-    }
 
-    assertOrderPrecondition(data.updatedAt, command.expected);
-    if (order.orderStatus === "cancelled") conflict("ORDER_ALREADY_CANCELLED", "Pedido já cancelado.");
-    if (order.creditAppliedCents > 0 || order.creditGeneratedCents > 0) {
-      conflict("ORDER_CREDIT_SETTLEMENT_UNSUPPORTED", "O cancelamento de Pedidos com efeito de crédito aguarda tratamento explícito.");
-    }
+      assertOrderPrecondition(data.updatedAt, command.expected);
+      if (order.orderStatus === "cancelled") conflict("ORDER_ALREADY_CANCELLED", "Pedido já cancelado.");
 
-    let payments = order.payments;
-    let refunds = order.refunds;
-    if (command.movement.kind === "receipt") {
-      const nextCashPaidCents = sumMoneyCents([order.cashPaidCents, command.movement.amountCents as MoneyCents]);
-      if (calculateGeneratedCreditCents(order.totalCents, nextCashPaidCents, 0 as MoneyCents) > 0) {
-        conflict("CANCEL_RECEIPT_WOULD_GENERATE_CREDIT", "O recebimento ultrapassaria o saldo financeiro do Pedido e geraria crédito.");
+      const hasCreditEffects = order.creditAppliedCents > 0 || order.creditGeneratedCents > 0;
+      if (hasCreditEffects && command.creditDecision === undefined) {
+        conflict("CREDIT_DECISION_REQUIRED", "Confirme explicitamente o destino do crédito do Pedido.");
       }
-      const existingPayments = payments ?? (order.cashPaidCents > 0
-        ? [{ id: `legacy-${command.orderId}`, amountCents: order.cashPaidCents, receivedAt: null }]
-        : []);
-      const paymentId = `cancel-${command.operationId}`;
-      if (existingPayments.some((payment) => payment.id === paymentId)) conflict("CANCEL_PAYMENT_ID_COLLISION", "Identidade de recebimento já utilizada.");
-      payments = [
-        ...existingPayments,
-        { id: paymentId, amountCents: command.movement.amountCents as MoneyCents, receivedAt: command.movement.occurredAt },
-      ];
-    } else if (command.movement.kind === "refund") {
-      const refundedCents = sumMoneyCents(refunds.map((refund) => refund.amountCents));
-      if (command.movement.amountCents > order.cashPaidCents - refundedCents) {
-        conflict("REFUND_EXCEEDS_UNREFUNDED_RECEIPTS", "A devolução ultrapassa o dinheiro recebido ainda não devolvido.");
+      if (!hasCreditEffects && command.creditDecision !== undefined) {
+        conflict("CREDIT_DECISION_NOT_APPLICABLE", "Este Pedido não possui efeitos de crédito para decidir.");
       }
-      const refundId = `cancel-${command.operationId}`;
-      if (refunds.some((refund) => refund.id === refundId)) conflict("CANCEL_REFUND_ID_COLLISION", "Identidade de devolução já utilizada.");
-      refunds = [...refunds, {
-        id: refundId,
-        amountCents: command.movement.amountCents as MoneyCents,
-        refundedAt: command.movement.occurredAt as string,
-      }];
-    }
 
-    transaction.update(orderRef, {
-      orderStatus: "cancelled",
-      cancellationAgreement: { operationId: command.operationId, text: command.agreement },
-      ...(command.movement.kind !== "receipt" || payments === undefined ? {} : {
-        payments: payments.map((payment) => ({
-          id: payment.id,
-          amount: moneyCentsToLegacyReais(payment.amountCents),
-          receivedAt: payment.receivedAt,
-        })),
-        amountPaid: moneyCentsToLegacyReais(sumMoneyCents(payments.map((payment) => payment.amountCents))),
-      }),
-      ...(command.movement.kind !== "refund" ? {} : {
-        refunds: refunds.map((refund) => ({
-          id: refund.id,
-          amount: moneyCentsToLegacyReais(refund.amountCents),
-          refundedAt: refund.refundedAt,
-        })),
-      }),
-      updatedAt: FieldValue.serverTimestamp(),
+      let aggregatorRef: FirebaseFirestore.DocumentReference | undefined;
+      let aggregator: StoredAggregator | undefined;
+      if (hasCreditEffects && command.creditDecision) {
+        if (command.creditDecision.appliedRestoredCents > order.creditAppliedCents
+          || command.creditDecision.generatedRetainedCents > order.creditGeneratedCents) {
+          conflict("CREDIT_DECISION_EXCEEDS_ORDER_EFFECTS", "A decisão excede o crédito originalmente registrado no Pedido.");
+        }
+        aggregatorRef = db.collection("clientFinancial").doc(command.clientId);
+        const aggregatorSnapshot = await transaction.get(aggregatorRef);
+        if (!aggregatorSnapshot.exists) {
+          throw new FinancialApiError(409, "AGGREGATOR_UNAVAILABLE", "Agregador financeiro indisponível.");
+        }
+        aggregator = parseAggregator(aggregatorSnapshot.data());
+        assertCreditPrecondition(aggregator, command.creditDecision);
+      }
+
+      let payments = order.payments;
+      let refunds = order.refunds;
+      let cashPaidCents = order.cashPaidCents;
+      if (command.movement.kind === "receipt") {
+        cashPaidCents = sumMoneyCents([order.cashPaidCents, command.movement.amountCents as MoneyCents]);
+        const nextGeneratedCents = calculateGeneratedCreditCents(
+          order.totalCents,
+          cashPaidCents,
+          order.creditAppliedCents,
+        );
+        if (nextGeneratedCents > order.creditGeneratedCents) {
+          conflict("CANCEL_RECEIPT_WOULD_GENERATE_CREDIT", "O recebimento aumentaria o crédito gerado do Pedido.");
+        }
+        const existingPayments = payments ?? (order.cashPaidCents > 0
+          ? [{ id: `legacy-${command.orderId}`, amountCents: order.cashPaidCents, receivedAt: null }]
+          : []);
+        const paymentId = `cancel-${command.operationId}`;
+        if (existingPayments.some((payment) => payment.id === paymentId)) conflict("CANCEL_PAYMENT_ID_COLLISION", "Identidade de recebimento já utilizada.");
+        payments = [
+          ...existingPayments,
+          { id: paymentId, amountCents: command.movement.amountCents as MoneyCents, receivedAt: command.movement.occurredAt },
+        ];
+      } else if (command.movement.kind === "refund") {
+        if (command.movement.amountCents > order.cashPaidCents - order.refundedCents) {
+          conflict("REFUND_EXCEEDS_UNREFUNDED_RECEIPTS", "A devolução ultrapassa o dinheiro recebido ainda não devolvido.");
+        }
+        const refundId = `cancel-${command.operationId}`;
+        if (refunds.some((refund) => refund.id === refundId)) conflict("CANCEL_REFUND_ID_COLLISION", "Identidade de devolução já utilizada.");
+        refunds = [...refunds, {
+          id: refundId,
+          amountCents: command.movement.amountCents as MoneyCents,
+          refundedAt: command.movement.occurredAt as string,
+        }];
+      }
+
+      let nextAvailableCreditCents: MoneyCents | undefined;
+      let nextAggregatorRevision: number | undefined;
+      if (command.creditDecision && aggregator) {
+        const appliedRetainedCents = subtractMoneyCents(
+          order.creditAppliedCents,
+          command.creditDecision.appliedRestoredCents as MoneyCents,
+        );
+        const nextRefundedCents = sumMoneyCents(refunds.map((refund) => refund.amountCents));
+        const cashRetainedCents = subtractMoneyCents(cashPaidCents, nextRefundedCents);
+        const creditGeneratedStillSupportedCents = calculateGeneratedCreditCents(
+          order.totalCents,
+          cashRetainedCents,
+          appliedRetainedCents,
+        );
+        if (command.creditDecision.generatedRetainedCents > creditGeneratedStillSupportedCents) {
+          conflict("CREDIT_DECISION_INCOMPATIBLE_WITH_CASH_REFUND", "O crédito mantido excede o excedente após recebimentos, devoluções e crédito aplicado não restituído.");
+        }
+
+        const appliedRestoredCents = command.creditDecision.appliedRestoredCents as MoneyCents;
+        const generatedRetainedCents = command.creditDecision.generatedRetainedCents as MoneyCents;
+        const deltaCents = generatedRetainedCents >= order.creditGeneratedCents
+          ? sumMoneyCents([
+            appliedRestoredCents,
+            subtractMoneyCents(generatedRetainedCents, order.creditGeneratedCents),
+          ])
+          : subtractMoneyCents(
+            appliedRestoredCents,
+            subtractMoneyCents(order.creditGeneratedCents, generatedRetainedCents),
+          );
+        const nextAvailableValue = aggregator.availableCreditCents + deltaCents;
+        if (!Number.isSafeInteger(nextAvailableValue)) throw invalidState();
+        if (nextAvailableValue < 0) {
+          conflict("INSUFFICIENT_AVAILABLE_CREDIT", "O saldo disponível não cobre a retirada do crédito já utilizado.");
+        }
+        nextAvailableCreditCents = nextAvailableValue as MoneyCents;
+        assertNonNegativeMoneyCents(nextAvailableCreditCents, "Crédito disponível após cancelamento");
+        nextAggregatorRevision = aggregator.revision + (deltaCents === 0 ? 0 : 1);
+        if (!Number.isSafeInteger(nextAggregatorRevision)) throw invalidState();
+      }
+
+      transaction.update(orderRef, {
+        orderStatus: "cancelled",
+        cancellationAgreement: {
+          operationId: command.operationId,
+          text: command.agreement,
+          ...(command.creditDecision === undefined ? {} : {
+            creditDecision: {
+              appliedRestoredCents: command.creditDecision.appliedRestoredCents,
+              generatedRetainedCents: command.creditDecision.generatedRetainedCents,
+            },
+          }),
+        },
+        ...(command.movement.kind !== "receipt" || payments === undefined ? {} : {
+          payments: payments.map((payment) => ({
+            id: payment.id,
+            amount: moneyCentsToLegacyReais(payment.amountCents),
+            receivedAt: payment.receivedAt,
+          })),
+          amountPaid: moneyCentsToLegacyReais(sumMoneyCents(payments.map((payment) => payment.amountCents))),
+        }),
+        ...(command.movement.kind !== "refund" ? {} : {
+          refunds: refunds.map((refund) => ({
+            id: refund.id,
+            amount: moneyCentsToLegacyReais(refund.amountCents),
+            refundedAt: refund.refundedAt,
+          })),
+        }),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      if (aggregatorRef && nextAvailableCreditCents !== undefined && nextAggregatorRevision !== undefined
+        && nextAggregatorRevision !== aggregator?.revision) {
+        transaction.update(aggregatorRef, {
+          availableCreditCents: nextAvailableCreditCents,
+          revision: nextAggregatorRevision,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      transaction.create(operationRef, { fingerprint: requestFingerprint });
+      return { orderId: command.orderId, replayed: false };
     });
-    transaction.create(operationRef, { fingerprint: requestFingerprint });
-    return { orderId: command.orderId, replayed: false };
-  });
+  } catch (error) {
+    if (error instanceof FinancialDomainError) throw invalidState();
+    throw error;
+  }
 }

@@ -112,6 +112,21 @@ describe("cancel order command validation", () => {
     }
   });
 
+  it("preserva payload 7C.1 sem crédito e valida confirmação explícita em centavos", async () => {
+    await expect(parseCancelOrderCommand(request(cancelCommand))).resolves.not.toHaveProperty("creditDecision");
+    const body = {
+      ...cancelCommand,
+      creditDecision: {
+        appliedRestoredCents: 0,
+        generatedRetainedCents: 0,
+        presentedAvailableCreditCents: 2500,
+        presentedRevision: 4,
+        confirmed: true,
+      },
+    };
+    await expect(parseCancelOrderCommand(request(body))).resolves.toMatchObject(body);
+  });
+
   it.each([
     { ...cancelCommand, extraFinancialField: 1 },
     { ...cancelCommand, operationId: "bad" },
@@ -124,6 +139,11 @@ describe("cancel order command validation", () => {
     { ...cancelCommand, movement: { kind: "receipt", amountCents: 1, occurredAt: "2026-02-30T12:00:00Z" } },
     { ...cancelCommand, movement: { kind: "receipt", amountCents: 1, occurredAt: "2026-10-12T10:30:00" } },
     { ...cancelCommand, movement: { kind: "both", amountCents: 1, occurredAt: "2026-10-12T10:30:00Z" } },
+    { ...cancelCommand, creditDecision: { appliedRestoredCents: 0, generatedRetainedCents: 0, presentedAvailableCreditCents: 0, presentedRevision: 1 } },
+    { ...cancelCommand, creditDecision: { appliedRestoredCents: -1, generatedRetainedCents: 0, presentedAvailableCreditCents: 0, presentedRevision: 1, confirmed: true } },
+    { ...cancelCommand, creditDecision: { appliedRestoredCents: 0, generatedRetainedCents: 0, presentedAvailableCreditCents: 0, presentedRevision: Number.MAX_SAFE_INTEGER + 1, confirmed: true } },
+    { ...cancelCommand, creditDecision: { appliedRestoredCents: 0, generatedRetainedCents: 0, presentedAvailableCreditCents: 0, presentedRevision: 1, confirmed: false } },
+    { ...cancelCommand, creditDecision: { appliedRestoredCents: 0, generatedRetainedCents: 0, presentedAvailableCreditCents: 0, presentedRevision: 1, confirmed: true, extra: true } },
   ])("rejeita contrato de cancelamento inválido", async (body) => {
     await expect(parseCancelOrderCommand(request(body))).rejects.toSatisfy((error: unknown) => (
       isFinancialApiError(error) && error.status === 400

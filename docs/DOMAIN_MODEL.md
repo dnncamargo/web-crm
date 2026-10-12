@@ -348,7 +348,7 @@ Quando o Produto referenciado existir, sua descrição/nome atual pode ser exibi
   - `id`
   - `amount` positivo
   - `refundedAt` real
-- `cancellationAgreement?`, com `operationId` e texto obrigatório da negociação
+- `cancellationAgreement?`, com `operationId` e texto obrigatório da negociação; no Checkpoint 7C.2 pode conter decisão explícita `creditDecision` com `appliedRestoredCents` e `generatedRetainedCents` em centavos
 - `creditApplied?`
 - `creditGenerated?`
 
@@ -369,6 +369,13 @@ No Checkpoint 7C.1, uma negociação de cancelamento é guardada em
 independentes em `refunds[]`, com identidade, valor positivo e
 `refundedAt`; não alteram `payments[]` ou `amountPaid`. Promessas de
 devolução permanecem somente no texto do acordo.
+
+Quando o Pedido cancelado possuía crédito aplicado ou gerado, 7C.2 exige uma
+decisão explícita no acordo: o crédito aplicado restaurado e o crédito gerado
+mantido. São valores não negativos em centavos, limitados respectivamente a
+`creditApplied` e `creditGenerated` originais. Os fatos originais não são
+reescritos. A decisão e o efeito líquido no agregador são transacionais; a
+ausência da decisão não representa valores zero.
 
 `getOrderCashPaid` em `orderUtils.ts` é a fonte canônica para consumidores
 financeiros: soma `payments` quando presente e usa `amountPaid` apenas como
@@ -462,11 +469,13 @@ Para Pedidos elegíveis, o saldo disponível do Cliente é derivado conceitualme
 não é o contrato de destino: cancelamentos passarão a depender de um acerto
 financeiro explícito. A regra não muda até o cutover planejado.
 
-**DECIDED — Checkpoint 7C.1:** a negociação é texto obrigatório e o comando
-registra somente dinheiro efetivamente recebido/devolvido. Pedidos com crédito
-aplicado ou gerado retornam conflito até a decisão explícita sobre crédito em
-cancelamentos (**OPEN**). Nenhuma parcela de crédito é criada, consumida ou
-transferida por esse comando.
+**DECIDED — Checkpoints 7C.1 e 7C.2:** a negociação é texto obrigatório e o
+comando registra dinheiro efetivamente recebido/devolvido. Quando houver efeito
+de crédito, o cancelamento exige decisão explícita de crédito aplicado
+restaurado (R) e crédito gerado mantido (M), e altera a projeção transacional
+pelo efeito `R + M − creditGenerated`. Se a redução exceder o saldo disponível,
+a operação conflita; não há redistribuição automática nem alteração de outros
+Pedidos.
 
 ### Aplicação e nova geração no mesmo Pedido
 
@@ -504,12 +513,12 @@ Portanto, não tratar geração de crédito como mutuamente exclusiva com aplica
   exclusão, pagamento negativo, estorno ou reembolso. O contrato aprovado
   substitui essa limitação por correção do lançamento existente, preservando a
   identidade e sem trilha técnica adicional, após a migração;
-- **DECIDED — Checkpoint 7C.1:** o novo comando experimental cancela por
+- **DECIDED — Checkpoints 7C.1/7C.2:** o novo comando experimental cancela por
   negociação textual obrigatória e registra, se já ocorrido, recebimento ou
   devolução efetiva. Pagamentos anteriores permanecem; devolução tem identidade
   e data próprias. O saldo original de Pedido cancelado não é apresentado como
-  cobrança. O comando não cria crédito e recusa Pedidos com efeito de crédito;
-  o serviço e a UI produtivos continuam no contrato CURRENT.
+  cobrança. 7C.2 mantém crédito somente com decisão explícita e validação do
+  agregador; serviço e UI produtivos continuam no contrato CURRENT.
 - não persistir um "saldo do cliente" separado sem uma decisão explícita de
   fonte da verdade e reconciliação. O agregador definido no contrato financeiro
   atende a essa condição como projeção, nunca como fonte independente.

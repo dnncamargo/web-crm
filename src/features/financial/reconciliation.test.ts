@@ -256,6 +256,60 @@ describe("read-only financial reconciliation", () => {
     expect(codes(legacy)).toContain("CANCELLED_ORDER_SETTLEMENT_REQUIRED");
   });
 
+  it("reconstructs a cancelled order from its explicit partial credit settlement", () => {
+    const result = reconcileFinancialDocuments([order({
+      id: "settled-cancelled",
+      orderStatus: "cancelled",
+      amountPaid: 100,
+      payments: [{ id: "payment", amount: 100, receivedAt: "2026-01-01T10:00:00.000Z" }],
+      creditApplied: 10,
+      creditGenerated: 10,
+      cancellationAgreement: {
+        operationId: "cancel-123456",
+        text: "Crédito parcialmente mantido e aplicado parcialmente restituído.",
+        creditDecision: { appliedRestoredCents: 500, generatedRetainedCents: 500 },
+      },
+    })], [{ clientId: "client-1", state: "ready", availableCreditCents: 0, revision: 3 }]);
+
+    expect(result.orders[0]).toMatchObject({ classification: "VALID", calculatedGeneratedCreditCents: 1000 });
+    expect(result.clients[0]).toMatchObject({ conclusive: true, availableCreditCents: 0, aggregatorComparison: "matches" });
+    expect(codes(result)).not.toContain("CANCELLED_CREDIT_SETTLEMENT_UNRESOLVED");
+    expect(codes(result)).not.toContain("CANCELLED_ORDER_SETTLEMENT_REQUIRED");
+  });
+
+  it("keeps historical credit facts but rejects an explicit settlement beyond bounds or cash", () => {
+    const exceeded = reconcileFinancialDocuments([order({
+      id: "exceeded",
+      orderStatus: "cancelled",
+      amountPaid: 120,
+      payments: [{ id: "payment", amount: 120, receivedAt: "2026-01-01T10:00:00.000Z" }],
+      creditGenerated: 20,
+      cancellationAgreement: {
+        operationId: "cancel-123456",
+        text: "Acordo inválido.",
+        creditDecision: { appliedRestoredCents: 0, generatedRetainedCents: 2001 },
+      },
+    })]);
+    const doubleRefund = reconcileFinancialDocuments([order({
+      id: "double-refund",
+      orderStatus: "cancelled",
+      amountPaid: 120,
+      payments: [{ id: "payment", amount: 120, receivedAt: "2026-01-01T10:00:00.000Z" }],
+      creditGenerated: 20,
+      refunds: [{ id: "refund-123456", amount: 100, refundedAt: "2026-01-02T10:00:00.000Z" }],
+      cancellationAgreement: {
+        operationId: "cancel-654321",
+        text: "Acordo com dupla restituição.",
+        creditDecision: { appliedRestoredCents: 0, generatedRetainedCents: 2000 },
+      },
+    })]);
+
+    expect(codes(exceeded)).toContain("CANCELLATION_CREDIT_DECISION_EXCEEDS_ORDER_EFFECTS");
+    expect(exceeded.clients[0]?.conclusive).toBe(false);
+    expect(codes(doubleRefund)).toContain("CANCELLATION_CREDIT_DECISION_DOUBLE_RESTITUTION");
+    expect(doubleRefund.clients[0]?.conclusive).toBe(false);
+  });
+
   it("does not resolve a cancellation merely because generated credit was consumed by another order", () => {
     const result = reconcileFinancialDocuments([
       order({

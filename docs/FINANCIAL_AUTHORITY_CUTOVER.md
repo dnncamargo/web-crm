@@ -168,7 +168,7 @@ dados de produção não são alterados.
 | Registrar pagamento | `OrderPaymentForm` → `registerOrderPayment` | `orders/{id}.payments`, `amountPaid`, `creditGenerated` | `record-payment` já implementado somente no Emulator e requer agregador pronto; UI/API produtiva ainda ausente. |
 | Corrigir pagamento | inexistente na UI atual; `correct-payment` é API experimental | Pedido, agregador e efeitos de crédito | endpoint existe somente no Emulator. UI futura reutiliza o recebimento existente e oferece **Corrigir**; não há contrato de ativação. |
 | Aplicar crédito | `apply-credit` e variante `commercial` de `edit-order` são APIs experimentais; formulário produtivo permanece SDK | Pedido e agregador | **IMPLEMENTED — Emulator**; edição só altera valor com confirmação e revisão atuais; UI não foi ligada. |
-| Cancelamento produtivo | seletor `orderStatus` em `OrderForm` → `updateOrder` | `orders/{id}.orderStatus`; hoje o cálculo local exclui o Pedido cancelado do crédito | permanece SDK e fora deste checkpoint. O comando experimental 7C.1 é Emulator-only e não está ligado à UI. |
+| Cancelamento produtivo | seletor `orderStatus` em `OrderForm` → `updateOrder` | `orders/{id}.orderStatus`; hoje o cálculo local exclui o Pedido cancelado do crédito | permanece SDK e fora deste checkpoint. Os comandos 7C.1/7C.2 são Emulator-only e não estão ligados à UI. |
 | Marcar como `completed` | mesmo seletor | `orders/{id}.orderStatus` | exclusivamente operacional; não deve criar recebimento. Continua disponível com caminho não financeiro. |
 | Reabrir/editar cancelado | mesmo formulário pode trocar status e campos | status e quaisquer campos reenviados; pagamento novo é recusado pelo service | correção/reabertura de acerto concluído é OPEN. Exige contrato antes de mover efeitos financeiros. |
 | Escrita incidental em pedido | `updateOrder` sempre regrava `amountPaid`, recalcula/remove `creditGenerated` e atualiza timestamp | `amountPaid`, `creditGenerated`, `updatedAt`, mesmo em edição não financeira | separar payload operacional do financeiro é pré-requisito: hoje até edição de nota toca campos financeiros. |
@@ -207,7 +207,8 @@ financeira.
 | Editar itens, preço, taxa ou total | SDK `updateOrder` | API financeira única | saldo/crédito | não | recalcular dois agregados quando necessário | arredondamento fracionário | mutação transacional |
 | Trocar cliente | SDK `updateOrder` | API financeira única | transfere efeitos entre agregadores | não | validação/commit multiagregado | schema e reconciliação | contrato atômico |
 | Alterar `completed` | SDK `updateOrder` | writer operacional seguro | nenhum | não necessário | separação operacional | não | manter acesso não financeiro |
-| Cancelar/reabrir | SDK `updateOrder` | comando de acerto + operação operacional | crédito/devolução potencial | não | schema de acerto | cancelamento, crédito consumido, devolução | resolução OPEN |
+| Cancelar | SDK `updateOrder` | comando experimental `cancel-order` | Pedido, movimento e agregador de crédito | **A** Emulator apenas | integração de UI e ativação aprovada | não para acerto único 7C.2 | endpoint e Rules coordenados |
+| Reabrir/alterar acordo concluído | SDK `updateOrder` | política e comando futuro | reversão/ajuste de efeitos já aplicados | não | contrato de reabertura | semântica do acordo concluído | resolução OPEN antes de expor |
 | Registrar pagamento | SDK `registerOrderPayment` | API financeira única | `payments`, cache, crédito/agregado | **A** `record-payment` | integração UI e ativação aprovada | agregado inicializado | endpoint e Rules coordenados |
 | Corrigir pagamento | não disponível na UI | API financeira única | fato existente/agregado | **A** `correct-payment` | ação UI canônica e ativação | legado sem identidade | endpoint e Rules coordenados |
 | Aplicar crédito | SDK no formulário | API financeira única | Pedido/agregado/operação | **A** `apply-credit` | integração de confirmação/revisão | schema de agregado | endpoint e Rules coordenados |
@@ -262,11 +263,12 @@ isolado.
 
 ## Dependências e decisões abertas
 
-Continuam **OPEN**, sem resolução por este incremento: cancelamento com crédito
-consumido; acerto de Pedido cancelado; devoluções e `refundedAt`; reabertura ou
-correção de acerto concluído; aprovação de inconsistências históricas;
-arredondamento comercial fracionário; inicialização de agregadores; correção de
-pagamento legado sem identidade persistida; e schema definitivo de crédito.
+Continuam **OPEN**: reabertura ou correção de acordo de cancelamento concluído;
+aprovação de inconsistências históricas; arredondamento comercial fracionário;
+inicialização de agregadores; correção de pagamento legado sem identidade
+persistida; e revisão final do schema do agregador. O tratamento do saldo
+consumido no cancelamento é resolvido pelo limite transacional de não permitir
+que o efeito líquido torne o saldo disponível negativo.
 
 A futura UX reutilizará `OrderForm`, `OrderPaymentForm`,
 `OrderDetailsPanelContent`, `SlidePanel` e `Button`. A ação **Corrigir** será
@@ -403,8 +405,21 @@ devolvidos. Cancelamentos negociados sem crédito podem ser identificados na
 reconciliação; seu saldo original não aparece como cobrança na projeção, e
 devoluções aparecem como saídas distintas.
 
-O escopo 7C.1 aceita somente Pedidos com crédito aplicado e gerado iguais a
-zero. Pedidos com qualquer efeito de crédito conflitam sem escrita parcial.
-Tratamento e destino explícito do crédito em cancelamentos permanecem OPEN.
-Não houve integração de UI, alteração de Rules, inicialização de agregador,
-publicação ou cutover.
+## Checkpoint 7C.2 — acerto explícito de crédito experimental
+
+**IMPLEMENTED — Emulator-only:** quando o Pedido registra crédito aplicado
+ou gerado, cancelamento exige confirmação explícita de R (crédito aplicado
+restaurado) e M (crédito gerado mantido), em centavos, limitados aos fatos
+originais. A operação lê o agregador `ready` e compara saldo/revisão
+apresentados. Aplica `delta = R + M − G` na mesma transação que grava acordo,
+eventual recebimento/devolução e marcador idempotente; delta zero valida o
+snapshot sem alterar o agregador. Se a retirada deixar o saldo final negativo,
+a transação inteira é recusada.
+
+M também é limitado pelo excedente após pagamentos, devoluções já feitas ou
+registradas e crédito aplicado não restaurado, evitando dupla restituição.
+Recebimentos não podem aumentar crédito gerado. Os fatos originais de crédito,
+pagamentos e datas são preservados. A reconciliação reconhece decisões válidas
+e mantém cancelamentos históricos com crédito sem decisão como inconclusivos.
+Payloads 7C.1 permanecem compatíveis quando não há crédito. A implementação
+continua sem UI, mudança de Rules, inicialização de agregador ou cutover.

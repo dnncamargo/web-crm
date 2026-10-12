@@ -55,8 +55,9 @@ O comando experimental não ativa a API nem altera produção.
 | subtotal ou taxa de entrega ausentes | `INDETERMINATE` + `ORDER_COMMERCIAL_TOTALS_INCOMPLETE` | Não há compatibilidade legada aprovada para omitir a coerência comercial. |
 | soma monetária fora do intervalo seguro | `INCONSISTENT`/`INDETERMINATE` + código aritmético | Não aproxima valores e continua os demais registros independentes. |
 | ID de pedido repetido | `INCONSISTENT` + `ORDER_ID_DUPLICATE` | Não escolhe documento nem duplica efeitos de crédito. |
-| pedido cancelado com efeito de crédito | `BLOCKED_BY_PRODUCT_DECISION` no pedido e `INDETERMINATE` no cliente | Preserva fatos e não afirma saldo dependente do destino explícito do crédito. |
+| pedido cancelado com efeito de crédito sem decisão válida | `BLOCKED_BY_PRODUCT_DECISION` no pedido e `INDETERMINATE` no cliente | Preserva fatos e não afirma saldo sem destino explícito. |
 | cancelamento 7C.1 com negociação válida e sem efeito de crédito | `VALID` no pedido; contribuição de crédito zero | Identifica o cancelamento sem tornar o saldo original uma cobrança. Devoluções válidas continuam saídas separadas. |
+| cancelamento 7C.2 com decisão R/M válida | efeito reconstruído como `generated=M`, `applied=A−R` | Inclui na posição do cliente a mesma variação líquida da transação; verifica limites e coerência com devoluções. |
 | agregador ausente | `LEGACY_COMPATIBLE` + `AGGREGATOR_ABSENT` | Não é prova de corrupção e não é criado. |
 | snapshots duplicados de agregador | `INDETERMINATE` + `AGGREGATOR_DUPLICATE_SNAPSHOT` | Nenhum snapshot ambíguo é escolhido para comparação. |
 | agregador `blocked`/não `ready` | `INDETERMINATE` | Não é comparado, desbloqueado nem inicializado. |
@@ -195,6 +196,22 @@ acordo, crédito ligado a cancelamento e fatos inconsistentes permanecem
 diagnosticados. A projeção inclui devoluções reais datadas em separado dos
 recebimentos e não apresenta o saldo original de Pedido cancelado como cobrança.
 Leitura não corrige nem materializa fatos.
+
+## Checkpoint 7C.2 — crédito em cancelamentos negociados
+
+Uma decisão persistida válida contém valores em centavos para crédito aplicado
+restaurado (R) e crédito gerado mantido (M), limitados aos fatos originais A e
+G. A reconstrução de posição usa o efeito do Pedido como `generated=M` e
+`applied=A−R`; assim a projeção do cliente incorpora a mesma variação líquida
+`R+M−G` aplicada pela transação. A coerência de caixa também é verificada:
+devoluções em dinheiro e crédito mantido não podem restituir o mesmo excedente.
+
+Cancelamento com crédito sem decisão, decisão malformada, fora dos limites ou
+incompatível com devoluções permanece inconclusivo/inconsistente e não contribui
+para saldo reconstruído. Cancelamento 7C.1 sem crédito continua compatível.
+Os campos originais `creditApplied` e `creditGenerated` permanecem fatos
+históricos; a leitura não os reescreve e não apresenta saldo cancelado como
+cobrança.
 
 ## Critérios de aceitação do cutover futuro
 
