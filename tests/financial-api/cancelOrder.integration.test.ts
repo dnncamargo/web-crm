@@ -134,6 +134,54 @@ describe("cancel order transaction", () => {
     expect(projection.knownRefunds[0]?.amountCents).toBe(10000);
   });
 
+  it.each(["receipt", "refund"] as const)("aceita operationId de 121 caracteres para %s, reconcilia o ID derivado e repete com segurança", async (kind) => {
+    const operationId = "derived-id-".padEnd(121, "a");
+    const derivedId = `cancel-${operationId}`;
+    const fixture = kind === "refund"
+      ? await seedOrder({ amountPaid: 100, payments: [{ id: "payment-original", amount: 100, receivedAt: null }] })
+      : await seedOrder({ total: 200, amountPaid: 100, payments: [{ id: "payment-original", amount: 100, receivedAt: null }] });
+    const operation = command(fixture, {
+      operationId,
+      movement: { kind, amountCents: 1000, occurredAt: "2026-10-12T10:00:00Z" },
+    });
+    await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: false });
+    await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: true });
+    const saved = (await db.doc(`orders/${fixture.orderId}`).get()).data() ?? {};
+    if (kind === "receipt") {
+      expect(saved.payments).toContainEqual({ id: derivedId, amount: 10, receivedAt: "2026-10-12T10:00:00Z" });
+    } else {
+      expect(saved.refunds).toContainEqual({ id: derivedId, amount: 10, refundedAt: "2026-10-12T10:00:00Z" });
+    }
+    const projection = projectFinancialReadModel([persistedOrderForProjection(fixture, saved)]);
+    expect(projection.reconciliation.orders[0]?.classification).toBe("LEGACY_COMPATIBLE");
+    expect(projection.reconciliation.orders[0]?.findings.map((finding) => finding.code)).not.toContain("REFUND_ID_INVALID");
+    expect(kind === "receipt" ? projection.knownReceipts : projection.knownRefunds).toHaveLength(1);
+  });
+
+  it.each(["receipt", "refund"] as const)("rejeita operationId de 122 caracteres para %s antes de qualquer escrita", async (kind) => {
+    const fixture = kind === "refund"
+      ? await seedOrder({ amountPaid: 100, payments: [{ id: "payment-original", amount: 100, receivedAt: null }] })
+      : await seedOrder({ total: 200, amountPaid: 100, payments: [{ id: "payment-original", amount: 100, receivedAt: null }] });
+    const aggregator = db.doc(`clientFinancial/${fixture.clientId}`);
+    const aggregatorData = { state: "ready", availableCreditCents: 375, revision: 12 };
+    await aggregator.set(aggregatorData);
+    const operation = command(fixture, {
+      operationId: "a".repeat(122),
+      movement: { kind, amountCents: 1000, occurredAt: "2026-10-12T10:00:00Z" },
+    });
+    await expectFinancialCode(cancelOrderTransaction(db, operation), "INVALID_PAYLOAD");
+    expect((await db.doc(`orders/${fixture.orderId}`).get()).data()?.orderStatus).toBe("active");
+    expect((await db.doc(`orders/${fixture.orderId}/cancellationOperations/${operation.operationId}`).get()).exists).toBe(false);
+    expect((await aggregator.get()).data()).toEqual(aggregatorData);
+  });
+
+  it("preserva operationId de 128 caracteres quando não há movimentação", async () => {
+    const fixture = await seedOrder();
+    const operation = command(fixture, { operationId: "a".repeat(128) });
+    await expect(cancelOrderTransaction(db, operation)).resolves.toMatchObject({ replayed: false });
+    expect((await db.doc(`orders/${fixture.orderId}/cancellationOperations/${operation.operationId}`).get()).exists).toBe(true);
+  });
+
   it("registra devolução parcial como fato separado", async () => {
     const fixture = await seedOrder({ amountPaid: 100, payments: [{ id: "payment", amount: 100, receivedAt: null }] });
     await cancelOrderTransaction(db, command(fixture, { movement: { kind: "refund", amountCents: 2500, occurredAt: "2026-10-12T10:00:00Z" } }));

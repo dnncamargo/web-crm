@@ -420,6 +420,9 @@ export async function parseCancelOrderCommand(request: Request): Promise<CancelO
   if (body.movement.kind !== "none" && body.movement.kind !== "receipt" && body.movement.kind !== "refund") {
     throw new FinancialApiError(400, "INVALID_PAYLOAD", "movement.kind inválido.");
   }
+  if (body.movement.kind !== "none" && body.operationId.length > 121) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "operationId excede o limite para o identificador financeiro derivado.");
+  }
   assertNonNegativeSafeInteger(body.movement.amountCents, "movement.amountCents");
   if (body.movement.kind === "none") {
     if (body.movement.amountCents !== 0 || body.movement.occurredAt !== null) {

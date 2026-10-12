@@ -112,6 +112,38 @@ describe("cancel order command validation", () => {
     }
   });
 
+  it("limita operationId derivado a 121 caracteres e preserva none até 128", async () => {
+    const maxDerivedId = "a".repeat(121);
+    for (const kind of ["receipt", "refund"] as const) {
+      const body = {
+        ...cancelCommand,
+        operationId: maxDerivedId,
+        movement: { kind, amountCents: 500, occurredAt: "2026-10-12T10:30:00-03:00" },
+      };
+      await expect(parseCancelOrderCommand(request(body))).resolves.toMatchObject({ operationId: maxDerivedId });
+      await expect(parseCancelOrderCommand(request({ ...body, operationId: `${maxDerivedId}a` }))).rejects.toSatisfy((error: unknown) => (
+        isFinancialApiError(error) && error.status === 400 && error.code === "INVALID_PAYLOAD"
+      ));
+    }
+    await expect(parseCancelOrderCommand(request({ ...cancelCommand, operationId: "a".repeat(128) })))
+      .resolves.toMatchObject({ operationId: "a".repeat(128) });
+  });
+
+  it("aceita IDs derivados de 128 caracteres na correção de pagamento", async () => {
+    const paymentId = `cancel-${"a".repeat(121)}`;
+    await expect(parseCorrectPaymentCommand(request({
+      orderId: "order-1",
+      clientId: "client-1",
+      paymentId,
+      expectedAmountCents: 500,
+      expectedReceivedAt: null,
+      amountCents: 500,
+      receivedAt: null,
+      presentedAvailableCreditCents: 0,
+      presentedRevision: 1,
+    }))).resolves.toMatchObject({ paymentId });
+  });
+
   it("preserva payload 7C.1 sem crédito e valida confirmação explícita em centavos", async () => {
     await expect(parseCancelOrderCommand(request(cancelCommand))).resolves.not.toHaveProperty("creditDecision");
     const body = {

@@ -191,6 +191,11 @@ function conflict(code: string, message: string): never {
 }
 
 function assertValidCommand(command: CancelOrderCommand): void {
+  if (typeof command.operationId !== "string"
+    || !/^[A-Za-z0-9_-]{8,128}$/.test(command.operationId)
+    || (command.movement.kind !== "none" && command.operationId.length > 121)) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "operationId incompatível com a movimentação do cancelamento.");
+  }
   if (typeof command.agreement !== "string" || command.agreement.trim().length === 0
     || !Number.isSafeInteger(command.movement.amountCents) || command.movement.amountCents < 0) {
     throw new FinancialApiError(400, "INVALID_PAYLOAD", "Negociação ou movimentação inválida.");
