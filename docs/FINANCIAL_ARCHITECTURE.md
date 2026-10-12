@@ -762,10 +762,14 @@ identidade idempotente usa `orders/{orderId}/transferOperations/{operationId}`
 com apenas o fingerprint do comando. Esse marcador separado é necessário para
 reconhecer IDs já usados depois que novas transferências substituem
 `_lastClientTransfer`; seu tamanho não cresce no documento do Pedido. O marcador
-é criado atomicamente com o Pedido e os agregadores. Retry idêntico é no-op;
-reutilização divergente conflita; retries antigos comprováveis são no-op mesmo
-após uma transferência posterior. Esses documentos registram identidade
-idempotente mínima, não são auditoria financeira: não guardam operador,
+é criado atomicamente com o Pedido e os agregadores. Antes de substituir
+`_lastClientTransfer`, a transação valida o marcador da última identidade
+conhecida e o cria com o fingerprint original quando ainda não existir; um
+marcador contraditório ou metadado legado inválido aborta sem escrita. Retry
+idêntico é no-op; reutilização divergente conflita; retries antigos
+comprováveis são no-op mesmo após uma transferência posterior. Esses
+documentos registram identidade idempotente mínima, não são auditoria
+financeira: não guardam operador,
 pagamentos, saldos before/after ou mudanças comerciais. Há um documento pequeno
 por transferência, sem expiração, pois expirá-lo eliminaria a garantia de
 unicidade. Escritas concorrentes de Pedido ou agregadores conflitam pelas

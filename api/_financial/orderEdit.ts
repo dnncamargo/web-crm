@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { FieldValue, Timestamp, type DocumentData, type Firestore } from "firebase-admin/firestore";
+import { FieldValue, Timestamp, type DocumentData, type DocumentReference, type Firestore } from "firebase-admin/firestore";
 
 import {
   FinancialDomainError,
@@ -213,6 +213,22 @@ function transferFingerprint(command: TransferOrderCommand): string {
   return createHash("sha256").update(canonical(command)).digest("hex");
 }
 
+interface StoredTransferIdentity {
+  operationId: string;
+  fingerprint: string;
+}
+
+function storedTransferIdentity(value: unknown): StoredTransferIdentity | null {
+  if (value === undefined) return null;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw invalidState();
+  const metadata = value as Record<string, unknown>;
+  if (typeof metadata.operationId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(metadata.operationId)
+    || typeof metadata.fingerprint !== "string" || !/^[a-f0-9]{64}$/.test(metadata.fingerprint)) {
+    throw invalidState();
+  }
+  return { operationId: metadata.operationId, fingerprint: metadata.fingerprint };
+}
+
 async function transferOrder(db: Firestore, command: TransferOrderCommand): Promise<TransferOrderResult> {
   if (command.sourceClientId === command.destinationClientId) {
     throw new FinancialApiError(409, "TRANSFER_CLIENTS_MUST_DIFFER", "Origem e destino devem ser clientes distintos.");
@@ -243,13 +259,14 @@ async function transferOrder(db: Firestore, command: TransferOrderCommand): Prom
       };
     }
 
-    // Compatibility for a replay of the last transfer written before durable
-    // operation markers were introduced.
-    const lastTransfer = data._lastClientTransfer;
-    if (lastTransfer && typeof lastTransfer === "object" && !Array.isArray(lastTransfer)) {
-      const metadata = lastTransfer as Record<string, unknown>;
-      if (metadata.operationId === command.operationId) {
-        if (metadata.fingerprint !== fingerprint) {
+    // Preserve the last known identity from the previous implementation before
+    // replacing its single-operation pointer with this transfer.
+    const lastTransfer = storedTransferIdentity(data._lastClientTransfer);
+    let previousOperationRef: DocumentReference | null = null;
+    let previousFingerprintToCreate: string | null = null;
+    if (lastTransfer) {
+      if (lastTransfer.operationId === command.operationId) {
+        if (lastTransfer.fingerprint !== fingerprint) {
           throw new FinancialApiError(409, "TRANSFER_OPERATION_ID_REUSED", "A identidade da operação já foi usada com outro comando.");
         }
         return {
@@ -261,6 +278,14 @@ async function transferOrder(db: Firestore, command: TransferOrderCommand): Prom
           destinationRevision: null,
           replayed: true,
         };
+      }
+
+      previousOperationRef = orderRef.collection("transferOperations").doc(lastTransfer.operationId);
+      const previousOperationSnapshot = await transaction.get(previousOperationRef);
+      if (previousOperationSnapshot.exists) {
+        if (previousOperationSnapshot.data()?.fingerprint !== lastTransfer.fingerprint) throw invalidState();
+      } else {
+        previousFingerprintToCreate = lastTransfer.fingerprint;
       }
     }
 
@@ -339,6 +364,9 @@ async function transferOrder(db: Firestore, command: TransferOrderCommand): Prom
       });
     }
 
+    if (previousOperationRef && previousFingerprintToCreate) {
+      transaction.create(previousOperationRef, { fingerprint: previousFingerprintToCreate });
+    }
     transaction.update(orderRef, {
       clientId: command.destinationClientId,
       clientName: destinationClient.name,

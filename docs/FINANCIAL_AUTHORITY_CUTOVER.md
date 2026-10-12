@@ -126,10 +126,13 @@ de qualquer ID depois de transferências posteriores, sem crescimento do
 documento do Pedido. É identidade idempotente, não trilha de auditoria: não
 armazena operador, pagamentos, saldos before/after ou alterações comerciais.
 Há um pequeno documento permanente por transferência; expiração removeria a
-garantia de unicidade. Retry idêntico, inclusive antigo, é no-op; reuso
-divergente conflita. Precondições transacionais serializam edições, pagamentos,
-aplicações de crédito e outras transferências. A confirmação inclui origem e
-destino e é revalidada contra os nomes atuais dentro da transação. IDs da
+garantia de unicidade. Antes de substituir `_lastClientTransfer`, a transação
+valida o marcador da última identidade conhecida e cria-o com o fingerprint
+original quando ausente. Metadado legado inválido ou marcador contraditório
+aborta sem escrita. Retry idêntico, inclusive antigo, é no-op; reuso divergente
+conflita. Precondições transacionais serializam edições, pagamentos, aplicações
+de crédito e outras transferências. A confirmação inclui origem e destino e é
+revalidada contra os nomes atuais dentro da transação. IDs da
 implementação anterior já substituídos no `_lastClientTransfer` não podem ser
 reconstruídos retroativamente; a API continua Emulator-only e não houve
 cutover nem gravação produtiva.

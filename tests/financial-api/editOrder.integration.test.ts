@@ -305,6 +305,7 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
       confirmation: { sourceName: "Cliente", destinationName: "Intermediário", confirmed: true },
     });
     await editOrderTransaction(db, first);
+    const firstMarker = (await db.doc(`orders/${ids.orderId}/transferOperations/${first.operationId}`).get()).data();
     const afterFirst = (await db.doc(`orders/${ids.orderId}`).get()).data();
     expect(await editOrderTransaction(db, first)).toMatchObject({ replayed: true });
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.updatedAt).toEqual(afterFirst?.updatedAt);
@@ -319,6 +320,7 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     expect(await editOrderTransaction(db, first)).toMatchObject({ replayed: true });
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.updatedAt).toEqual(afterSecond?.updatedAt);
     const secondTimestamp = afterSecond?.updatedAt as Timestamp;
+    expect((await db.doc(`orders/${ids.orderId}/transferOperations/${first.operationId}`).get()).data()).toEqual(firstMarker);
     const reusedFirstId = transferCommand(ids.clientId, destination, ids.orderId, {
       operationId: first.operationId,
       expected: { updatedAt: { seconds: secondTimestamp.seconds, nanoseconds: secondTimestamp.nanoseconds } },
@@ -329,6 +331,71 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ clientId: ids.clientId, clientName: "Cliente", updatedAt: afterSecond?.updatedAt });
     expect((await db.doc(`orders/${ids.orderId}/transferOperations/${first.operationId}`).get()).data()).toEqual({ fingerprint: expect.any(String) });
     expect((await db.doc(`orders/${ids.orderId}/transferOperations/${second.operationId}`).get()).exists).toBe(true);
+  });
+
+  it("migra a última identidade legada antes de substituí-la e mantém os retries X e Y sem efeitos", async () => {
+    const ids = fixtureIds(); const middle = fixtureIds().clientId; const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    const payments = [{ id: "legacy-payment", amount: 25, receivedAt: "2026-10-01T12:00:00Z" }];
+    await seedOrder({ ...ids, cashPaidCents: 2500, payments });
+    await seedClient(ids.clientId, "Cliente"); await seedClient(middle, "Destino"); await seedClient(destination, "Destino final");
+
+    const first = transferCommand(ids.clientId, middle, ids.orderId);
+    await editOrderTransaction(db, first);
+    const afterFirst = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    const legacyIdentity = afterFirst?._lastClientTransfer as { operationId: string; fingerprint: string };
+    await db.doc(`orders/${ids.orderId}/transferOperations/${first.operationId}`).delete();
+    expect((await db.doc(`orders/${ids.orderId}/transferOperations/${first.operationId}`).get()).exists).toBe(false);
+
+    const firstTimestamp = afterFirst?.updatedAt as Timestamp;
+    const second = transferCommand(middle, ids.clientId, ids.orderId, {
+      expected: { updatedAt: { seconds: firstTimestamp.seconds, nanoseconds: firstTimestamp.nanoseconds } },
+      confirmation: { sourceName: "Destino", destinationName: "Cliente", confirmed: true },
+    });
+    await editOrderTransaction(db, second);
+    const afterSecond = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    expect((await db.doc(`orders/${ids.orderId}/transferOperations/${first.operationId}`).get()).data()).toEqual({ fingerprint: legacyIdentity.fingerprint });
+    expect((await db.doc(`orders/${ids.orderId}/transferOperations/${second.operationId}`).get()).exists).toBe(true);
+
+    await expect(editOrderTransaction(db, first)).resolves.toMatchObject({ replayed: true });
+    await expect(editOrderTransaction(db, second)).resolves.toMatchObject({ replayed: true });
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({
+      clientId: ids.clientId, amountPaid: 25, payments, updatedAt: afterSecond?.updatedAt,
+    });
+
+    const secondTimestamp = afterSecond?.updatedAt as Timestamp;
+    const divergentReuse = transferCommand(ids.clientId, destination, ids.orderId, {
+      operationId: first.operationId,
+      expected: { updatedAt: { seconds: secondTimestamp.seconds, nanoseconds: secondTimestamp.nanoseconds } },
+      confirmation: { sourceName: "Cliente", destinationName: "Destino final", confirmed: true },
+    });
+    await expect(editOrderTransaction(db, divergentReuse)).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "TRANSFER_OPERATION_ID_REUSED");
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.updatedAt).toEqual(afterSecond?.updatedAt);
+  });
+
+  it("recusa metadado legado malformado ou marcador anterior contraditório sem escrita", async () => {
+    const db = getFinancialAdminDb();
+    const malformed = fixtureIds(); const malformedDestination = fixtureIds().clientId;
+    await seedOrder(malformed); await seedClient(malformed.clientId, "Cliente"); await seedClient(malformedDestination, "Destino");
+    await db.doc(`orders/${malformed.orderId}`).update({ _lastClientTransfer: { operationId: "bad/path", fingerprint: "invalido" } });
+    const malformedBefore = (await db.doc(`orders/${malformed.orderId}`).get()).data();
+    await expect(editOrderTransaction(db, transferCommand(malformed.clientId, malformedDestination, malformed.orderId))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INVALID_FINANCIAL_STATE");
+    expect((await db.doc(`orders/${malformed.orderId}`).get()).data()?.updatedAt).toEqual(malformedBefore?.updatedAt);
+    expect((await db.collection(`orders/${malformed.orderId}/transferOperations`).get()).empty).toBe(true);
+
+    const contradictory = fixtureIds(); const middle = fixtureIds().clientId; const destination = fixtureIds().clientId;
+    await seedOrder(contradictory); await seedClient(contradictory.clientId, "Cliente"); await seedClient(middle, "Destino"); await seedClient(destination, "Destino final");
+    const first = transferCommand(contradictory.clientId, middle, contradictory.orderId);
+    await editOrderTransaction(db, first);
+    await db.doc(`orders/${contradictory.orderId}/transferOperations/${first.operationId}`).update({ fingerprint: "0".repeat(64) });
+    const beforeRejectedTransfer = (await db.doc(`orders/${contradictory.orderId}`).get()).data();
+    const timestamp = beforeRejectedTransfer?.updatedAt as Timestamp;
+    const next = transferCommand(middle, destination, contradictory.orderId, {
+      expected: { updatedAt: { seconds: timestamp.seconds, nanoseconds: timestamp.nanoseconds } },
+      confirmation: { sourceName: "Destino", destinationName: "Destino final", confirmed: true },
+    });
+    await expect(editOrderTransaction(db, next)).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INVALID_FINANCIAL_STATE");
+    expect((await db.doc(`orders/${contradictory.orderId}`).get()).data()).toMatchObject({ clientId: middle, updatedAt: beforeRejectedTransfer?.updatedAt });
+    expect((await db.doc(`orders/${contradictory.orderId}/transferOperations/${next.operationId}`).get()).exists).toBe(false);
   });
 
   it("serializa transferências concorrentes para o mesmo Pedido", async () => {
@@ -381,16 +448,28 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     await seedOrder({ ...ids, cashPaidCents: 12000, creditGeneratedCents: 2000 });
     await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino");
     await seedAggregator(ids.clientId, 2000, 2); await seedAggregator(destination, 500, 7);
+    const legacyTransfer = transferCommand(ids.clientId, destination, ids.orderId, {
+      sourceFinancialState: { availableCreditCents: 2000, revision: 2 }, destinationFinancialState: { availableCreditCents: 500, revision: 7 },
+    });
+    await editOrderTransaction(db, legacyTransfer);
+    await db.doc(`orders/${ids.orderId}/transferOperations/${legacyTransfer.operationId}`).delete();
+    const afterLegacyTransfer = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    const orderTimestamp = afterLegacyTransfer?.updatedAt as Timestamp;
+    const nextTransfer = transferCommand(destination, ids.clientId, ids.orderId, {
+      expected: { updatedAt: { seconds: orderTimestamp.seconds, nanoseconds: orderTimestamp.nanoseconds } },
+      confirmation: { sourceName: "Destino", destinationName: "Cliente", confirmed: true },
+      sourceFinancialState: { availableCreditCents: 2500, revision: 8 }, destinationFinancialState: { availableCreditCents: 0, revision: 3 },
+    });
     const originalRunTransaction = db.runTransaction.bind(db);
     const failingDb = Object.create(db) as Firestore;
-    let updateCalls = 0;
     failingDb.runTransaction = ((updateFunction, options) => originalRunTransaction(async (transaction) => {
       const proxy = new Proxy(transaction, {
         get(target, property) {
-          if (property === "update") return (...args: Parameters<typeof transaction.update>) => {
-            updateCalls += 1;
-            if (updateCalls === 2) throw new Error("falha de escrita injetada");
-            return target.update(...args);
+          if (property === "create") return (...args: Parameters<typeof transaction.create>) => {
+            if (args[0].path === `orders/${ids.orderId}/transferOperations/${nextTransfer.operationId}`) {
+              throw new Error("falha após preparar o marcador legado");
+            }
+            return target.create(...args);
           };
           const value: unknown = Reflect.get(target, property, target);
           return typeof value === "function" ? value.bind(target) : value;
@@ -398,12 +477,14 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
       });
       return updateFunction(proxy);
     }, options)) as typeof db.runTransaction;
-    await expect(editOrderTransaction(failingDb, transferCommand(ids.clientId, destination, ids.orderId, {
-      sourceFinancialState: { availableCreditCents: 2000, revision: 2 }, destinationFinancialState: { availableCreditCents: 500, revision: 7 },
-    }))).rejects.toThrow("falha de escrita injetada");
-    expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.clientId).toBe(ids.clientId);
-    expect((await db.doc(`clientFinancial/${ids.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 2000, revision: 2 });
-    expect((await db.doc(`clientFinancial/${destination}`).get()).data()).toMatchObject({ availableCreditCents: 500, revision: 7 });
+    await expect(editOrderTransaction(failingDb, nextTransfer)).rejects.toThrow("falha após preparar o marcador legado");
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({
+      clientId: destination, amountPaid: 120, payments: [{ id: "payment-seed", amount: 120, receivedAt: null }], updatedAt: afterLegacyTransfer?.updatedAt,
+    });
+    expect((await db.doc(`orders/${ids.orderId}/transferOperations/${legacyTransfer.operationId}`).get()).exists).toBe(false);
+    expect((await db.doc(`orders/${ids.orderId}/transferOperations/${nextTransfer.operationId}`).get()).exists).toBe(false);
+    expect((await db.doc(`clientFinancial/${ids.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 0, revision: 3 });
+    expect((await db.doc(`clientFinancial/${destination}`).get()).data()).toMatchObject({ availableCreditCents: 2500, revision: 8 });
   });
 
   it("serializa transferência concorrente com recebimento", async () => {
