@@ -7,6 +7,32 @@ export interface FinancialControlPeriod {
   through: string;
 }
 
+export type FinancialControlEventKind = "receipt" | "refund";
+
+function isValidCivilDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+export function isValidFinancialControlPeriod(period: FinancialControlPeriod): boolean {
+  return isValidCivilDate(period.from)
+    && isValidCivilDate(period.through)
+    && period.from <= period.through;
+}
+
+export function canPrintFinancialReport(
+  loading: boolean,
+  error: string,
+  period: FinancialControlPeriod,
+): boolean {
+  return !loading && !error && isValidFinancialControlPeriod(period);
+}
+
+export function getFinancialEventRowKey(orderId: string, kind: FinancialControlEventKind, eventId: string): string {
+  return JSON.stringify([orderId, kind, eventId]);
+}
+
 interface FirestoreTimestampLike {
   seconds?: unknown;
   nanoseconds?: unknown;
@@ -56,6 +82,7 @@ export function filterOrdersByCreationPeriod<T extends Pick<Order, "createdAt">>
   orders: readonly T[],
   period: FinancialControlPeriod,
 ): T[] {
+  if (!isValidFinancialControlPeriod(period)) return [];
   return orders.filter((order) => {
     const createdOn = getOrderCreationDate(order);
     return createdOn !== null && createdOn >= period.from && createdOn <= period.through;

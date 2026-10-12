@@ -2,16 +2,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   compareFinancialControlValues,
+  canPrintFinancialReport,
   filterOrdersByCreationPeriod,
+  getFinancialEventRowKey,
   getOrderCreationDate,
+  isValidFinancialControlPeriod,
   matchesFinancialSearch,
 } from "./financialControl";
 
 describe("financial control selectors", () => {
   it("uses order creation time for the orders period, never the delivery date", () => {
     const orders = [
-      { createdAt: new Date("2026-09-30T23:30:00-03:00"), deliveryDateTime: "2026-10-02T12:00" },
-      { createdAt: new Date("2026-10-01T10:00:00-03:00"), deliveryDateTime: "2026-09-15T12:00" },
+      { createdAt: new Date(2026, 8, 30, 12), deliveryDateTime: "2026-10-02T12:00" },
+      { createdAt: new Date(2026, 9, 1, 12), deliveryDateTime: "2026-09-15T12:00" },
       { createdAt: null, deliveryDateTime: "2026-10-02T12:00" },
     ];
 
@@ -32,5 +35,23 @@ describe("financial control selectors", () => {
     expect(compareFinancialControlValues(first, second, "client")).toBeLessThan(0);
     expect(compareFinancialControlValues(first, second, "value")).toBeLessThan(0);
     expect(compareFinancialControlValues(first, second, "date")).toBeGreaterThan(0);
+  });
+
+  it("keeps same payment IDs on separate orders as distinct stable rows", () => {
+    const firstOrderKey = getFinancialEventRowKey("order-a", "receipt", "payment-1");
+    const secondOrderKey = getFinancialEventRowKey("order-b", "receipt", "payment-1");
+
+    expect(firstOrderKey).not.toBe(secondOrderKey);
+    expect(new Set([firstOrderKey, secondOrderKey]).size).toBe(2);
+  });
+
+  it("only permits printing for loaded data with a complete valid period", () => {
+    const validPeriod = { from: "2026-10-01", through: "2026-10-31" };
+    expect(isValidFinancialControlPeriod(validPeriod)).toBe(true);
+    expect(canPrintFinancialReport(true, "", validPeriod)).toBe(false);
+    expect(canPrintFinancialReport(false, "consulta falhou", validPeriod)).toBe(false);
+    expect(canPrintFinancialReport(false, "", { from: "", through: validPeriod.through })).toBe(false);
+    expect(canPrintFinancialReport(false, "", { from: "2026-02-30", through: validPeriod.through })).toBe(false);
+    expect(canPrintFinancialReport(false, "", validPeriod)).toBe(true);
   });
 });

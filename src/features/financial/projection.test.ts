@@ -8,6 +8,7 @@ import {
   sumProjectedReceipts,
 } from "./projection";
 import { reconcileFinancialDocuments } from "./reconciliation";
+import { getFinancialEventRowKey } from "./financialControl";
 import type { Order } from "../orders/orderTypes";
 
 function order(overrides: Partial<Order> = {}): Order {
@@ -36,6 +37,17 @@ function order(overrides: Partial<Order> = {}): Order {
 }
 
 describe("financial read-only projection", () => {
+  it("keeps equal receipt IDs from different orders as separate cash rows", () => {
+    const projection = projectFinancialReadModel([
+      order({ id: "order-a", amountPaid: 40, payments: [{ id: "shared-payment", amount: 40, receivedAt: "2026-10-01T10:00:00.000Z" }] }),
+      order({ id: "order-b", amountPaid: 60, payments: [{ id: "shared-payment", amount: 60, receivedAt: "2026-10-01T11:00:00.000Z" }] }),
+    ]);
+    const rowKeys = projection.knownReceipts.map((receipt) => getFinancialEventRowKey(receipt.orderId, "receipt", receipt.receiptId));
+
+    expect(projection.knownReceipts.map((receipt) => receipt.orderId)).toEqual(["order-a", "order-b"]);
+    expect(new Set(rowKeys).size).toBe(2);
+  });
+
   it("classifies a September order payment in October from receivedAt, not order dates", () => {
     const projection = projectFinancialReadModel([order({
       deliveryDateTime: "2026-09-28T10:00:00.000Z",

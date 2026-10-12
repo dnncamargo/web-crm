@@ -16,9 +16,9 @@ import { UserIdentityMenu } from "./UserIdentityMenu";
 const navItems = [
   { to: "/", label: "Hoje", end: true },
   { to: "/pedidos", label: "Pedidos" },
-  { to: APP_ROUTES.financialControl, label: "Financeiro" },
   { to: "/clientes", label: "Clientes" },
   { to: "/produtos", label: "Produtos" },
+  { to: APP_ROUTES.financialControl, label: "Financeiro" },
   { to: "/tarefas", label: "Tarefas" },
   { to: "/etiquetas", label: "Etiquetas" },
   { to: APP_ROUTES.settings, label: "Configurações" },
@@ -189,7 +189,7 @@ export function AppShell() {
       </main>
 
       <nav className="mobile-nav" aria-label="Navegação mobile">
-        {navItems.slice(0, 4).map((item) => (
+        {navItems.slice(0, 5).map((item) => (
           <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? "mobile-nav-link active" : "mobile-nav-link")}>
             {item.label}
           </NavLink>

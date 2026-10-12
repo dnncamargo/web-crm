@@ -16,7 +16,7 @@ import type { StoreProfile } from "../store-profile/storeProfileTypes";
 import { projectFinancialReadModel, selectKnownReceiptsInInterval, selectKnownRefundsInInterval, sumProjectedReceipts } from "./projection";
 import { legacyReaisToMoneyCents, sumMoneyCents } from "./money";
 import type { FinancialControlPeriod, FinancialControlSort } from "./financialControl";
-import { compareFinancialControlValues, filterOrdersByCreationPeriod, getOrderCreationDate, matchesFinancialSearch } from "./financialControl";
+import { canPrintFinancialReport, compareFinancialControlValues, filterOrdersByCreationPeriod, getFinancialEventRowKey, getOrderCreationDate, isValidFinancialControlPeriod, matchesFinancialSearch } from "./financialControl";
 import "./financialControl.css";
 
 type FinancialControlView = "orders" | "cash";
@@ -74,14 +74,21 @@ export function FinancialControlPage() {
   const [ordersSort, setOrdersSort] = useState<FinancialControlSort>("date");
   const [cashSort, setCashSort] = useState<FinancialControlSort>("date");
   const [storeProfile, setStoreProfile] = useState<StoreProfile>(DEFAULT_STORE_PROFILE);
+  const [storeProfileLoading, setStoreProfileLoading] = useState(true);
   const [storeProfileUnavailable, setStoreProfileUnavailable] = useState(false);
 
   useEffect(() => {
     let active = true;
     void getStoreProfile().then((profile) => {
-      if (active) setStoreProfile(profile);
+      if (active) {
+        setStoreProfile(profile);
+        setStoreProfileLoading(false);
+      }
     }).catch(() => {
-      if (active) setStoreProfileUnavailable(true);
+      if (active) {
+        setStoreProfileUnavailable(true);
+        setStoreProfileLoading(false);
+      }
     });
     return () => { active = false; };
   }, []);
@@ -120,7 +127,7 @@ export function FinancialControlPage() {
 
   const cashEvents = useMemo(() => {
     const byId = new Map(orders.map((order) => [order.id, order]));
-    if (!cashPeriod.from || !cashPeriod.through || cashPeriod.from > cashPeriod.through) return [];
+    if (!isValidFinancialControlPeriod(cashPeriod)) return [];
     const start = new Date(`${cashPeriod.from}T00:00:00`);
     const end = new Date(`${cashPeriod.through}T00:00:00`);
     end.setDate(end.getDate() + 1);
@@ -130,7 +137,7 @@ export function FinancialControlPage() {
     }).map((receipt) => {
       const order = byId.get(receipt.orderId);
       return order ? {
-        id: `receipt-${receipt.receiptId}`,
+        id: getFinancialEventRowKey(order.id, "receipt", receipt.receiptId),
         orderId: order.id,
         clientName: order.clientName,
         orderStatus: order.orderStatus,
@@ -144,7 +151,7 @@ export function FinancialControlPage() {
     }).map((refund) => {
       const order = byId.get(refund.orderId);
       return order ? {
-        id: `refund-${refund.refundId}`,
+        id: getFinancialEventRowKey(order.id, "refund", refund.refundId),
         orderId: order.id,
         clientName: order.clientName,
         orderStatus: order.orderStatus,
@@ -213,6 +220,7 @@ export function FinancialControlPage() {
   const activeSearch = view === "orders" ? ordersSearch : cashSearch;
   const activeSort = view === "orders" ? ordersSort : cashSort;
   const currentReportTitle = view === "orders" ? "Pedidos e saldos" : "Movimentações de caixa";
+  const reportQueryError = ordersError || (storeProfileUnavailable ? "perfil da loja indisponível" : "");
 
   function updatePeriod(field: keyof FinancialControlPeriod, value: string) {
     const update = (period: FinancialControlPeriod) => ({ ...period, [field]: value });
@@ -229,7 +237,7 @@ export function FinancialControlPage() {
       <PageHeader
         title="Controle Financeiro"
         description="Consulte a posição atual dos Pedidos e os movimentos efetivos de caixa por período."
-        action={<Button type="button" variant="secondary" onClick={printReport}><FileText size={16} /> Imprimir A4</Button>}
+        action={<Button type="button" variant="secondary" onClick={printReport} disabled={!canPrintFinancialReport(loadingOrders || storeProfileLoading, reportQueryError, currentPeriod)}><FileText size={16} /> Imprimir A4</Button>}
       />
 
       <div className="financial-control-tabs" role="group" aria-label="Visão financeira">
