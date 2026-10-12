@@ -79,6 +79,44 @@ export interface CreateOrderCommand {
   };
 }
 
+export interface OrderEditPrecondition {
+  updatedAt: { seconds: number; nanoseconds: number } | null;
+}
+
+export interface OperationalOrderEditCommand {
+  kind: "operational";
+  orderId: string;
+  clientId: string;
+  expected: OrderEditPrecondition;
+  changes: {
+    deliveryDateTime?: string;
+    addressId?: string | null;
+    addressSnapshot?: CreateOrderCommand["addressSnapshot"];
+    notes?: string | null;
+    tagIds?: string[];
+    orderStatus?: "active" | "completed";
+  };
+}
+
+export interface CommercialOrderEditCommand {
+  kind: "commercial";
+  orderId: string;
+  clientId: string;
+  expected: OrderEditPrecondition;
+  items: CreateOrderCommand["items"];
+  subtotalCents: number;
+  deliveryFeeCents: number;
+  totalCents: number;
+  creditApplication?: {
+    applyCreditCents: number;
+    presentedAvailableCreditCents: number;
+    presentedRevision: number;
+    confirmed: true;
+  };
+}
+
+export type EditOrderCommand = OperationalOrderEditCommand | CommercialOrderEditCommand;
+
 const MAX_BODY_BYTES = 32 * 1024;
 const COMMAND_FIELDS = new Set([
   "operationId",
@@ -117,6 +155,14 @@ const CREATE_ORDER_FIELDS = new Set([
   "subtotalCents", "deliveryFeeCents", "totalCents", "orderStatus", "notes", "tagIds",
   "initialPayment", "creditApplication",
 ]);
+const EDIT_ORDER_FIELDS = new Set([
+  "kind", "orderId", "clientId", "expected", "changes", "items", "subtotalCents",
+  "deliveryFeeCents", "totalCents", "creditApplication",
+]);
+const OPERATIONAL_CHANGE_FIELDS = new Set([
+  "deliveryDateTime", "addressId", "addressSnapshot", "notes", "tagIds", "orderStatus",
+]);
+const EXPECTED_FIELDS = new Set(["updatedAt"]);
 const ADDRESS_FIELDS = new Set(["label", "cep", "street", "number", "complement", "neighborhood", "city", "state", "reference"]);
 const ITEM_FIELDS = new Set(["id", "productId", "productName", "quantity", "unit", "unitPriceCents", "totalCents", "notes", "tagIds"]);
 
@@ -302,6 +348,96 @@ export async function parseCreateOrderCommand(request: Request): Promise<CreateO
     ...(body.notes === undefined ? {} : { notes: body.notes as string }),
     tagIds,
     ...(initialPayment === undefined ? {} : { initialPayment }),
+    ...(creditApplication === undefined ? {} : { creditApplication }),
+  };
+}
+
+function parseEditPrecondition(value: unknown): OrderEditPrecondition {
+  if (!isRecord(value)) throw new FinancialApiError(400, "INVALID_PAYLOAD", "Precondição do Pedido inválida.");
+  assertOnlyFields(value, EXPECTED_FIELDS);
+  if (value.updatedAt === null) return { updatedAt: null };
+  if (!isRecord(value.updatedAt)) throw new FinancialApiError(400, "INVALID_PAYLOAD", "Precondição do Pedido inválida.");
+  assertOnlyFields(value.updatedAt, new Set(["seconds", "nanoseconds"]));
+  assertNonNegativeSafeInteger(value.updatedAt.seconds, "expected.updatedAt.seconds");
+  assertNonNegativeSafeInteger(value.updatedAt.nanoseconds, "expected.updatedAt.nanoseconds");
+  if (value.updatedAt.nanoseconds >= 1_000_000_000) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "Precondição do Pedido inválida.");
+  }
+  return { updatedAt: { seconds: value.updatedAt.seconds, nanoseconds: value.updatedAt.nanoseconds } };
+}
+
+function parseEditCreditApplication(value: unknown): NonNullable<CommercialOrderEditCommand["creditApplication"]> {
+  if (!isRecord(value)) throw new FinancialApiError(400, "INVALID_PAYLOAD", "creditApplication inválido.");
+  assertOnlyFields(value, new Set(["applyCreditCents", "presentedAvailableCreditCents", "presentedRevision", "confirmed"]));
+  assertNonNegativeSafeInteger(value.applyCreditCents, "applyCreditCents");
+  assertNonNegativeSafeInteger(value.presentedAvailableCreditCents, "presentedAvailableCreditCents");
+  assertNonNegativeSafeInteger(value.presentedRevision, "presentedRevision");
+  if (value.confirmed !== true) throw new FinancialApiError(400, "INVALID_PAYLOAD", "Confirmação explícita de crédito necessária.");
+  return {
+    applyCreditCents: value.applyCreditCents,
+    presentedAvailableCreditCents: value.presentedAvailableCreditCents,
+    presentedRevision: value.presentedRevision,
+    confirmed: true,
+  };
+}
+
+export async function parseEditOrderCommand(request: Request): Promise<EditOrderCommand> {
+  const body = await parseBody(request);
+  assertOnlyFields(body, EDIT_ORDER_FIELDS);
+  assertIdentifier(body.orderId, "orderId");
+  assertIdentifier(body.clientId, "clientId");
+  const expected = parseEditPrecondition(body.expected);
+
+  if (body.kind === "operational") {
+    if (Object.keys(body).some((key) => ["items", "subtotalCents", "deliveryFeeCents", "totalCents", "creditApplication"].includes(key))) {
+      throw new FinancialApiError(400, "INVALID_PAYLOAD", "Payload operacional inválido.");
+    }
+    if (!isRecord(body.changes) || Object.keys(body.changes).length === 0) {
+      throw new FinancialApiError(400, "INVALID_PAYLOAD", "Alterações operacionais inválidas.");
+    }
+    assertOnlyFields(body.changes, OPERATIONAL_CHANGE_FIELDS);
+    const changes = body.changes;
+    if (changes.deliveryDateTime !== undefined) assertDeliveryDateTime(changes.deliveryDateTime);
+    if (changes.addressId !== undefined && changes.addressId !== null) assertIdentifier(changes.addressId, "addressId");
+    const addressSnapshot = changes.addressSnapshot === undefined ? undefined : parseAddressSnapshot(changes.addressSnapshot);
+    if (changes.notes !== undefined && changes.notes !== null) assertString(changes.notes, "notes", true);
+    const tagIds = changes.tagIds === undefined ? undefined : parseStringArray(changes.tagIds, "tagIds");
+    if (changes.orderStatus !== undefined && changes.orderStatus !== "active" && changes.orderStatus !== "completed") {
+      throw new FinancialApiError(409, "ORDER_SETTLEMENT_UNSUPPORTED", "Cancelamento e reabertura dependem do contrato de acerto financeiro.");
+    }
+    return {
+      kind: "operational",
+      orderId: body.orderId,
+      clientId: body.clientId,
+      expected,
+      changes: {
+        ...(changes.deliveryDateTime === undefined ? {} : { deliveryDateTime: changes.deliveryDateTime as string }),
+        ...(changes.addressId === undefined ? {} : { addressId: changes.addressId as string | null }),
+        ...(addressSnapshot === undefined ? {} : { addressSnapshot }),
+        ...(changes.notes === undefined ? {} : { notes: changes.notes as string | null }),
+        ...(tagIds === undefined ? {} : { tagIds }),
+        ...(changes.orderStatus === undefined ? {} : { orderStatus: changes.orderStatus as "active" | "completed" }),
+      },
+    };
+  }
+
+  if (body.kind !== "commercial" || body.changes !== undefined) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "Variante de edição inválida.");
+  }
+  const items = parseOrderItems(body.items);
+  assertNonNegativeSafeInteger(body.subtotalCents, "subtotalCents");
+  assertNonNegativeSafeInteger(body.deliveryFeeCents, "deliveryFeeCents");
+  assertNonNegativeSafeInteger(body.totalCents, "totalCents");
+  const creditApplication = body.creditApplication === undefined ? undefined : parseEditCreditApplication(body.creditApplication);
+  return {
+    kind: "commercial",
+    orderId: body.orderId,
+    clientId: body.clientId,
+    expected,
+    items,
+    subtotalCents: body.subtotalCents,
+    deliveryFeeCents: body.deliveryFeeCents,
+    totalCents: body.totalCents,
     ...(creditApplication === undefined ? {} : { creditApplication }),
   };
 }

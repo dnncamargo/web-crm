@@ -59,6 +59,43 @@ Foram pesquisados `addDoc`, `setDoc`, `updateDoc`, `deleteDoc`,
 `orders` pelo SDK. Não há escritor produtivo de `clientFinancial`; os únicos
 usos atuais estão nas transações experimentais do Admin SDK para Emulator.
 
+## Checkpoint 7B.1 — edição experimental
+
+**CURRENT — base auditada:** `OrderForm` envia todos os campos do Pedido,
+incluindo itens, totais, `amountPaid`, `payments`, créditos, cliente e status.
+`ordersService.updateOrder` remove `payments` do payload, mas recalcula e grava
+`amountPaid`/`creditGenerated` e `updatedAt` mesmo em alteração de nota. O
+formulário também pode recalcular `creditApplied`. A edição produtiva continua
+nesse caminho, sem alteração neste checkpoint.
+
+| Campo/operação | Decisão e autoridade experimental |
+| --- | --- |
+| `deliveryDateTime`, `addressId`, `addressSnapshot`, `notes`, etiquetas do Pedido | Operacional; variante `operational`, sem agregador e sem escrita financeira |
+| `orderStatus: active ↔ completed` | Operacional; não liquida Pedido nem cria recebimento |
+| `items`, `subtotal`, `deliveryFee`, `total` | Comercial/financeira; variante `commercial`, cálculo do servidor em centavos e ajuste atômico do agregador |
+| `creditApplied` omitido | Preservar valor persistido; não reaplicar crédito automaticamente |
+| `creditApplied` informado | Confirmação explícita, saldo e revisão apresentados, validados dentro da transação |
+| `payments[]`, `amountPaid`, `creditGenerated` | Campos protegidos; derivados do documento persistido e não aceitos como autoridade do chamador |
+| `clientId`/`clientName` | Imutáveis neste incremento; troca entre agregadores bloqueada |
+| Cancelar/reabrir cancelado, devolução e restituição | Bloqueados até contrato de acerto; nenhuma escrita parcial |
+
+**IMPLEMENTED — somente Emulator local:** `POST /api/financial/edit-order`
+reutiliza autenticação Google/allowlist, gate fail-closed, Admin SDK e núcleo
+financeiro. A variante operacional usa precondição por `updatedAt` e não lê
+`clientFinancial`; a variante comercial lê Pedido e agregador `ready`, preserva
+pagamentos históricos e confirma ambos atomicamente. Retry idêntico é no-op;
+comando diferente baseado em `updatedAt` antigo conflita. Pedido legado sem
+`payments[]` não é materializado nem reparado. Não há integração de UI, mudança
+de Rules, inicialização de agregador ou cutover.
+
+**OPEN:** arredondamento de frações de centavo, troca/transferência de cliente,
+acerto de cancelamento, devolução, restituição de crédito de cancelamento e
+correção de pagamentos legados sem identidade persistida continuam dependências
+de produto. O retry tardio de `create-order` permanece protegido pela comparação
+do conteúdo existente: divergência causa colisão sem gravação e replay idêntico
+não reaplica efeitos. 7B.2 deve validar essa interação em conjunto sem alterar
+o contrato de criação oportunisticamente.
+
 ## Inventário de caminhos de escrita
 
 | Fluxo | Origem e escritor atual | Documentos/campos afetados | Autoridade futura e risco de bloquear agora |
@@ -66,14 +103,14 @@ usos atuais estão nas transações experimentais do Admin SDK para Emulator.
 | Criar pedido | `OrderForm` → `OrdersPage.handleCreateOrder` → `useOrders.addOrder` → `createOrder` | novo `orders/{id}`; cliente, endereço/snapshot, itens, subtotal, taxa, total, status, etiquetas, `payments`, `amountPaid`, crédito | API transacional de criação ainda falta. Bloquear impediria todo cadastro de Pedido. |
 | Criar com pagamento inicial | mesmo formulário; cria item `payments[]` com UUID e data atual | além do Pedido, `payments[]`, `amountPaid`, possível `creditGenerated` | criação precisa aceitar fato de recebimento idempotente na mesma transação. Sem substituto, bloquear perde pagamento inicial. |
 | Criar com crédito aplicado | `OrderForm` usa `getClientAvailableCredit` e `getAutomaticCreditApplied` | `creditApplied`, possível `creditGenerated` no novo Pedido; hoje não há agregador | criação precisa ler/validar agregador e gravar os efeitos atomamente. Não há endpoint de criação. |
-| Editar pedido | `OrderForm` → `editOrder` → `updateOrder` | campos comerciais, cliente, endereço, itens, totais, status, notas, etiquetas, `creditApplied`; service regrava cache e crédito gerado | contrato para edição financeira ainda falta; bloquear quebraria edição corrente. |
-| Alterar quantidade/preço | edição de itens no `OrderForm` | itens, subtotal, `deliveryFee`, total, `creditApplied` e `creditGenerated` recalculados | operação financeira quando muda total; depende de regra OPEN de arredondamento fracionário e de validação transacional. |
-| Alterar total ou entrega | formulário edita taxa/itens e `deliveryDateTime` | total/subtotal/taxa ou só data/hora de entrega | mudança monetária precisa API; só entrega deve continuar como edição não financeira. A separação de contrato ainda falta. |
+| Editar Pedido no fluxo produtivo | `OrderForm` → `editOrder` → `updateOrder` | campos comerciais, cliente, endereço, itens, totais, status, notas, etiquetas, `creditApplied`; service recalcula cache financeiro | **CURRENT permanece**; API 7B.1 não está ligada à UI e não substitui esse escritor. |
+| Editar itens, quantidade, preço, taxa ou total experimentalmente | `POST /api/financial/edit-order`, variante `commercial` | itens e totais; saldo/crédito do mesmo Cliente | **IMPLEMENTED — Emulator**; usa centavos exatos e agregador transacional; frações de centavo permanecem OPEN. |
+| Editar entrega/endereço/notas/etiquetas ou `active ↔ completed` experimentalmente | `POST /api/financial/edit-order`, variante `operational` | somente campos operacionais; status não quita | **IMPLEMENTED — Emulator**; não exige agregador e preserva dados financeiros. |
 | Trocar cliente | `OrderForm` e, após salvar, `OrdersPage.registerOrderInteraction` | `orders/{id}.clientId/clientName`; depois `clients/{id}.lastInteraction*` | pode deslocar efeitos entre agregadores: exige operação atômica para dois Clientes. Bloqueio hoje impede correção comercial. |
 | Mudar endereço | `OrderForm` e `saveAddressForClient` ao criar endereço | `orders/{id}.addressId/addressSnapshot`; opcionalmente `addresses/*` e `clients/*` em transação | não financeira quando só snapshot/endereço; deve ficar disponível pelo SDK após o corte. |
 | Registrar pagamento | `OrderPaymentForm` → `registerOrderPayment` | `orders/{id}.payments`, `amountPaid`, `creditGenerated` | `record-payment` já implementado somente no Emulator e requer agregador pronto; UI/API produtiva ainda ausente. |
 | Corrigir pagamento | inexistente na UI atual; `correct-payment` é API experimental | Pedido, agregador e efeitos de crédito | endpoint existe somente no Emulator. UI futura reutiliza o recebimento existente e oferece **Corrigir**; não há contrato de ativação. |
-| Aplicar crédito | criação/edição pelo formulário; `apply-credit` API experimental não é chamada | Pedido e, no destino, `clientFinancial` + operação idempotente | endpoint existe somente no Emulator; criação e edição ainda não apresentam revisão/saldo nem confirmação transacional. |
+| Aplicar crédito | `apply-credit` e variante `commercial` de `edit-order` são APIs experimentais; formulário produtivo permanece SDK | Pedido e agregador | **IMPLEMENTED — Emulator**; edição só altera valor com confirmação e revisão atuais; UI não foi ligada. |
 | Cancelamento operacional | seletor `orderStatus` em `OrderForm` → `updateOrder` | `orders/{id}.orderStatus`; hoje o cálculo local exclui o Pedido cancelado do crédito | bloqueado por decisão OPEN sobre crédito consumido, devoluções e acerto. Não pode ser simplesmente bloqueado. |
 | Marcar como `completed` | mesmo seletor | `orders/{id}.orderStatus` | exclusivamente operacional; não deve criar recebimento. Continua disponível com caminho não financeiro. |
 | Reabrir/editar cancelado | mesmo formulário pode trocar status e campos | status e quaisquer campos reenviados; pagamento novo é recusado pelo service | correção/reabertura de acerto concluído é OPEN. Exige contrato antes de mover efeitos financeiros. |

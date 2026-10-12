@@ -693,6 +693,51 @@ permanece OPEN. `completed` continua sendo somente status operacional e não
 cria recebimento. O endpoint não substitui `createOrder`, não altera Rules,
 listeners ou UI e permanece indisponível em Preview e Production.
 
+**CURRENT — auditoria do Checkpoint 7B.1 na base `8d477005b1ba8fbf8085ba6e0bdc8f94e388f367`**
+
+`OrderForm` envia cliente/nome, endereço e snapshot, entrega, itens, subtotal,
+taxa, total, cache recebido, `payments`, crédito, status, notas e etiquetas do
+Pedido. `OrdersPage` chama `useOrders.editOrder`, que delega a
+`ordersService.updateOrder`. Esse service descarta `payments`, mas regrava
+`amountPaid`, recalcula/remove `creditGenerated` e atualiza `updatedAt` em toda
+edição; `creditApplied` pode ser recalculado pelo formulário. Portanto uma
+edição de nota pode tocar caches financeiros, e mudança de total ainda não tem
+autoridade transacional de servidor no fluxo produtivo.
+
+**IMPLEMENTED — Checkpoint 7B.1, somente Emulator local**
+
+`POST /api/financial/edit-order` é uma API experimental independente do fluxo
+produtivo. A variante `operational` aceita somente entrega, endereço/snapshot,
+notas, etiquetas de Pedido e transição `active`/`completed`; não lê agregador,
+preserva campos financeiros e itens comerciais e é no-op quando os valores já
+estão aplicados. `completed` não representa quitação. A variante `commercial`
+recebe itens, subtotal, taxa e total em centavos, lê Pedido e agregador `ready`
+na mesma transação, preserva a lista e identidade dos pagamentos, deriva saldo
+e crédito, e ajusta a projeção do agregador atomicamente. `creditApplied` é
+preservado quando ausente do comando; quando informado, exige confirmação, saldo
+e revisão atuais. Ambas as variantes exigem precondição pelo `updatedAt` exato;
+retry com resultado já persistido é no-op, enquanto comando divergente obsoleto
+conflita. Dados legados sem `payments[]` permanecem sem materialização ou
+reparo automático.
+
+A API reutiliza `auth.ts`, `gate.ts`, Admin SDK, `money.ts`, `credit.ts` e
+`reconciliation.ts`. Campos `payments`, `amountPaid` e `creditGenerated` não
+são aceitos como autoridade de escrita. Não há integração de UI, mudança de
+Rules, criação de agregador ou ativação fora do Emulator.
+
+**OPEN — dependências preservadas pelo Checkpoint 7B.1**
+
+Troca de cliente/transferência entre agregadores, cancelamento e acerto,
+reabertura de cancelado, devolução, restituição de crédito de cancelamento e
+correção de pagamentos legados sem identidade permanecem bloqueados. A política
+comercial para quantidades que produzam frações reais de centavo continua OPEN;
+esta API aceita somente multiplicações exatamente representáveis em centavos.
+O retry tardio de `create-order` compara o documento já existente com o comando
+original: se divergente retorna colisão sem escrita, e se idêntico responde
+replay sem reaplicar crédito ou pagamento. Não é necessária alteração
+oportunística em `create-order`; 7B.2 deve preservar essa evidência e cobrir a
+interação em validação conjunta.
+
 **IMPLEMENTED — diagnóstico local somente leitura**
 
 O Incremento 3 adiciona `src/features/financial/reconciliation.ts`, um módulo
