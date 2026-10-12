@@ -257,9 +257,11 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     await seedOrder({ clientId: ids.clientId, orderId: sourceZeroOrderId, totalCents: 0 });
     await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino");
     await seedAggregator(ids.clientId, 2000, 1); await seedAggregator(destination, 0, 5);
-    await editOrderTransaction(db, transferCommand(ids.clientId, destination, ids.orderId, {
+    const transfer = transferCommand(ids.clientId, destination, ids.orderId, {
       sourceFinancialState: { availableCreditCents: 2000, revision: 1 }, destinationFinancialState: { availableCreditCents: 0, revision: 5 },
-    }));
+    });
+    await editOrderTransaction(db, transfer);
+    expect(await editOrderTransaction(db, transfer)).toMatchObject({ replayed: true });
     const order = (await db.doc(`orders/${ids.orderId}`).get()).data();
     const sourceAggregate = (await db.doc(`clientFinancial/${ids.clientId}`).get()).data();
     const destinationAggregate = (await db.doc(`clientFinancial/${destination}`).get()).data();
@@ -293,6 +295,40 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     await expect(editOrderTransaction(db, transferCommand(ids.clientId, middle, ids.orderId, { operationId: first.operationId, confirmation: { ...first.confirmation, destinationName: "Outro" } }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "TRANSFER_OPERATION_ID_REUSED");
     const stale = transferCommand(ids.clientId, destination, ids.orderId);
     await expect(editOrderTransaction(db, stale)).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "ORDER_SOURCE_CHANGED");
+  });
+
+  it("mantém identidade de todas as transferências do Pedido em A → B → A e bloqueia X reutilizado em A → C", async () => {
+    const ids = fixtureIds(); const middle = fixtureIds().clientId; const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder(ids); await seedClient(ids.clientId, "Cliente"); await seedClient(middle, "Intermediário"); await seedClient(destination, "Destino final");
+
+    const first = transferCommand(ids.clientId, middle, ids.orderId, {
+      confirmation: { sourceName: "Cliente", destinationName: "Intermediário", confirmed: true },
+    });
+    await editOrderTransaction(db, first);
+    const afterFirst = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    expect(await editOrderTransaction(db, first)).toMatchObject({ replayed: true });
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.updatedAt).toEqual(afterFirst?.updatedAt);
+
+    const firstTimestamp = afterFirst?.updatedAt as Timestamp;
+    const second = transferCommand(middle, ids.clientId, ids.orderId, {
+      expected: { updatedAt: { seconds: firstTimestamp.seconds, nanoseconds: firstTimestamp.nanoseconds } },
+      confirmation: { sourceName: "Intermediário", destinationName: "Cliente", confirmed: true },
+    });
+    await editOrderTransaction(db, second);
+    const afterSecond = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    expect(await editOrderTransaction(db, first)).toMatchObject({ replayed: true });
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.updatedAt).toEqual(afterSecond?.updatedAt);
+    const secondTimestamp = afterSecond?.updatedAt as Timestamp;
+    const reusedFirstId = transferCommand(ids.clientId, destination, ids.orderId, {
+      operationId: first.operationId,
+      expected: { updatedAt: { seconds: secondTimestamp.seconds, nanoseconds: secondTimestamp.nanoseconds } },
+      confirmation: { sourceName: "Cliente", destinationName: "Destino final", confirmed: true },
+    });
+
+    await expect(editOrderTransaction(db, reusedFirstId)).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "TRANSFER_OPERATION_ID_REUSED");
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ clientId: ids.clientId, clientName: "Cliente", updatedAt: afterSecond?.updatedAt });
+    expect((await db.doc(`orders/${ids.orderId}/transferOperations/${first.operationId}`).get()).data()).toEqual({ fingerprint: expect.any(String) });
+    expect((await db.doc(`orders/${ids.orderId}/transferOperations/${second.operationId}`).get()).exists).toBe(true);
   });
 
   it("serializa transferências concorrentes para o mesmo Pedido", async () => {

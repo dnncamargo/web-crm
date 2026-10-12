@@ -119,12 +119,20 @@ atualizados atomicamente e suas revisões avançam. Com `N = 0`, nenhum agregado
 é exigido ou alterado. `completed` permanece transferível com saldo pendente;
 `cancelled` e estado financeiro inconsistente são recusados sem escrita.
 
-**DECIDED — idempotência:** `operationId` com fingerprint cobre retry idêntico
-e rejeita seu reuso divergente. O Pedido conserva somente o fingerprint da
-última transferência; uma operação antiga não pode substituir vínculo posterior.
-Precondições transacionais serializam edições, pagamentos, aplicações de
-crédito e outras transferências. A confirmação inclui origem e destino e é
-revalidada contra os nomes atuais dentro da transação.
+**DECIDED — idempotência:** `orders/{orderId}/transferOperations/{operationId}`
+guarda somente o fingerprint por ID, criado na mesma transação que a
+transferência. O marcador separado é necessário para reconhecer a reutilização
+de qualquer ID depois de transferências posteriores, sem crescimento do
+documento do Pedido. É identidade idempotente, não trilha de auditoria: não
+armazena operador, pagamentos, saldos before/after ou alterações comerciais.
+Há um pequeno documento permanente por transferência; expiração removeria a
+garantia de unicidade. Retry idêntico, inclusive antigo, é no-op; reuso
+divergente conflita. Precondições transacionais serializam edições, pagamentos,
+aplicações de crédito e outras transferências. A confirmação inclui origem e
+destino e é revalidada contra os nomes atuais dentro da transação. IDs da
+implementação anterior já substituídos no `_lastClientTransfer` não podem ser
+reconstruídos retroativamente; a API continua Emulator-only e não houve
+cutover nem gravação produtiva.
 
 **IMPLEMENTED — identidade de criação:** `create-order` persiste um SHA-256 do
 conteúdo normalizado original, sem duplicar payload ou dados financeiros.
@@ -133,7 +141,9 @@ pagamento, aplicação de crédito ou transferência e responde no-op sem altera
 qualquer fato, cliente ou timestamp. Fingerprint diferente conflita. Documento
 legado sem fingerprint só tem replay se seu conteúdo atual ainda for
 exatamente igual ao comando, ignorando timestamps; caso contrário, conflito sem
-tentativa de inferir estado histórico. Replay não retorna saldo/revisão antigos.
+tentativa de inferir estado histórico. A resposta `creationSnapshot` sempre
+descreve explicitamente os valores financeiros imutáveis da criação original;
+ela não contém saldo/revisão do agregador e replay não lê agregadores.
 
 **OPEN:** cancelamento, acerto, restituição, devoluções, correção de pagamento
 legado, arredondamento comercial e cutover permanecem fora deste checkpoint.

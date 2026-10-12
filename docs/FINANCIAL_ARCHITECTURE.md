@@ -758,11 +758,21 @@ valor ou crédito do Pedido é reescrito. `completed` continua operacional;
 `cancelled` e fatos financeiros inconclusivos são recusados.
 
 O comando exige confirmação dos nomes canônicos da origem e destino. A
-identidade idempotente usa `operationId` e fingerprint do comando; o Pedido
-guarda somente o fingerprint da última transferência, substituído na próxima
-transferência. Retry idêntico é no-op; reutilização divergente conflita; uma
-operação velha não pode se sobrepor a transferência posterior. Escritas
-concorrentes de Pedido ou agregadores conflitam pelas precondições/transação.
+identidade idempotente usa `orders/{orderId}/transferOperations/{operationId}`
+com apenas o fingerprint do comando. Esse marcador separado é necessário para
+reconhecer IDs já usados depois que novas transferências substituem
+`_lastClientTransfer`; seu tamanho não cresce no documento do Pedido. O marcador
+é criado atomicamente com o Pedido e os agregadores. Retry idêntico é no-op;
+reutilização divergente conflita; retries antigos comprováveis são no-op mesmo
+após uma transferência posterior. Esses documentos registram identidade
+idempotente mínima, não são auditoria financeira: não guardam operador,
+pagamentos, saldos before/after ou mudanças comerciais. Há um documento pequeno
+por transferência, sem expiração, pois expirá-lo eliminaria a garantia de
+unicidade. Escritas concorrentes de Pedido ou agregadores conflitam pelas
+precondições/transação. IDs usados antes deste marcador e já substituídos no
+`_lastClientTransfer` não podem ser reconstruídos retroativamente; não existe
+trilha histórica para isso. O endpoint segue restrito ao Emulator, sem dados
+produtivos ou cutover.
 
 `create-order` grava `_creationFingerprint`, SHA-256 determinístico do Pedido
 normalizado originalmente calculado. Um retry com fingerprint igual retorna
@@ -770,7 +780,10 @@ no-op sem ler o saldo ou a revisão atuais e não regrava timestamps, pagamentos
 créditos, Cliente ou nome. Fingerprint divergente retorna colisão. Documento
 legado sem fingerprint só é reconhecido por igualdade exata com o conteúdo
 atual, ignorando timestamps; se já foi alterado, não há inferência nem escrita.
-O retorno de replay não apresenta saldo/revisão históricos como atuais.
+`CreateOrderResult.creationSnapshot` identifica inequivocamente os valores
+financeiros imutáveis da criação original, tanto na primeira resposta quanto
+em replay. O resultado não inclui saldo nem revisão do agregador. Replay não
+lê agregadores e não altera documentos.
 
 **OPEN — decisões que permanecem**
 

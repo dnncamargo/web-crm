@@ -55,7 +55,7 @@ describe("create order transaction with Firestore Emulator", () => {
     const result = await createOrderTransaction(db, command(ids.clientId, ids.orderId));
     const stored = (await db.doc(`orders/${ids.orderId}`).get()).data();
 
-    expect(result).toMatchObject({ amountPaidCents: 0, creditAppliedCents: 0, creditGeneratedCents: 0, replayed: false });
+    expect(result).toMatchObject({ creationSnapshot: { amountPaidCents: 0, creditAppliedCents: 0, creditGeneratedCents: 0 }, replayed: false });
     expect(stored).toMatchObject({
       clientName: "Cliente de teste", addressSnapshot: { street: "Rua de teste", city: "São Paulo" },
       items: [{ quantity: 1, unit: "unidade", unitPrice: 100, total: 100, notes: "Sem açúcar" }],
@@ -104,7 +104,9 @@ describe("create order transaction with Firestore Emulator", () => {
     const payment = { id: `payment-${randomUUID()}`, amountCents: 4000, receivedAt: "2026-10-11T12:30:00-03:00" };
     const result = await createOrderTransaction(db, command(ids.clientId, ids.orderId, { initialPayment: payment }));
 
-    expect(result).toMatchObject({ amountPaidCents: 4000, creditGeneratedCents: 0, availableCreditCents: 0, revision: 2 });
+    expect(result).toMatchObject({ creationSnapshot: { amountPaidCents: 4000, creditGeneratedCents: 0 }, replayed: false });
+    expect(result).not.toHaveProperty("availableCreditCents");
+    expect(result).not.toHaveProperty("revision");
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({
       amountPaid: 40, payments: [{ id: payment.id, amount: 40, receivedAt: payment.receivedAt }],
     });
@@ -115,11 +117,13 @@ describe("create order transaction with Firestore Emulator", () => {
     const db = getFinancialAdminDb();
     const ids = fixtureIds();
     await seedAggregator(ids.clientId, 5000, 7);
-    const result = await createOrderTransaction(db, command(ids.clientId, ids.orderId, {
+    const original = command(ids.clientId, ids.orderId, {
       initialPayment: { id: `payment-${randomUUID()}`, amountCents: 8000, receivedAt: "2026-10-11T12:30:00Z" },
       creditApplication: { applyCreditCents: 3000, presentedAvailableCreditCents: 5000, presentedRevision: 7, confirmed: true },
-    }));
-    expect(result).toMatchObject({ amountPaidCents: 8000, creditAppliedCents: 3000, creditGeneratedCents: 1000, availableCreditCents: 3000, revision: 8 });
+    });
+    const result = await createOrderTransaction(db, original);
+    expect(result).toMatchObject({ creationSnapshot: { amountPaidCents: 8000, creditAppliedCents: 3000, creditGeneratedCents: 1000 }, replayed: false });
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true, creationSnapshot: result.creationSnapshot });
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ amountPaid: 80, creditApplied: 30, creditGenerated: 10 });
   });
 
@@ -130,7 +134,7 @@ describe("create order transaction with Firestore Emulator", () => {
     const result = await createOrderTransaction(db, command(ids.clientId, ids.orderId, {
       initialPayment: { id: `payment-${randomUUID()}`, amountCents: 12000, receivedAt: "2026-10-11T12:30:00Z" },
     }));
-    expect(result).toMatchObject({ creditGeneratedCents: 2000, availableCreditCents: 2000, revision: 2 });
+    expect(result).toMatchObject({ creationSnapshot: { creditGeneratedCents: 2000 }, replayed: false });
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ amountPaid: 120, creditGenerated: 20 });
   });
 
@@ -195,7 +199,7 @@ describe("create order transaction with Firestore Emulator", () => {
     });
     const afterEdit = (await db.doc(`orders/${ids.orderId}`).get()).data();
 
-    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true, availableCreditCents: null, revision: null });
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true, creationSnapshot: { amountPaidCents: 0, creditAppliedCents: 0, creditGeneratedCents: 0 } });
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ notes: "Nota operacional posterior", updatedAt: afterEdit?.updatedAt });
   });
 
@@ -214,7 +218,7 @@ describe("create order transaction with Firestore Emulator", () => {
       subtotalCents: 11000, deliveryFeeCents: 0, totalCents: 11000,
     });
     const afterEdit = (await db.doc(`orders/${ids.orderId}`).get()).data();
-    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true });
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true, creationSnapshot: { amountPaidCents: 0, creditAppliedCents: 0, creditGeneratedCents: 0 } });
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ total: 110, items: [{ productName: "Produto reajustado" }], updatedAt: afterEdit?.updatedAt });
   });
 
@@ -226,12 +230,21 @@ describe("create order transaction with Firestore Emulator", () => {
     await createOrderTransaction(db, original);
     await recordPaymentTransaction(db, {
       orderId: paymentIds.orderId, clientId: paymentIds.clientId, paymentId: `payment-${randomUUID()}`,
-      amountCents: 1000, receivedAt: "2026-10-11T12:30:00Z", presentedAvailableCreditCents: 0, presentedRevision: 1,
+      amountCents: 5000, receivedAt: "2026-10-11T12:30:00Z", presentedAvailableCreditCents: 0, presentedRevision: 1,
     });
     const afterPayment = (await db.doc(`orders/${paymentIds.orderId}`).get()).data();
-    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true });
-    expect((await db.doc(`orders/${paymentIds.orderId}`).get()).data()).toMatchObject({ payments: afterPayment?.payments, amountPaid: 10, updatedAt: afterPayment?.updatedAt });
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true, creationSnapshot: { amountPaidCents: 0, creditAppliedCents: 0, creditGeneratedCents: 0 } });
+    expect((await db.doc(`orders/${paymentIds.orderId}`).get()).data()).toMatchObject({ payments: afterPayment?.payments, amountPaid: 50, updatedAt: afterPayment?.updatedAt });
     expect((await db.doc(`clientFinancial/${paymentIds.clientId}`).get()).data()).toMatchObject({ revision: 2 });
+
+    await recordPaymentTransaction(db, {
+      orderId: paymentIds.orderId, clientId: paymentIds.clientId, paymentId: `payment-${randomUUID()}`,
+      amountCents: 7000, receivedAt: "2026-10-12T12:30:00Z", presentedAvailableCreditCents: 0, presentedRevision: 2,
+    });
+    const afterGeneratedCredit = (await db.doc(`orders/${paymentIds.orderId}`).get()).data();
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true, creationSnapshot: { amountPaidCents: 0, creditAppliedCents: 0, creditGeneratedCents: 0 } });
+    expect((await db.doc(`orders/${paymentIds.orderId}`).get()).data()).toMatchObject({ creditGenerated: 20, payments: afterGeneratedCredit?.payments, updatedAt: afterGeneratedCredit?.updatedAt });
+    expect((await db.doc(`clientFinancial/${paymentIds.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 2000, revision: 3 });
 
     const creditIds = fixtureIds();
     const creditOriginal = command(creditIds.clientId, creditIds.orderId);
@@ -242,7 +255,7 @@ describe("create order transaction with Firestore Emulator", () => {
       applyCreditCents: 1000, presentedAvailableCreditCents: 5000, presentedRevision: 7, confirmed: true,
     }, { uid: "emulator-operator", email: "operator@example.test" });
     const afterCredit = (await db.doc(`orders/${creditIds.orderId}`).get()).data();
-    await expect(createOrderTransaction(db, structuredClone(creditOriginal))).resolves.toMatchObject({ replayed: true });
+    await expect(createOrderTransaction(db, structuredClone(creditOriginal))).resolves.toMatchObject({ replayed: true, creationSnapshot: { amountPaidCents: 0, creditAppliedCents: 0, creditGeneratedCents: 0 } });
     expect((await db.doc(`orders/${creditIds.orderId}`).get()).data()).toMatchObject({ creditApplied: 10, updatedAt: afterCredit?.updatedAt });
     expect((await db.doc(`clientFinancial/${creditIds.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 4000, revision: 8 });
   });
@@ -264,7 +277,7 @@ describe("create order transaction with Firestore Emulator", () => {
       confirmation: { sourceName: "Cliente origem", destinationName: "Cliente destino", confirmed: true },
     });
     const afterTransfer = (await db.doc(`orders/${ids.orderId}`).get()).data();
-    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true });
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true, creationSnapshot: { amountPaidCents: 0, creditAppliedCents: 0, creditGeneratedCents: 0 } });
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ clientId: destinationClientId, clientName: "Cliente destino", updatedAt: afterTransfer?.updatedAt });
     await expect(createOrderTransaction(db, command(ids.clientId, ids.orderId, { notes: "Retry divergente" }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "ORDER_ID_COLLISION");
   });

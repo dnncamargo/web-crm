@@ -218,14 +218,33 @@ async function transferOrder(db: Firestore, command: TransferOrderCommand): Prom
     throw new FinancialApiError(409, "TRANSFER_CLIENTS_MUST_DIFFER", "Origem e destino devem ser clientes distintos.");
   }
   const orderRef = db.collection("orders").doc(command.orderId);
+  const operationRef = orderRef.collection("transferOperations").doc(command.operationId);
   const fingerprint = transferFingerprint(command);
 
   return db.runTransaction(async (transaction) => {
-    const orderSnapshot = await transaction.get(orderRef);
+    const [operationSnapshot, orderSnapshot] = await transaction.getAll(operationRef, orderRef);
     if (!orderSnapshot.exists) throw new FinancialApiError(409, "ORDER_NOT_FOUND", "Pedido não encontrado.");
     const data = orderSnapshot.data();
     if (!data) throw invalidState();
 
+    if (operationSnapshot.exists) {
+      const operation = operationSnapshot.data();
+      if (operation?.fingerprint !== fingerprint) {
+        throw new FinancialApiError(409, "TRANSFER_OPERATION_ID_REUSED", "A identidade da operação já foi usada com outro comando.");
+      }
+      return {
+        orderId: command.orderId,
+        operation: "transfer",
+        sourceAvailableCreditCents: null,
+        sourceRevision: null,
+        destinationAvailableCreditCents: null,
+        destinationRevision: null,
+        replayed: true,
+      };
+    }
+
+    // Compatibility for a replay of the last transfer written before durable
+    // operation markers were introduced.
     const lastTransfer = data._lastClientTransfer;
     if (lastTransfer && typeof lastTransfer === "object" && !Array.isArray(lastTransfer)) {
       const metadata = lastTransfer as Record<string, unknown>;
@@ -326,6 +345,7 @@ async function transferOrder(db: Firestore, command: TransferOrderCommand): Prom
       _lastClientTransfer: { operationId: command.operationId, fingerprint },
       updatedAt: FieldValue.serverTimestamp(),
     });
+    transaction.create(operationRef, { fingerprint });
 
     return {
       orderId: command.orderId,

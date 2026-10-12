@@ -24,11 +24,11 @@ interface StoredAggregator {
 
 export interface CreateOrderResult {
   orderId: string;
-  amountPaidCents: number;
-  creditAppliedCents: number;
-  creditGeneratedCents: number;
-  availableCreditCents: number | null;
-  revision: number | null;
+  creationSnapshot: {
+    amountPaidCents: number;
+    creditAppliedCents: number;
+    creditGeneratedCents: number;
+  };
   replayed: boolean;
 }
 
@@ -177,11 +177,11 @@ export async function createOrderTransaction(db: Firestore, command: CreateOrder
         }
         return {
           orderId: command.orderId,
-          amountPaidCents: calculated.cashPaidCents,
-          creditAppliedCents: calculated.appliedCreditCents,
-          creditGeneratedCents: calculated.creditGeneratedCents,
-          availableCreditCents: null,
-          revision: null,
+          creationSnapshot: {
+            amountPaidCents: calculated.cashPaidCents,
+            creditAppliedCents: calculated.appliedCreditCents,
+            creditGeneratedCents: calculated.creditGeneratedCents,
+          },
           replayed: true,
         };
       }
@@ -242,11 +242,11 @@ export async function createOrderTransaction(db: Firestore, command: CreateOrder
 
       return {
         orderId: command.orderId,
-        amountPaidCents: calculated.cashPaidCents,
-        creditAppliedCents: calculated.appliedCreditCents,
-        creditGeneratedCents: calculated.creditGeneratedCents,
-        availableCreditCents: nextAvailableCreditCents,
-        revision,
+        creationSnapshot: {
+          amountPaidCents: calculated.cashPaidCents,
+          creditAppliedCents: calculated.appliedCreditCents,
+          creditGeneratedCents: calculated.creditGeneratedCents,
+        },
         replayed: false,
       };
     });
