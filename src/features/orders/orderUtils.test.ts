@@ -5,7 +5,9 @@ import {
   getOrderCashPaid,
   getOrderGeneratedCreditAmount,
   getPaymentStatus,
+  isOrderPaymentCorrectable,
 } from "./orderUtils";
+import type { Order, OrderPayment } from "./orderTypes";
 
 function financial(overrides: Partial<{
   id: string;
@@ -148,5 +150,34 @@ describe("order payment calculations", () => {
 
     expect(getPaymentStatus(order)).toBe("paid");
     expect(getOrderBalanceInfo(order)).toMatchObject({ type: "settled", amount: 0, rawBalance: 0 });
+  });
+});
+
+describe("payment correction eligibility", () => {
+  const payment: OrderPayment = { id: "payment-123", amount: 25, receivedAt: null };
+  const order: Order = {
+    id: "order-123",
+    clientId: "client-123",
+    clientName: "Cliente",
+    deliveryDateTime: "2026-10-20T12:00:00.000Z",
+    items: [],
+    subtotal: 25,
+    deliveryFee: 0,
+    total: 25,
+    amountPaid: 25,
+    payments: [payment],
+    orderStatus: "active",
+    tagIds: [],
+  };
+
+  it("allows a persisted identified payment with an unknown historical date", () => {
+    expect(isOrderPaymentCorrectable(order, payment)).toBe(true);
+  });
+
+  it("hides cancelled, legacy and malformed payment records", () => {
+    expect(isOrderPaymentCorrectable({ ...order, orderStatus: "cancelled" }, payment)).toBe(false);
+    expect(isOrderPaymentCorrectable({ ...order, payments: undefined }, payment)).toBe(false);
+    expect(isOrderPaymentCorrectable(order, { ...payment, id: "legacy-order-123" })).toBe(false);
+    expect(isOrderPaymentCorrectable(order, { ...payment, amount: 0 })).toBe(false);
   });
 });

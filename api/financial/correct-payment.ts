@@ -10,6 +10,16 @@ function jsonError(error: FinancialApiError): Response {
 }
 
 export async function handleCorrectPaymentRequest(request: Request): Promise<Response> {
+  if (request.method === "GET") {
+    try {
+      assertFinancialWriteTestGate();
+      return new Response(null, { status: 204 });
+    } catch (error) {
+      if (isFinancialApiError(error)) return jsonError(error);
+      return Response.json({ error: { code: "INTERNAL_ERROR" } }, { status: 500 });
+    }
+  }
+
   if (request.method !== "POST") {
     return Response.json({ error: { code: "METHOD_NOT_ALLOWED" } }, {
       status: 405,
@@ -31,4 +41,8 @@ export async function handleCorrectPaymentRequest(request: Request): Promise<Res
 
 export async function POST(request: Request): Promise<Response> {
   return handleCorrectPaymentRequest(request);
+}
+
+export async function GET(): Promise<Response> {
+  return handleCorrectPaymentRequest(new Request("http://localhost/api/financial/correct-payment"));
 }

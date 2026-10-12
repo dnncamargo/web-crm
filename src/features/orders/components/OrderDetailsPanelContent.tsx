@@ -3,7 +3,7 @@ import { Button } from "../../../components/ui/Button";
 import { formatCurrencyBR } from "../../../utils/money";
 import type { Product } from "../../products/productTypes";
 import type { Order } from "../orderTypes";
-import { formatDateTimeBR, getOrderBalanceInfo, getOrderCashPaid, getOrderEffectivePaid, getOrderGeneratedCreditAmount, getOrderItemProductName, getOrderPaymentHistory, getOrderStatusLabel, getPaymentStatus, getPaymentStatusLabel } from "../orderUtils";
+import { formatDateTimeBR, getOrderBalanceInfo, getOrderCashPaid, getOrderEffectivePaid, getOrderGeneratedCreditAmount, getOrderItemProductName, getOrderPaymentHistory, getOrderStatusLabel, getPaymentStatus, getPaymentStatusLabel, isOrderPaymentCorrectable } from "../orderUtils";
 
 interface OrderDetailsPanelContentProps {
   order: Order;
@@ -12,9 +12,11 @@ interface OrderDetailsPanelContentProps {
   onEdit: () => void;
   onPrint: () => void;
   onRegisterPayment: () => void;
+  canCorrectPayments: boolean;
+  onCorrectPayment: (paymentId: string) => void;
 }
 
-export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdit, onPrint, onRegisterPayment }: OrderDetailsPanelContentProps) {
+export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdit, onPrint, onRegisterPayment, canCorrectPayments, onCorrectPayment }: OrderDetailsPanelContentProps) {
   const paymentStatus = getPaymentStatus(order);
   const balanceInfo = getOrderBalanceInfo(order);
   const creditApplied = order.creditApplied ?? 0;
@@ -178,6 +180,11 @@ export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdi
                     <strong>{formatCurrencyBR(payment.amount)}</strong>
                     <span>{payment.receivedAt ? formatDateTimeBR(payment.receivedAt) : "Data desconhecida"}</span>
                   </div>
+                  {canCorrectPayments && isOrderPaymentCorrectable(order, payment) && (
+                    <Button type="button" variant="secondary" onClick={() => onCorrectPayment(payment.id)}>
+                      Corrigir
+                    </Button>
+                  )}
                 </div>
               )) : (
                 <p className="muted-text">Nenhum pagamento em dinheiro registrado.</p>

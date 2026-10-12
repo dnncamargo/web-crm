@@ -254,6 +254,24 @@ export function getOrderPaymentHistory(order: Pick<Order, "id" | "amountPaid" | 
   }];
 }
 
+export function isOrderPaymentCorrectable(order: Order, payment: OrderPayment) {
+  if (order.orderStatus === "cancelled"
+    || order.payments === undefined
+    || !order.payments.some((entry) => entry.id === payment.id)
+    || !/^[A-Za-z0-9_-]{8,128}$/.test(payment.id)
+    || (payment.receivedAt !== null
+      && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(payment.receivedAt)
+        || Number.isNaN(new Date(payment.receivedAt).getTime())))) {
+    return false;
+  }
+
+  try {
+    return legacyReaisToMoneyCents(payment.amount, "Valor do recebimento") > 0;
+  } catch {
+    return false;
+  }
+}
+
 export function getPaymentStatusLabel(status: PaymentStatus) {
   const labels: Record<PaymentStatus, string> = {
     unpaid: "A pagar",

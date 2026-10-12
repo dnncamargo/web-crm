@@ -1,8 +1,8 @@
 # Autoridade financeira única — preparação de cutover
 
-Este documento registra a auditoria e o plano do Incremento 5. Ele não
-autoriza cutover, publicação de Rules, criação de agregadores, reconciliação
-produtiva nem alteração de UI. As classificações **CURRENT**, **DECIDED**,
+Este documento registra a auditoria e o plano do Incremento 5 e os checkpoints
+experimentais posteriores. Ele não autoriza cutover, publicação de Rules,
+criação de agregadores ou reconciliação produtiva. As classificações **CURRENT**, **DECIDED**,
 **PROPOSED**, **IMPLEMENTED** e **OPEN** de
 [FINANCIAL_ARCHITECTURE.md](FINANCIAL_ARCHITECTURE.md) continuam válidas.
 
@@ -47,7 +47,7 @@ também é recusada. Essas limitações não mudam o comportamento produtivo atu
   `record-payment` e `correct-payment`. Elas usam Admin SDK e transações,
   mas o gate em `api/_financial/gate.ts` retorna
   `503 FINANCIAL_OPERATION_DISABLED` fora do Emulator local explicitamente
-  autorizado. A UI não as chama.
+  autorizado. O Checkpoint 8 liga somente `correct-payment` à UI local explícita.
 - `firestore.rules` atual contém um `match /{document=**}` que concede leitura
   e escrita a qualquer documento, exceto `config/authAdmission`, para uma
   identidade Google admitida. Logo, uma negação específica futura não poderia
@@ -166,7 +166,7 @@ dados de produção não são alterados.
 | Trocar cliente | fluxo produtivo atual; sem integração com a API experimental | `orders/{id}.clientId/clientName`; o resumo produtivo continua independente | **IMPLEMENTED — Emulator 7B.2:** variante `transfer`, efeitos líquidos transacionados entre agregadores; nenhuma escrita automática de resumo. |
 | Mudar endereço | `OrderForm` e `saveAddressForClient` ao criar endereço | `orders/{id}.addressId/addressSnapshot`; opcionalmente `addresses/*` e `clients/*` em transação | não financeira quando só snapshot/endereço; deve ficar disponível pelo SDK após o corte. |
 | Registrar pagamento | `OrderPaymentForm` → `registerOrderPayment` | `orders/{id}.payments`, `amountPaid`, `creditGenerated` | `record-payment` já implementado somente no Emulator e requer agregador pronto; UI/API produtiva ainda ausente. |
-| Corrigir pagamento | inexistente na UI atual; `correct-payment` é API experimental | Pedido, agregador e efeitos de crédito | endpoint existe somente no Emulator. UI futura reutiliza o recebimento existente e oferece **Corrigir**; não há contrato de ativação. |
+| Corrigir pagamento | ação e painel local do Checkpoint 8 → `correctOrderPayment` → `POST /api/financial/correct-payment` | Pedido, agregador e efeitos de crédito | **IMPLEMENTED — Emulator local**; substitui o conteúdo do recebimento identificado mantendo `payment.id`; sem compensação ou auditoria técnica. Não é ativado em Preview/Production. |
 | Aplicar crédito | `apply-credit` e variante `commercial` de `edit-order` são APIs experimentais; formulário produtivo permanece SDK | Pedido e agregador | **IMPLEMENTED — Emulator**; edição só altera valor com confirmação e revisão atuais; UI não foi ligada. |
 | Cancelamento produtivo | seletor `orderStatus` em `OrderForm` → `updateOrder` | `orders/{id}.orderStatus`; hoje o cálculo local exclui o Pedido cancelado do crédito | permanece SDK e fora deste checkpoint. Os comandos 7C.1/7C.2 são Emulator-only e não estão ligados à UI. |
 | Marcar como `completed` | mesmo seletor | `orders/{id}.orderStatus` | exclusivamente operacional; não deve criar recebimento. Continua disponível com caminho não financeiro. |
@@ -422,4 +422,44 @@ Recebimentos não podem aumentar crédito gerado. Os fatos originais de crédito
 pagamentos e datas são preservados. A reconciliação reconhece decisões válidas
 e mantém cancelamentos históricos com crédito sem decisão como inconclusivos.
 Payloads 7C.1 permanecem compatíveis quando não há crédito. A implementação
-continua sem UI, mudança de Rules, inicialização de agregador ou cutover.
+continua sem interface de cancelamento, mudança de Rules, inicialização de
+agregador ou cutover.
+
+## Checkpoint 8 — correção de recebimento na UI local
+
+**IMPLEMENTED — somente Emulator local:** o histórico de pagamentos oferece
+`Corrigir` apenas quando o Pedido tem `payments[]` persistido, não está
+cancelado e a configuração local explícita está completa. O formulário usa o
+painel empilhado existente, preenche valor e data atuais e mantém `null` quando
+a data histórica é desconhecida e o campo permanece vazio. Uma data conhecida
+não pode ser apagada.
+
+`correctOrderPayment` lê `clientFinancial/{clientId}` pela instância cliente do
+Firestore conectada ao Emulator. Só envia a operação quando o documento existe,
+está `ready` e contém saldo/revisão inteiros válidos. A ação usa o token Firebase
+do usuário e `POST /api/financial/correct-payment`; a API mantém sua autenticação
+Google/allowlist, gate Emulator-only e transação Admin SDK. Conflitos de saldo,
+revisão ou conteúdo do recebimento exigem que a pessoa reabra e confira a
+correção; não há retry automático. O listener atual de Pedidos reflete o sucesso.
+Pedido cancelado e pagamento legado sintético não recebem ação; nenhum agregador
+é inicializado.
+
+A visibilidade da ação exige simultaneamente Vite em desenvolvimento, hostname
+loopback, projeto `demo-web-crm-financial`, Auth Emulator em `127.0.0.1:9099`,
+Firestore Emulator em `127.0.0.1:8080` e flags explícitas
+`VITE_FINANCIAL_TEST_MODE=enabled` e
+`VITE_FINANCIAL_LOCAL_EXECUTION=enabled`. A ação também exige um probe real de
+`GET /api/financial/correct-payment` com resposta `204`, servido pelas funções
+locais `/api` (por exemplo, com `vercel dev`) e autorizado pelo gate do
+servidor. Assim, abrir somente o Vite não exibe um controle sem endpoint. O
+frontend redireciona Auth e Firestore para os Emulators somente com essa mesma
+configuração. No processo da API, o gate requer `FINANCIAL_TEST_MODE=enabled`,
+`FINANCIAL_LOCAL_EXECUTION=enabled`, `FINANCIAL_TEST_PROJECT_ID` e
+`GCLOUD_PROJECT` iguais ao projeto demo, além do Firestore Emulator loopback;
+Auth Emulator usa `FIREBASE_AUTH_EMULATOR_HOST`. Sem esses serviços, allowlist
+e agregador de teste prontos, a correção permanece indisponível e nenhum saldo
+é inventado. A API financeira continua desligada em Preview e Production.
+
+A aceitação manual em localhost com Auth/Firestore Emulators depende de um
+usuário Google admitido e de um agregador `ready` de fixture; não foi executada
+neste checkpoint. A UI usa os painéis e classes existentes, sem CSS novo.

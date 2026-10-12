@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Filter } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -15,10 +15,13 @@ import { isProductStructuralGroup } from "../tags/tagConfig";
 import { OrderCalendarView } from "./components/OrderCalendarView";
 import { OrderForm } from "./components/OrderForm";
 import { OrderPaymentForm } from "./components/OrderPaymentForm";
+import { OrderPaymentCorrectionForm } from "./components/OrderPaymentCorrectionForm";
 import { OrderListView } from "./components/OrderListView";
-import type { NewOrderData, Order } from "./orderTypes";
-import type { RegisterOrderPaymentInput } from "./ordersService";
-import { compareOrderCreationDesc, getPaymentStatus } from "./orderUtils";
+import type { NewOrderData, Order, OrderPayment } from "./orderTypes";
+import { isLocalPaymentCorrectionApiReady } from "./ordersService";
+import type { CorrectOrderPaymentInput, RegisterOrderPaymentInput } from "./ordersService";
+import { compareOrderCreationDesc, getPaymentStatus, isOrderPaymentCorrectable } from "./orderUtils";
+import { isLocalFinancialPaymentCorrectionEnabled } from "./financialPaymentCorrectionEnvironment";
 import { useOrders } from "./useOrders";
 import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent";
 import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
@@ -38,7 +41,7 @@ export function OrdersPage() {
   const { addresses, addressesError, saveAddressForClient } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
-  const { orders, filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder, registerPayment } = useOrders(products);
+  const { orders, filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder, registerPayment, correctPayment } = useOrders(products);
   const { tags, activeTags } = useTags();
 
   const [panel, setPanel] = useState<OrderPanelState>(null);
@@ -48,8 +51,18 @@ export function OrdersPage() {
   const [sortBy, setSortBy] = useState<OrderSortMode>("createdAt");
   const [stackedEditOrder, setStackedEditOrder] = useState<Order | null>(null);
   const [stackedPaymentOrder, setStackedPaymentOrder] = useState<Order | null>(null);
+  const [stackedCorrection, setStackedCorrection] = useState<{ order: Order; payment: OrderPayment } | null>(null);
+  const [correctionApiReady, setCorrectionApiReady] = useState(false);
   const [orderFormIsDirty, setOrderFormIsDirty] = useState(false);
   const [stackedOrderFormIsDirty, setStackedOrderFormIsDirty] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void isLocalPaymentCorrectionApiReady().then((ready) => {
+      if (active) setCorrectionApiReady(ready);
+    });
+    return () => { active = false; };
+  }, []);
 
   const tagLabelsById = useMemo(() => Object.fromEntries(tags.map((tag) => [tag.id, tag.label])), [tags]);
 
@@ -107,6 +120,7 @@ export function OrdersPage() {
     setPanel(null);
     setStackedEditOrder(null);
     setStackedPaymentOrder(null);
+    setStackedCorrection(null);
     setOrderFormIsDirty(false);
   }
 
@@ -204,6 +218,12 @@ export function OrdersPage() {
     setStackedPaymentOrder(selectedOrder);
   }
 
+  function openStackedPaymentCorrection(order: Order, paymentId: string) {
+    const payment = order.payments?.find((entry) => entry.id === paymentId);
+    if (!payment || !isOrderPaymentCorrectable(order, payment)) return;
+    setStackedCorrection({ order, payment });
+  }
+
   async function handleRegisterPayment(input: RegisterOrderPaymentInput) {
     if (!stackedPaymentOrder) {
       return;
@@ -211,6 +231,12 @@ export function OrdersPage() {
 
     await registerPayment(stackedPaymentOrder.id, input);
     setStackedPaymentOrder(null);
+  }
+
+  async function handleCorrectPayment(input: CorrectOrderPaymentInput) {
+    if (!stackedCorrection) return;
+    await correctPayment(stackedCorrection.order, stackedCorrection.payment, input);
+    setStackedCorrection(null);
   }
 
   function openOrderReceipt(selectedOrder: Order) {
@@ -345,6 +371,8 @@ export function OrdersPage() {
             onEdit={() => openStackedEditOrder(selectedOrder ?? panel.order)}
             onPrint={() => openOrderReceipt(selectedOrder ?? panel.order)}
             onRegisterPayment={() => openStackedPaymentOrder(selectedOrder ?? panel.order)}
+            canCorrectPayments={correctionApiReady && isLocalFinancialPaymentCorrectionEnabled()}
+            onCorrectPayment={(paymentId) => openStackedPaymentCorrection(selectedOrder ?? panel.order, paymentId)}
           />
         )}
         {panel?.type === "create-order" && (
@@ -413,6 +441,24 @@ export function OrdersPage() {
             order={stackedPaymentOrder}
             onCancel={() => setStackedPaymentOrder(null)}
             onSave={handleRegisterPayment}
+          />
+        )}
+      </SlidePanel>{" "}
+      <SlidePanel
+        open={stackedCorrection !== null}
+        level={3}
+        size="normal"
+        closeOnBackdrop={false}
+        title="Corrigir recebimento"
+        description="Altere o lançamento existente do Pedido."
+        onClose={() => setStackedCorrection(null)}
+      >
+        {stackedCorrection && (
+          <OrderPaymentCorrectionForm
+            order={stackedCorrection.order}
+            payment={stackedCorrection.payment}
+            onCancel={() => setStackedCorrection(null)}
+            onSave={handleCorrectPayment}
           />
         )}
       </SlidePanel>{" "}

@@ -874,7 +874,7 @@ alterar Rules nesta etapa documental.
 | Tema | CURRENT | Destino do contrato |
 | --- | --- | --- |
 | Recebimentos | payments[] já é canônico para novos pedidos; criação local usa ID aleatório | API usa identidade estável e idempotência |
-| Correção | pagamentos são append-only na UI e serviço | editar lançamento mantendo ID, sem auditoria técnica |
+| Correção | fluxo produtivo append-only; ação experimental da UI só no Emulator local (Checkpoint 8) | editar lançamento mantendo ID, sem auditoria técnica |
 | Cancelamento | serviço/UI produtivos ainda usam SDK; comandos 7C.1/7C.2 estão isolados no Emulator | negociação, movimentos efetivos e decisão explícita de crédito |
 | Crédito | calculado de pedidos e exclui cancelados | agregador transacional reconciliável; 7C.2 aplica R/M e rejeita saldo final negativo |
 | Hoje | pendências de pagamento apenas para active | seção independente de acertos pendentes |

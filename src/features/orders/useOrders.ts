@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { Product } from "../products/productTypes";
 import type { NewOrderData, Order, UpdateOrderData } from "./orderTypes";
 import { getOrderItemProductName } from "./orderUtils";
-import { createOrder, listenOrders, registerOrderPayment, updateOrder, type RegisterOrderPaymentInput } from "./ordersService";
+import { correctOrderPayment, createOrder, listenOrders, registerOrderPayment, updateOrder, type CorrectOrderPaymentInput, type RegisterOrderPaymentInput } from "./ordersService";
+import type { OrderPayment } from "./orderTypes";
 
 export function useOrders(products: Product[] = []) {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -68,6 +69,10 @@ export function useOrders(products: Product[] = []) {
     await registerOrderPayment(orderId, input);
   }
 
+  async function correctPayment(order: Order, payment: OrderPayment, input: CorrectOrderPaymentInput) {
+    await correctOrderPayment(order, payment, input);
+  }
+
   return {
     orders,
     filteredOrders,
@@ -80,5 +85,6 @@ export function useOrders(products: Product[] = []) {
     addOrder,
     editOrder,
     registerPayment,
+    correctPayment,
   };
 }
