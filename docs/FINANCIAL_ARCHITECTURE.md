@@ -452,8 +452,34 @@ Produção/entrega, pagamento pendente e acerto financeiro pendente são listas
 distintas e não devem ser uma inferida da outra. A futura interface reutiliza a
 linguagem visual e componentes existentes, inclusive em desktop e mobile.
 
-**CURRENT**: Hoje atualmente mostra apenas pedidos active com PaymentStatus
-unpaid ou partial; não possui a projeção de acertos.
+**IMPLEMENTED — Checkpoint 6:** a seleção operacional de pagamentos pendentes
+inclui pedidos `active` e `completed` com `PaymentStatus` `unpaid` ou
+`partial`, preservando a ordenação por entrega. Pedidos `completed` são
+identificados discretamente como entregues; `cancelled` fica fora desta lista
+até existir o fluxo próprio de acerto. A seção de acertos ainda não foi
+implementada.
+
+### 6.1.1 Projeção financeira somente leitura
+
+**IMPLEMENTED — Checkpoint 6:** `src/features/financial/projection.ts` compõe
+os utilitários canônicos de Pedido e a reconciliação somente leitura. Ela nunca
+escreve, materializa pagamentos legados, inicializa agregadores ou corrige
+fatos. `payments[]` é usado quando presente; `amountPaid` somente produz o
+recebimento legado sintético `legacy-{orderId}` quando `payments` está ausente.
+
+Recebimentos válidos com `receivedAt` ISO e fuso explícito ficam separados dos
+recebimentos com `receivedAt: null`, cuja data histórica continua desconhecida.
+`selectKnownReceiptsInInterval` aplica o intervalo `[startInclusive,
+endExclusive)` sobre instantes explícitos, sem usar criação, atualização ou
+entrega do Pedido. Crédito aplicado e gerado permanecem campos distintos da
+posição atual do Pedido; nenhum deles é somado como dinheiro recebido.
+
+O resultado expõe a reconciliação completa e devolve saldo de crédito `null`
+quando a reconstrução não é segura. Divergência de cache, pagamento inválido,
+identidade duplicada, data inválida, déficit de crédito ou cancelamento sem
+acerto continuam diagnósticos; a leitura não escolhe nem repara uma fonte. A
+posição de saldo atual também permanece distinta de entradas de dinheiro por
+período.
 
 ### 6.2 Página /financeiro
 

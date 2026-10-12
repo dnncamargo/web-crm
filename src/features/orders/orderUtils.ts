@@ -1,7 +1,42 @@
 import type { Product } from "../products/productTypes.js";
+import {
+  calculateEffectivePaidCents,
+  calculateGeneratedCreditCents,
+  calculateOrderBalanceCents,
+  legacyReaisToMoneyCents,
+  moneyCentsToLegacyReais,
+  sumMoneyCents,
+} from "../financial/money.js";
 import type { Order, OrderItem, OrderPayment, OrderStatus, PaymentStatus } from "./orderTypes.js";
+import type { MoneyCents } from "../financial/money.js";
 
 export type OrderBalanceType = "remaining" | "credit" | "settled";
+
+interface OrderMoneyCents {
+  totalCents: MoneyCents;
+  cashPaidCents: MoneyCents;
+  creditAppliedCents: MoneyCents;
+}
+
+function getOrderMoneyCents(
+  order: Pick<Order, "total" | "amountPaid" | "payments"> & { creditApplied?: number | null },
+): OrderMoneyCents | null {
+  try {
+    const cashPaidCents = order.payments === undefined
+      ? legacyReaisToMoneyCents(order.amountPaid, "Dinheiro recebido")
+      : sumMoneyCents(order.payments.map((payment) => (
+        legacyReaisToMoneyCents(payment.amount, "Valor do recebimento")
+      )));
+
+    return {
+      totalCents: legacyReaisToMoneyCents(order.total, "Total do pedido"),
+      cashPaidCents,
+      creditAppliedCents: legacyReaisToMoneyCents(order.creditApplied ?? 0, "Crédito aplicado"),
+    };
+  } catch {
+    return null;
+  }
+}
 
 interface FirestoreTimestampLike {
   seconds?: unknown;
@@ -82,6 +117,15 @@ export function getOrderGeneratedCreditAmount(
     creditApplied?: number | null;
   },
 ) {
+  const cents = getOrderMoneyCents(order);
+  if (cents !== null) {
+    return moneyCentsToLegacyReais(calculateGeneratedCreditCents(
+      cents.totalCents,
+      cents.cashPaidCents,
+      cents.creditAppliedCents,
+    ));
+  }
+
   return Math.max(getOrderEffectivePaid(order) - order.total, 0);
 }
 
@@ -90,6 +134,15 @@ export function getOrderBalance(
     creditApplied?: number | null;
   },
 ) {
+  const cents = getOrderMoneyCents(order);
+  if (cents !== null) {
+    return moneyCentsToLegacyReais(calculateOrderBalanceCents(
+      cents.totalCents,
+      cents.cashPaidCents,
+      cents.creditAppliedCents,
+    ));
+  }
+
   return order.total - getOrderEffectivePaid(order);
 }
 export function getOrderBalanceInfo(
@@ -157,6 +210,13 @@ export function getPaymentStatus(
     creditApplied?: number | null;
   },
 ): PaymentStatus {
+  const cents = getOrderMoneyCents(order);
+  if (cents !== null) {
+    const effectivePaidCents = calculateEffectivePaidCents(cents.cashPaidCents, cents.creditAppliedCents);
+    if (effectivePaidCents <= 0) return "unpaid";
+    return effectivePaidCents < cents.totalCents ? "partial" : "paid";
+  }
+
   const effectivePaid = getOrderEffectivePaid(order);
 
   if (effectivePaid <= 0) {

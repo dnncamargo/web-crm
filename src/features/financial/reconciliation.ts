@@ -125,7 +125,8 @@ function isTechnicalId(value: unknown): value is string {
 }
 
 function isValidDate(value: string): boolean {
-  return !Number.isNaN(new Date(value).getTime());
+  return /T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(value)
+    && !Number.isNaN(new Date(value).getTime());
 }
 
 function stableValueKey(value: unknown): string {
@@ -220,6 +221,39 @@ function centsFromLegacy(
     }
     throw error;
   }
+}
+
+function isDerivedFloatingPointPaymentCache(
+  amountPaid: unknown,
+  paymentAmounts: readonly number[],
+): boolean {
+  if (typeof amountPaid !== "number" || !Number.isFinite(amountPaid)) return false;
+
+  const decimalSum = paymentAmounts.reduce((sum, paymentAmount) => sum + paymentAmount, 0);
+  if (!Number.isFinite(decimalSum) || amountPaid !== decimalSum) return false;
+
+  try {
+    legacyReaisToMoneyCents(amountPaid, "amountPaid");
+    return false;
+  } catch (error) {
+    return error instanceof FinancialDomainError
+      && error.code === "MONETARY_VALUE_REQUIRES_CENT_PRECISION";
+  }
+}
+
+function markDerivedFloatingPointPaymentCacheCompatible(findings: ReconciliationFinding[]): void {
+  const findingIndex = findings.findIndex((finding) => (
+    finding.code === "MONETARY_VALUE_INVALID" && finding.field === "amountPaid"
+  ));
+  if (findingIndex < 0) return;
+
+  const finding = findings[findingIndex];
+  findings[findingIndex] = {
+    ...finding,
+    code: "AMOUNT_PAID_FLOATING_SUM_COMPATIBLE",
+    classification: "LEGACY_COMPATIBLE",
+    description: "amountPaid preserva exatamente a soma decimal das parcelas canônicas, mas contém somente resíduo de ponto flutuante e não foi regravado.",
+  };
 }
 
 function examineItems(
@@ -409,6 +443,7 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
   } else {
     const paymentIds = new Set<string>();
     const paymentAmounts: MoneyCents[] = [];
+    const paymentAmountValues: number[] = [];
     let validPayments = true;
     order.payments.forEach((payment, index) => {
       const paymentField = `payments[${index}]`;
@@ -459,6 +494,9 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
         validPayments = false;
       } else {
         paymentAmounts.push(paymentAmount);
+        if (typeof payment.amount === "number") {
+          paymentAmountValues.push(payment.amount);
+        }
       }
 
       if (payment.receivedAt === null) {
@@ -493,7 +531,9 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
     if (validPayments) {
       try {
         cashPaid = sumMoneyCents(paymentAmounts);
-        if (amountPaid !== null && cashPaid !== amountPaid) {
+        if (amountPaid === null && isDerivedFloatingPointPaymentCache(order.amountPaid, paymentAmountValues)) {
+          markDerivedFloatingPointPaymentCacheCompatible(findings);
+        } else if (amountPaid !== null && cashPaid !== amountPaid) {
           findings.push({
             ...base,
             code: "AMOUNT_PAID_PAYMENTS_MISMATCH",

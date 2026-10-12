@@ -100,6 +100,60 @@ describe("read-only financial reconciliation", () => {
     expect(codes(result)).toContain("AMOUNT_PAID_PAYMENTS_MISMATCH");
   });
 
+  it("accepts only the exact floating-point sum of canonical payment installments as a derived cache", () => {
+    const canonicalPayments = [
+      { id: "first", amount: 100.1, receivedAt: "2026-01-01T10:00:00.000Z" },
+      { id: "second", amount: 200.2, receivedAt: "2026-01-01T11:00:00.000Z" },
+    ];
+    const compatible = order({
+      id: "compatible-cache",
+      total: 300.3,
+      subtotal: 300.3,
+      items: [{ quantity: 1, unitPrice: 300.3, total: 300.3 }],
+      amountPaid: 100.1 + 200.2,
+      payments: canonicalPayments,
+    });
+    const before = structuredClone(compatible);
+
+    const compatibleResult = reconcileFinancialDocuments([compatible]);
+    const divergentResult = reconcileFinancialDocuments([order({
+      id: "divergent-cache",
+      total: 300.3,
+      subtotal: 300.3,
+      items: [{ quantity: 1, unitPrice: 300.3, total: 300.3 }],
+      amountPaid: 300.29,
+      payments: canonicalPayments,
+    })]);
+    const invalidCacheResult = reconcileFinancialDocuments([order({
+      id: "invalid-cache",
+      amountPaid: Number.NaN,
+      payments: [{ id: "payment", amount: 10, receivedAt: "2026-01-01T10:00:00.000Z" }],
+    })]);
+    const invalidPaymentResult = reconcileFinancialDocuments([order({
+      id: "invalid-payment",
+      amountPaid: 100.1 + 200.2,
+      payments: [
+        { id: "first", amount: 100.101, receivedAt: "2026-01-01T10:00:00.000Z" },
+        { id: "second", amount: 200.2, receivedAt: "2026-01-01T11:00:00.000Z" },
+      ],
+    })]);
+
+    expect(compatible).toEqual(before);
+    expect(compatibleResult.orders[0]).toMatchObject({
+      classification: "LEGACY_COMPATIBLE",
+      cashPaidCents: 30030,
+      balanceCents: 0,
+    });
+    expect(codes(compatibleResult)).toContain("AMOUNT_PAID_FLOATING_SUM_COMPATIBLE");
+    expect(codes(compatibleResult)).not.toContain("AMOUNT_PAID_PAYMENTS_MISMATCH");
+    expect(divergentResult.orders[0]?.classification).toBe("INCONSISTENT");
+    expect(codes(divergentResult)).toContain("AMOUNT_PAID_PAYMENTS_MISMATCH");
+    expect(invalidCacheResult.orders[0]?.classification).toBe("INCONSISTENT");
+    expect(codes(invalidCacheResult)).toContain("MONETARY_VALUE_INVALID");
+    expect(invalidPaymentResult.orders[0]?.classification).toBe("INCONSISTENT");
+    expect(codes(invalidPaymentResult)).toContain("MONETARY_VALUE_INVALID");
+  });
+
   it("rejects negative, non-finite and sub-cent monetary facts without changing the input", () => {
     const documents = [
       order({ id: "negative", amountPaid: -1 }),

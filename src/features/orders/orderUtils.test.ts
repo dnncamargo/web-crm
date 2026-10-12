@@ -91,4 +91,62 @@ describe("order payment calculations", () => {
     expect(getOrderBalanceInfo(order).amount).toBe(50);
     expect(getPaymentStatus(order)).toBe("partial");
   });
+
+  it("uses cents for an exact settlement despite floating-point representations", () => {
+    const order = financial({
+      total: 0.1 + 0.2,
+      amountPaid: 0.3,
+      payments: [{ id: "payment", amount: 0.3, receivedAt: null }],
+    });
+
+    expect(getOrderBalanceInfo(order)).toMatchObject({ type: "settled", amount: 0, rawBalance: 0 });
+    expect(getPaymentStatus(order)).toBe("paid");
+  });
+
+  it("sums installments in cents before calculating an exact settlement", () => {
+    const order = financial({
+      total: 300.3,
+      amountPaid: 300.3,
+      payments: [
+        { id: "first", amount: 100.1, receivedAt: null },
+        { id: "second", amount: 200.2, receivedAt: null },
+      ],
+    });
+
+    expect(getPaymentStatus(order)).toBe("paid");
+    expect(getOrderBalanceInfo(order)).toMatchObject({ type: "settled", amount: 0, rawBalance: 0 });
+    expect(getOrderGeneratedCreditAmount(order)).toBe(0);
+  });
+
+  it("keeps real partial and excess installment payments distinct", () => {
+    const partial = financial({
+      total: 300.3,
+      amountPaid: 300.29,
+      payments: [
+        { id: "first", amount: 100.1, receivedAt: null },
+        { id: "second", amount: 200.19, receivedAt: null },
+      ],
+    });
+    const excess = financial({
+      total: 300.3,
+      amountPaid: 300.31,
+      payments: [
+        { id: "first", amount: 100.1, receivedAt: null },
+        { id: "second", amount: 200.21, receivedAt: null },
+      ],
+    });
+
+    expect(getPaymentStatus(partial)).toBe("partial");
+    expect(getOrderBalanceInfo(partial)).toMatchObject({ type: "remaining", amount: 0.01, rawBalance: 0.01 });
+    expect(getPaymentStatus(excess)).toBe("paid");
+    expect(getOrderBalanceInfo(excess)).toMatchObject({ type: "credit", amount: 0.01, rawBalance: -0.01 });
+    expect(getOrderGeneratedCreditAmount(excess)).toBe(0.01);
+  });
+
+  it("keeps amountPaid as the legacy fallback when payments are absent", () => {
+    const order = financial({ total: 300.3, amountPaid: 300.3, payments: undefined });
+
+    expect(getPaymentStatus(order)).toBe("paid");
+    expect(getOrderBalanceInfo(order)).toMatchObject({ type: "settled", amount: 0, rawBalance: 0 });
+  });
 });
