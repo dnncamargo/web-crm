@@ -10,6 +10,27 @@ produtiva nem alteração de UI. As classificações **CURRENT**, **DECIDED**,
 
 Base auditada: `42798fc167f2ebd6b7700df675a49a42e4fbd791`.
 
+### Incremento 7A — criação transacional experimental
+
+Na base deste incremento (`61215e82ac3b4141df58c5446ea4a54ba687b8c5`), a
+auditoria confirmou que `OrderForm` monta `payments[]`, `amountPaid`, crédito
+aplicado e crédito gerado; `OrdersPage` delega a `useOrders.addOrder`, e
+`ordersService.createOrder` persiste com `addDoc`. O endpoint novo não foi
+ligado a esse fluxo.
+
+**IMPLEMENTED — somente Emulator local:** `POST
+/api/financial/create-order` aceita uma identidade explícita de Pedido, os
+campos comerciais, os fatos opcionais de pagamento inicial e a confirmação
+transacional de crédito. Recalcula os valores monetários no servidor e usa
+`orders/{orderId}` como identidade idempotente. Em pedidos com efeito
+financeiro, atualiza Pedido e agregador `ready` no mesmo commit. Não inicializa
+agregadores e não é ativado em Preview ou Production.
+
+Para esta prova experimental, status `cancelled` é recusado com
+`CANCELLED_ORDER_CREATION_UNSUPPORTED`, até existir comando de acerto aprovado.
+Quantidade fracionária cujo produto por preço não tenha precisão de centavos
+também é recusada. Essas limitações não mudam o comportamento produtivo atual.
+
 - `src/features/orders/ordersService.ts` é a única escritora de `orders` no
   navegador: `createOrder` usa `addDoc`; `updateOrder` e
   `registerOrderPayment` usam `runTransaction`.
@@ -85,9 +106,9 @@ financeira.
 
 | Operação | Escritor atual | Autoridade futura | Impacto | API existente | Contrato faltante | Decisão bloqueadora | Dependência do cutover |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Criar pedido sem efeito financeiro | SDK `createOrder` | API de criação ou writer operacional explicitamente separado | nenhum | não | fronteira de payload operacional | não | substituir SDK antes de negar `orders` |
-| Criar com pagamento inicial | SDK `createOrder` | API financeira única | recebimento/crédito | não | identidade idempotente + agregado | schema de agregado | criação transacional |
-| Criar com crédito | SDK `createOrder` | API financeira única | consumo/geração de crédito | não | revisão/saldo/confirmado | inicialização do agregado | criação transacional |
+| Criar pedido sem efeito financeiro | SDK `createOrder` | API de criação experimental ou writer operacional explicitamente separado | nenhum | **A** `create-order`, Emulator apenas | fronteira de payload operacional | não | substituir SDK antes de negar `orders` |
+| Criar com pagamento inicial | SDK `createOrder` | API financeira única | recebimento/crédito | **A** `create-order`, Emulator apenas | integração de UI e ativação aprovada | agregador pronto | endpoint e Rules coordenados |
+| Criar com crédito | SDK no formulário | API financeira única | Pedido/agregador | **A** `create-order`, Emulator apenas | integração de confirmação/revisão | inicialização do agregado | endpoint e Rules coordenados |
 | Editar somente entrega/endereço/notas | SDK `updateOrder` | writer operacional seguro | nenhum, mas hoje há toque incidental | não | payload que não regrave finanças | não | separar campos no service/API |
 | Editar itens, preço, taxa ou total | SDK `updateOrder` | API financeira única | saldo/crédito | não | recalcular dois agregados quando necessário | arredondamento fracionário | mutação transacional |
 | Trocar cliente | SDK `updateOrder` | API financeira única | transfere efeitos entre agregadores | não | validação/commit multiagregado | schema e reconciliação | contrato atômico |

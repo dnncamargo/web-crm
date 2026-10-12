@@ -8,6 +8,7 @@ const outputDirectory = mkdtempSync(path.join(repositoryRoot, ".financial-api-ru
 
 try {
   const entryPoints = [
+    "api/financial/create-order.ts",
     "api/financial/apply-credit.ts",
     "api/financial/record-payment.ts",
     "api/financial/correct-payment.ts",
