@@ -16,6 +16,7 @@ import { UserIdentityMenu } from "./UserIdentityMenu";
 const navItems = [
   { to: "/", label: "Hoje", end: true },
   { to: "/pedidos", label: "Pedidos" },
+  { to: APP_ROUTES.financialControl, label: "Financeiro" },
   { to: "/clientes", label: "Clientes" },
   { to: "/produtos", label: "Produtos" },
   { to: "/tarefas", label: "Tarefas" },

@@ -912,3 +912,12 @@ legados com crédito sem decisão como inconclusivos. A projeção separa saída
 entradas e não apresenta saldo original cancelado como cobrança.
 
 O comando não altera serviços produtivos, UI, Rules, agregadores ou cutover.
+
+### Checkpoint 9 — Controle Financeiro e relatório A4
+
+**IMPLEMENTED — somente leitura:** a página e suas decisões de seleção,
+limitações e impressão estão em [FINANCIAL_CONTROL.md](FINANCIAL_CONTROL.md).
+Pedidos são selecionados por `createdAt`; caixa continua selecionado por
+`receivedAt`/`refundedAt`. Saldos atuais de Pedido não representam fechamento
+histórico. O incremento não ativa APIs experimentais, inicializa agregadores,
+altera Rules ou corrige dados legados.

@@ -16,6 +16,7 @@ import { AndroidPrintWakePage } from "./features/diagnostics/AndroidPrintWakePag
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { StoreProfilePage } from "./features/store-profile/StoreProfilePage";
 import { PixPage } from "./features/pix/PixPage";
+import { FinancialControlPage } from "./features/financial/FinancialControlPage";
 import { AuthProvider } from "./features/auth/AuthProvider";
 import { LoginPage } from "./features/auth/LoginPage";
 import { RequireAuth } from "./features/auth/RequireAuth";
@@ -49,6 +50,7 @@ function ProtectedRoutes() {
         <Route index element={<TodayPage />} />
         <Route path="clientes" element={<ClientsPage />} />
         <Route path="pedidos" element={<OrdersPage />} />
+        <Route path={APP_ROUTES.financialControl} element={<FinancialControlPage />} />
         <Route path="produtos" element={<ProductsPage />} />
         <Route path="tarefas" element={<TasksPage />} />
         <Route path="etiquetas" element={<TagsPage />} />
