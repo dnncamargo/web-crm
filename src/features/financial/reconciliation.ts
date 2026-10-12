@@ -20,6 +20,8 @@ export interface ReconciliationOrderDocument {
   orderStatus: unknown;
   amountPaid: unknown;
   payments?: unknown;
+  refunds?: unknown;
+  cancellationAgreement?: unknown;
   creditApplied?: unknown;
   creditGenerated?: unknown;
   total: unknown;
@@ -59,6 +61,9 @@ export interface ReconciledOrder {
   orderId: string;
   clientId?: string;
   classification: ReconciliationClassification;
+  /** Event facts can remain identifiable when independent commercial totals are inconclusive. */
+  receiptsProjectable: boolean;
+  refundsProjectable: boolean;
   cashPaidCents: number | null;
   balanceCents: number | null;
   calculatedGeneratedCreditCents: number | null;
@@ -123,6 +128,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isTechnicalId(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isStableOperationId(value: unknown): value is string {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(value);
 }
 
 function isValidDate(value: string): boolean {
@@ -580,17 +589,154 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
     }
   }
 
-  if (isCancelled) {
+  let cancellationAgreementValid = false;
+  if (order.cancellationAgreement !== undefined) {
+    if (isRecord(order.cancellationAgreement)
+      && isStableOperationId(order.cancellationAgreement.operationId)
+      && typeof order.cancellationAgreement.text === "string"
+      && order.cancellationAgreement.text.trim().length > 0) {
+      cancellationAgreementValid = true;
+    } else {
+      findings.push({
+        ...base,
+        code: "CANCELLATION_AGREEMENT_INVALID",
+        classification: "INCONSISTENT",
+        description: "O registro da negociação de cancelamento está ausente ou inválido.",
+        field: "cancellationAgreement",
+      });
+    }
+  }
+
+  let refundsValid = true;
+  if (order.refunds !== undefined && !Array.isArray(order.refunds)) {
     findings.push({
       ...base,
-      code: "CANCELLED_ORDER_SETTLEMENT_REQUIRED",
-      classification: "BLOCKED_BY_PRODUCT_DECISION",
-      description: "O pedido cancelado preserva seus fatos, mas exige acerto financeiro explícito antes de uma conclusão definitiva.",
-      field: "orderStatus",
+      code: "REFUNDS_INVALID_STRUCTURE",
+      classification: "INCONSISTENT",
+      description: "refunds existe, mas não é uma lista de devoluções.",
+      field: "refunds",
     });
+    refundsValid = false;
+  } else if (Array.isArray(order.refunds)) {
+    const refundIds = new Set<string>();
+    const refundAmounts: MoneyCents[] = [];
+    order.refunds.forEach((refund, index) => {
+      const field = `refunds[${index}]`;
+      if (!isRecord(refund)) {
+        findings.push({
+          ...base,
+          code: "REFUND_INVALID_STRUCTURE",
+          classification: "INCONSISTENT",
+          description: "Uma devolução não possui a estrutura esperada.",
+          field,
+        });
+        refundsValid = false;
+        return;
+      }
+      if (!isStableOperationId(refund.id) || refundIds.has(refund.id)) {
+        findings.push({
+          ...base,
+          code: refundIds.has(String(refund.id)) ? "REFUND_ID_DUPLICATE" : "REFUND_ID_INVALID",
+          classification: "INCONSISTENT",
+          description: "Uma devolução não possui identidade estável e única.",
+          field: `${field}.id`,
+        });
+        refundsValid = false;
+      } else {
+        refundIds.add(refund.id);
+      }
+      const amount = centsFromLegacy(refund.amount, `${field}.amount`, findings, base);
+      if (amount === null || amount <= 0) {
+        if (amount !== null) {
+          findings.push({
+            ...base,
+            code: "REFUND_AMOUNT_NON_POSITIVE",
+            classification: "INCONSISTENT",
+            description: "Uma devolução precisa ter valor positivo.",
+            field: `${field}.amount`,
+          });
+        }
+        refundsValid = false;
+      } else {
+        refundAmounts.push(amount);
+      }
+      if (typeof refund.refundedAt !== "string" || !isValidDate(refund.refundedAt)) {
+        findings.push({
+          ...base,
+          code: "REFUND_DATE_INVALID_OR_MISSING",
+          classification: "INCONSISTENT",
+          description: "Uma devolução efetiva precisa ter data/hora válida.",
+          field: `${field}.refundedAt`,
+        });
+        refundsValid = false;
+      }
+    });
+    if (refundsValid) {
+      try {
+        const refundedCents = sumMoneyCents(refundAmounts);
+        if (cashPaid !== null && refundedCents > cashPaid) {
+          findings.push({
+            ...base,
+            code: "REFUNDS_EXCEED_RECEIPTS",
+            classification: "INCONSISTENT",
+            description: "As devoluções excedem o dinheiro recebido no Pedido.",
+            field: "refunds",
+          });
+          refundsValid = false;
+        }
+      } catch (error) {
+        if (error instanceof FinancialDomainError) addArithmeticFinding(findings, base, "refunds");
+        else throw error;
+        refundsValid = false;
+      }
+    }
+  }
+
+  if (isCancelled) {
+    const hasNoCreditEffects = creditApplied === 0
+      && calculatedGeneratedCredit === 0
+      && (persistedCreditGenerated ?? 0) === 0;
+    if (!cancellationAgreementValid || !refundsValid || !hasNoCreditEffects) {
+      findings.push({
+        ...base,
+        code: "CANCELLED_ORDER_SETTLEMENT_REQUIRED",
+        classification: "BLOCKED_BY_PRODUCT_DECISION",
+        description: "O Pedido cancelado legado ou com efeito de crédito ainda exige decisão explícita; uma negociação válida sem crédito mantém seus fatos identificáveis.",
+        field: "orderStatus",
+      });
+    }
   }
 
   const classification = recordClassification(findings);
+  const receiptIntegrityFinding = findings.some((finding) => (
+    finding.code === "PAYMENT_INVALID_STRUCTURE"
+    || finding.code === "PAYMENT_ID_INVALID"
+    || finding.code === "PAYMENT_ID_DUPLICATE"
+    || finding.code === "PAYMENT_AMOUNT_NON_POSITIVE"
+    || finding.code === "PAYMENT_DATE_INVALID_OR_MISSING"
+    || finding.code === "PAYMENTS_INVALID_STRUCTURE"
+    || finding.code === "AMOUNT_PAID_PAYMENTS_MISMATCH"
+    || (finding.code === "MONETARY_ARITHMETIC_INVALID"
+      && (finding.field === "payments" || finding.field === "amountPaid"))
+    || (finding.code === "MONETARY_VALUE_INVALID" && finding.field?.startsWith("payments[") === true)
+    || (finding.code === "MONETARY_VALUE_NEGATIVE" && finding.field?.startsWith("payments[") === true)
+    || (finding.code === "MONETARY_VALUE_INVALID" && finding.field === "amountPaid")
+    || (finding.code === "MONETARY_VALUE_NEGATIVE" && finding.field === "amountPaid")
+  ));
+  const receiptsProjectable = clientId !== undefined && cashPaid !== null && !receiptIntegrityFinding;
+  const refundIntegrityFinding = findings.some((finding) => (
+    finding.code === "REFUNDS_INVALID_STRUCTURE"
+    || finding.code === "REFUND_INVALID_STRUCTURE"
+    || finding.code === "REFUND_ID_INVALID"
+    || finding.code === "REFUND_ID_DUPLICATE"
+    || finding.code === "REFUND_AMOUNT_NON_POSITIVE"
+    || finding.code === "REFUND_DATE_INVALID_OR_MISSING"
+    || finding.code === "REFUNDS_EXCEED_RECEIPTS"
+    || (finding.code === "MONETARY_VALUE_INVALID" && finding.field?.startsWith("refunds[") === true)
+    || (finding.code === "MONETARY_VALUE_NEGATIVE" && finding.field?.startsWith("refunds[") === true)
+    || (finding.code === "MONETARY_ARITHMETIC_INVALID" && finding.field === "refunds")
+  ));
+  const refundsProjectable = receiptsProjectable && !refundIntegrityFinding;
   const canReconstructCredit = clientId !== undefined
     && total !== null
     && cashPaid !== null
@@ -615,6 +761,8 @@ function parseOrder(order: ReconciliationOrderDocument): ParsedOrder {
       orderId: order.id,
       clientId,
       classification,
+      receiptsProjectable,
+      refundsProjectable,
       cashPaidCents: cashPaid,
       balanceCents: balance,
       calculatedGeneratedCreditCents: calculatedGeneratedCredit,
@@ -676,6 +824,8 @@ export function reconcileFinancialDocuments(
       order.result.findings = sortedFindings(order.result.findings);
       order.result.classification = recordClassification(order.result.findings);
       order.canReconstructCredit = false;
+      order.result.receiptsProjectable = false;
+      order.result.refundsProjectable = false;
       order.effect = undefined;
     });
   });

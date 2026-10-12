@@ -32,6 +32,19 @@ export interface CorrectPaymentCommand {
   presentedRevision: number;
 }
 
+export interface CancelOrderCommand {
+  orderId: string;
+  clientId: string;
+  operationId: string;
+  expected: OrderEditPrecondition;
+  agreement: string;
+  movement: {
+    kind: "none" | "receipt" | "refund";
+    amountCents: number;
+    occurredAt: string | null;
+  };
+}
+
 export interface CreateOrderCommand {
   orderId: string;
   clientId: string;
@@ -164,6 +177,9 @@ const CORRECT_PAYMENT_FIELDS = new Set([
   "receivedAt",
   "presentedAvailableCreditCents",
   "presentedRevision",
+]);
+const CANCEL_ORDER_FIELDS = new Set([
+  "orderId", "clientId", "operationId", "expected", "agreement", "movement",
 ]);
 
 const CREATE_ORDER_FIELDS = new Set([
@@ -381,6 +397,43 @@ function parseEditPrecondition(value: unknown): OrderEditPrecondition {
     throw new FinancialApiError(400, "INVALID_PAYLOAD", "Precondição do Pedido inválida.");
   }
   return { updatedAt: { seconds: value.updatedAt.seconds, nanoseconds: value.updatedAt.nanoseconds } };
+}
+
+export async function parseCancelOrderCommand(request: Request): Promise<CancelOrderCommand> {
+  const body = await parseBody(request);
+  assertOnlyFields(body, CANCEL_ORDER_FIELDS);
+  assertIdentifier(body.orderId, "orderId");
+  assertIdentifier(body.clientId, "clientId");
+  assertIdentifier(body.operationId, "operationId", 8);
+  const expected = parseEditPrecondition(body.expected);
+  assertString(body.agreement, "agreement");
+  if (body.agreement.trim().length === 0) throw new FinancialApiError(400, "INVALID_PAYLOAD", "agreement inválido.");
+  if (!isRecord(body.movement)) throw new FinancialApiError(400, "INVALID_PAYLOAD", "movement inválido.");
+  assertOnlyFields(body.movement, new Set(["kind", "amountCents", "occurredAt"]));
+  if (body.movement.kind !== "none" && body.movement.kind !== "receipt" && body.movement.kind !== "refund") {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "movement.kind inválido.");
+  }
+  assertNonNegativeSafeInteger(body.movement.amountCents, "movement.amountCents");
+  if (body.movement.kind === "none") {
+    if (body.movement.amountCents !== 0 || body.movement.occurredAt !== null) {
+      throw new FinancialApiError(400, "INVALID_PAYLOAD", "Uma operação sem movimentação exige valor zero e occurredAt null.");
+    }
+  } else {
+    if (body.movement.amountCents <= 0) throw new FinancialApiError(400, "INVALID_PAYLOAD", "A movimentação precisa ter valor positivo.");
+    assertReceivedAt(body.movement.occurredAt, "movement.occurredAt", false);
+  }
+  return {
+    orderId: body.orderId,
+    clientId: body.clientId,
+    operationId: body.operationId,
+    expected,
+    agreement: body.agreement,
+    movement: {
+      kind: body.movement.kind,
+      amountCents: body.movement.amountCents,
+      occurredAt: body.movement.occurredAt as string | null,
+    },
+  };
 }
 
 function parseEditCreditApplication(value: unknown): NonNullable<CommercialOrderEditCommand["creditApplication"]> {

@@ -168,7 +168,7 @@ dados de produção não são alterados.
 | Registrar pagamento | `OrderPaymentForm` → `registerOrderPayment` | `orders/{id}.payments`, `amountPaid`, `creditGenerated` | `record-payment` já implementado somente no Emulator e requer agregador pronto; UI/API produtiva ainda ausente. |
 | Corrigir pagamento | inexistente na UI atual; `correct-payment` é API experimental | Pedido, agregador e efeitos de crédito | endpoint existe somente no Emulator. UI futura reutiliza o recebimento existente e oferece **Corrigir**; não há contrato de ativação. |
 | Aplicar crédito | `apply-credit` e variante `commercial` de `edit-order` são APIs experimentais; formulário produtivo permanece SDK | Pedido e agregador | **IMPLEMENTED — Emulator**; edição só altera valor com confirmação e revisão atuais; UI não foi ligada. |
-| Cancelamento operacional | seletor `orderStatus` em `OrderForm` → `updateOrder` | `orders/{id}.orderStatus`; hoje o cálculo local exclui o Pedido cancelado do crédito | bloqueado por decisão OPEN sobre crédito consumido, devoluções e acerto. Não pode ser simplesmente bloqueado. |
+| Cancelamento produtivo | seletor `orderStatus` em `OrderForm` → `updateOrder` | `orders/{id}.orderStatus`; hoje o cálculo local exclui o Pedido cancelado do crédito | permanece SDK e fora deste checkpoint. O comando experimental 7C.1 é Emulator-only e não está ligado à UI. |
 | Marcar como `completed` | mesmo seletor | `orders/{id}.orderStatus` | exclusivamente operacional; não deve criar recebimento. Continua disponível com caminho não financeiro. |
 | Reabrir/editar cancelado | mesmo formulário pode trocar status e campos | status e quaisquer campos reenviados; pagamento novo é recusado pelo service | correção/reabertura de acerto concluído é OPEN. Exige contrato antes de mover efeitos financeiros. |
 | Escrita incidental em pedido | `updateOrder` sempre regrava `amountPaid`, recalcula/remove `creditGenerated` e atualiza timestamp | `amountPaid`, `creditGenerated`, `updatedAt`, mesmo em edição não financeira | separar payload operacional do financeiro é pré-requisito: hoje até edição de nota toca campos financeiros. |
@@ -382,3 +382,29 @@ Os checkpoints posteriores devem cobrir, sem criar testes novos nesta PR:
 - tentativa de redução de crédito já utilizado;
 - Pedido legado sem data conhecida; e
 - cancelamento envolvendo dinheiro ou crédito.
+
+## Checkpoint 7C.1 — cancelamento negociado experimental
+
+**DECIDED — Product Owner:** cancelamento é pouco frequente e usa negociação
+explícita em texto obrigatório. O comando dedicado POST
+/api/financial/cancel-order aceita nenhuma movimentação, um recebimento real ou
+uma devolução real, com valor em centavos e data/hora real com fuso quando
+positiva. Promessas futuras permanecem no texto e não viram fatos, cobranças
+ou saídas projetadas. O contrato simplifica as propostas anteriores de opções
+de valor acordado e estados de acerto; invariantes de identidade, atomicidade e
+integridade continuam aplicáveis.
+
+**IMPLEMENTED — somente Emulator local:** Pedido, texto da negociação,
+movimentação e identidade idempotente são tratados atomicamente com
+updatedAt. Recebimento fica em payments[] e preserva datas históricas;
+devolução fica em refunds[] com refundedAt, sem reduzir pagamentos ou
+amountPaid. A devolução acumulada não pode superar recebimentos ainda não
+devolvidos. Cancelamentos negociados sem crédito podem ser identificados na
+reconciliação; seu saldo original não aparece como cobrança na projeção, e
+devoluções aparecem como saídas distintas.
+
+O escopo 7C.1 aceita somente Pedidos com crédito aplicado e gerado iguais a
+zero. Pedidos com qualquer efeito de crédito conflitam sem escrita parcial.
+Tratamento e destino explícito do crédito em cancelamentos permanecem OPEN.
+Não houve integração de UI, alteração de Rules, inicialização de agregador,
+publicação ou cutover.
