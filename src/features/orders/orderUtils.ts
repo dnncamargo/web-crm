@@ -5,6 +5,7 @@ import {
   calculateOrderBalanceCents,
   legacyReaisToMoneyCents,
   moneyCentsToLegacyReais,
+  sumMoneyCents,
 } from "../financial/money.js";
 import type { Order, OrderItem, OrderPayment, OrderStatus, PaymentStatus } from "./orderTypes.js";
 import type { MoneyCents } from "../financial/money.js";
@@ -21,9 +22,15 @@ function getOrderMoneyCents(
   order: Pick<Order, "total" | "amountPaid" | "payments"> & { creditApplied?: number | null },
 ): OrderMoneyCents | null {
   try {
+    const cashPaidCents = order.payments === undefined
+      ? legacyReaisToMoneyCents(order.amountPaid, "Dinheiro recebido")
+      : sumMoneyCents(order.payments.map((payment) => (
+        legacyReaisToMoneyCents(payment.amount, "Valor do recebimento")
+      )));
+
     return {
       totalCents: legacyReaisToMoneyCents(order.total, "Total do pedido"),
-      cashPaidCents: legacyReaisToMoneyCents(getOrderCashPaid(order), "Dinheiro recebido"),
+      cashPaidCents,
       creditAppliedCents: legacyReaisToMoneyCents(order.creditApplied ?? 0, "Crédito aplicado"),
     };
   } catch {
