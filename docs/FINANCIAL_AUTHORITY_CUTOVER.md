@@ -91,10 +91,67 @@ de Rules, inicialização de agregador ou cutover.
 **OPEN:** arredondamento de frações de centavo, troca/transferência de cliente,
 acerto de cancelamento, devolução, restituição de crédito de cancelamento e
 correção de pagamentos legados sem identidade persistida continuam dependências
-de produto. O retry tardio de `create-order` permanece protegido pela comparação
-do conteúdo existente: divergência causa colisão sem gravação e replay idêntico
-não reaplica efeitos. 7B.2 deve validar essa interação em conjunto sem alterar
-o contrato de criação oportunisticamente.
+de produto no estado auditado pelo Checkpoint 7B.1. O Checkpoint 7B.2 resolve a
+transferência experimental e a identidade estável de retries descritas abaixo;
+as demais dependências permanecem OPEN.
+
+## Checkpoint 7B.2 — transferência experimental e retry tardio
+
+**IMPLEMENTED — somente Emulator local:** a variante discriminada
+`kind: "transfer"` reutiliza `POST /api/financial/edit-order`. Requer IDs
+distintos, precondição de `updatedAt`, existência dos dois Clientes, confirmação
+dos nomes canônicos atuais e, quando houver efeito líquido de crédito, saldos e
+revisões apresentados para ambos. A origem esperada deve continuar sendo o
+Cliente vivo do Pedido. `clientName` é resolvido no Cliente de destino dentro da
+transação; não existe campo de nome autoritativo no comando.
+
+O Pedido preserva IDs e valores de `payments[]`, `amountPaid`, créditos,
+itens, preços, totais, endereço/snapshot, entrega, status e `createdAt`. Só
+muda `clientId`, o snapshot `clientName` e `updatedAt`. O Endereço mantém sua
+associação fraca e não é substituído pelo principal do destino. Nenhum resumo de
+interação do Cliente é escrito.
+
+A contribuição líquida transferida é `N = G - A`, em centavos: novo saldo da
+origem é `origem - N`; novo saldo do destino é `destino + N`. Os dois saldos
+finais precisam ser não negativos. Agregadores envolvidos precisam existir em
+`ready` e coincidir com saldos/revisões apresentados; Pedido e agregadores são
+atualizados atomicamente e suas revisões avançam. Com `N = 0`, nenhum agregador
+é exigido ou alterado. `completed` permanece transferível com saldo pendente;
+`cancelled` e estado financeiro inconsistente são recusados sem escrita.
+
+**DECIDED — idempotência:** `orders/{orderId}/transferOperations/{operationId}`
+guarda somente o fingerprint por ID, criado na mesma transação que a
+transferência. O marcador separado é necessário para reconhecer a reutilização
+de qualquer ID depois de transferências posteriores, sem crescimento do
+documento do Pedido. É identidade idempotente, não trilha de auditoria: não
+armazena operador, pagamentos, saldos before/after ou alterações comerciais.
+Há um pequeno documento permanente por transferência; expiração removeria a
+garantia de unicidade. Antes de substituir `_lastClientTransfer`, a transação
+valida o marcador da última identidade conhecida e cria-o com o fingerprint
+original quando ausente. Metadado legado inválido ou marcador contraditório
+aborta sem escrita. Retry idêntico, inclusive antigo, é no-op; reuso divergente
+conflita. Precondições transacionais serializam edições, pagamentos, aplicações
+de crédito e outras transferências. A confirmação inclui origem e destino e é
+revalidada contra os nomes atuais dentro da transação. IDs da
+implementação anterior já substituídos no `_lastClientTransfer` não podem ser
+reconstruídos retroativamente; a API continua Emulator-only e não houve
+cutover nem gravação produtiva.
+
+**IMPLEMENTED — identidade de criação:** `create-order` persiste um SHA-256 do
+conteúdo normalizado original, sem duplicar payload ou dados financeiros.
+Fingerprint igual identifica retry tardio após edição operacional/comercial,
+pagamento, aplicação de crédito ou transferência e responde no-op sem alterar
+qualquer fato, cliente ou timestamp. Fingerprint diferente conflita. Documento
+legado sem fingerprint só tem replay se seu conteúdo atual ainda for
+exatamente igual ao comando, ignorando timestamps; caso contrário, conflito sem
+tentativa de inferir estado histórico. A resposta `creationSnapshot` sempre
+descreve explicitamente os valores financeiros imutáveis da criação original;
+ela não contém saldo/revisão do agregador e replay não lê agregadores.
+
+**OPEN:** cancelamento, acerto, restituição, devoluções, correção de pagamento
+legado, arredondamento comercial e cutover permanecem fora deste checkpoint.
+Nenhuma API é ativada em Preview/Production; Rules, UI, agregadores produtivos e
+dados de produção não são alterados.
 
 ## Inventário de caminhos de escrita
 
@@ -106,7 +163,7 @@ o contrato de criação oportunisticamente.
 | Editar Pedido no fluxo produtivo | `OrderForm` → `editOrder` → `updateOrder` | campos comerciais, cliente, endereço, itens, totais, status, notas, etiquetas, `creditApplied`; service recalcula cache financeiro | **CURRENT permanece**; API 7B.1 não está ligada à UI e não substitui esse escritor. |
 | Editar itens, quantidade, preço, taxa ou total experimentalmente | `POST /api/financial/edit-order`, variante `commercial` | itens e totais; saldo/crédito do mesmo Cliente | **IMPLEMENTED — Emulator**; usa centavos exatos e agregador transacional; frações de centavo permanecem OPEN. |
 | Editar entrega/endereço/notas/etiquetas ou `active ↔ completed` experimentalmente | `POST /api/financial/edit-order`, variante `operational` | somente campos operacionais; status não quita | **IMPLEMENTED — Emulator**; não exige agregador e preserva dados financeiros. |
-| Trocar cliente | `OrderForm` e, após salvar, `OrdersPage.registerOrderInteraction` | `orders/{id}.clientId/clientName`; depois `clients/{id}.lastInteraction*` | pode deslocar efeitos entre agregadores: exige operação atômica para dois Clientes. Bloqueio hoje impede correção comercial. |
+| Trocar cliente | fluxo produtivo atual; sem integração com a API experimental | `orders/{id}.clientId/clientName`; o resumo produtivo continua independente | **IMPLEMENTED — Emulator 7B.2:** variante `transfer`, efeitos líquidos transacionados entre agregadores; nenhuma escrita automática de resumo. |
 | Mudar endereço | `OrderForm` e `saveAddressForClient` ao criar endereço | `orders/{id}.addressId/addressSnapshot`; opcionalmente `addresses/*` e `clients/*` em transação | não financeira quando só snapshot/endereço; deve ficar disponível pelo SDK após o corte. |
 | Registrar pagamento | `OrderPaymentForm` → `registerOrderPayment` | `orders/{id}.payments`, `amountPaid`, `creditGenerated` | `record-payment` já implementado somente no Emulator e requer agregador pronto; UI/API produtiva ainda ausente. |
 | Corrigir pagamento | inexistente na UI atual; `correct-payment` é API experimental | Pedido, agregador e efeitos de crédito | endpoint existe somente no Emulator. UI futura reutiliza o recebimento existente e oferece **Corrigir**; não há contrato de ativação. |

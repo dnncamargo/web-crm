@@ -1,4 +1,5 @@
-import { FieldValue, Timestamp, type DocumentData, type Firestore } from "firebase-admin/firestore";
+import { createHash } from "node:crypto";
+import { FieldValue, Timestamp, type DocumentData, type DocumentReference, type Firestore } from "firebase-admin/firestore";
 
 import {
   FinancialDomainError,
@@ -14,7 +15,7 @@ import {
 } from "../../src/features/financial/money.js";
 import { confirmCreditApplication, validateRetroactiveCreditReduction } from "../../src/features/financial/credit.js";
 import type { MoneyCents } from "../../src/features/financial/money.js";
-import type { EditOrderCommand, OperationalOrderEditCommand } from "./validation.js";
+import type { EditOrderCommand, OperationalOrderEditCommand, TransferOrderCommand } from "./validation.js";
 import { FinancialApiError } from "./errors.js";
 
 interface StoredPayment {
@@ -51,6 +52,16 @@ export interface EditOrderResult {
   operation: EditOrderCommand["kind"];
   availableCreditCents: number | null;
   revision: number | null;
+  replayed: boolean;
+}
+
+interface TransferOrderResult {
+  orderId: string;
+  operation: "transfer";
+  sourceAvailableCreditCents: number | null;
+  sourceRevision: number | null;
+  destinationAvailableCreditCents: number | null;
+  destinationRevision: number | null;
   replayed: boolean;
 }
 
@@ -196,6 +207,184 @@ function assertOrderPrecondition(updatedAt: unknown, expected: OperationalOrderE
   if (canonical(current) !== canonical(expected.updatedAt)) {
     throw new FinancialApiError(409, "ORDER_REVISION_CHANGED", "O Pedido mudou; atualize os dados e tente novamente.");
   }
+}
+
+function transferFingerprint(command: TransferOrderCommand): string {
+  return createHash("sha256").update(canonical(command)).digest("hex");
+}
+
+interface StoredTransferIdentity {
+  operationId: string;
+  fingerprint: string;
+}
+
+function storedTransferIdentity(value: unknown): StoredTransferIdentity | null {
+  if (value === undefined) return null;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw invalidState();
+  const metadata = value as Record<string, unknown>;
+  if (typeof metadata.operationId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(metadata.operationId)
+    || typeof metadata.fingerprint !== "string" || !/^[a-f0-9]{64}$/.test(metadata.fingerprint)) {
+    throw invalidState();
+  }
+  return { operationId: metadata.operationId, fingerprint: metadata.fingerprint };
+}
+
+async function transferOrder(db: Firestore, command: TransferOrderCommand): Promise<TransferOrderResult> {
+  if (command.sourceClientId === command.destinationClientId) {
+    throw new FinancialApiError(409, "TRANSFER_CLIENTS_MUST_DIFFER", "Origem e destino devem ser clientes distintos.");
+  }
+  const orderRef = db.collection("orders").doc(command.orderId);
+  const operationRef = orderRef.collection("transferOperations").doc(command.operationId);
+  const fingerprint = transferFingerprint(command);
+
+  return db.runTransaction(async (transaction) => {
+    const [operationSnapshot, orderSnapshot] = await transaction.getAll(operationRef, orderRef);
+    if (!orderSnapshot.exists) throw new FinancialApiError(409, "ORDER_NOT_FOUND", "Pedido não encontrado.");
+    const data = orderSnapshot.data();
+    if (!data) throw invalidState();
+
+    if (operationSnapshot.exists) {
+      const operation = operationSnapshot.data();
+      if (operation?.fingerprint !== fingerprint) {
+        throw new FinancialApiError(409, "TRANSFER_OPERATION_ID_REUSED", "A identidade da operação já foi usada com outro comando.");
+      }
+      return {
+        orderId: command.orderId,
+        operation: "transfer",
+        sourceAvailableCreditCents: null,
+        sourceRevision: null,
+        destinationAvailableCreditCents: null,
+        destinationRevision: null,
+        replayed: true,
+      };
+    }
+
+    // Preserve the last known identity from the previous implementation before
+    // replacing its single-operation pointer with this transfer.
+    const lastTransfer = storedTransferIdentity(data._lastClientTransfer);
+    let previousOperationRef: DocumentReference | null = null;
+    let previousFingerprintToCreate: string | null = null;
+    if (lastTransfer) {
+      if (lastTransfer.operationId === command.operationId) {
+        if (lastTransfer.fingerprint !== fingerprint) {
+          throw new FinancialApiError(409, "TRANSFER_OPERATION_ID_REUSED", "A identidade da operação já foi usada com outro comando.");
+        }
+        return {
+          orderId: command.orderId,
+          operation: "transfer",
+          sourceAvailableCreditCents: null,
+          sourceRevision: null,
+          destinationAvailableCreditCents: null,
+          destinationRevision: null,
+          replayed: true,
+        };
+      }
+
+      previousOperationRef = orderRef.collection("transferOperations").doc(lastTransfer.operationId);
+      const previousOperationSnapshot = await transaction.get(previousOperationRef);
+      if (previousOperationSnapshot.exists) {
+        if (previousOperationSnapshot.data()?.fingerprint !== lastTransfer.fingerprint) throw invalidState();
+      } else {
+        previousFingerprintToCreate = lastTransfer.fingerprint;
+      }
+    }
+
+    const order = parseStoredOrder(data);
+    if (order.orderStatus === "cancelled") {
+      throw new FinancialApiError(409, "ORDER_SETTLEMENT_UNSUPPORTED", "Pedido cancelado depende do contrato de acerto financeiro.");
+    }
+    if (order.clientId !== command.sourceClientId) {
+      throw new FinancialApiError(409, "ORDER_SOURCE_CHANGED", "O Cliente atual do Pedido mudou; atualize os dados e tente novamente.");
+    }
+    assertOrderPrecondition(data.updatedAt, command.expected);
+
+    const sourceClientRef = db.collection("clients").doc(command.sourceClientId);
+    const destinationClientRef = db.collection("clients").doc(command.destinationClientId);
+    const [sourceClientSnapshot, destinationClientSnapshot] = await transaction.getAll(sourceClientRef, destinationClientRef);
+    if (!sourceClientSnapshot.exists || !destinationClientSnapshot.exists) {
+      throw new FinancialApiError(409, "TRANSFER_CLIENT_UNAVAILABLE", "Um dos Clientes não está disponível.");
+    }
+    const sourceClient = sourceClientSnapshot.data();
+    const destinationClient = destinationClientSnapshot.data();
+    if (!sourceClient || !destinationClient
+      || typeof sourceClient.name !== "string" || typeof destinationClient.name !== "string") throw invalidState();
+    if (sourceClient.name !== command.confirmation.sourceName
+      || destinationClient.name !== command.confirmation.destinationName) {
+      throw new FinancialApiError(409, "TRANSFER_CONFIRMATION_STALE", "A identidade apresentada mudou; confirme novamente.");
+    }
+
+    const netEffectCents = subtractMoneyCents(order.creditGeneratedCents, order.creditAppliedCents);
+    let sourceAvailableCreditCents: MoneyCents | null = null;
+    let destinationAvailableCreditCents: MoneyCents | null = null;
+    let sourceRevision: number | null = null;
+    let destinationRevision: number | null = null;
+
+    if (netEffectCents !== 0) {
+      const sourceAggregatorRef = db.collection("clientFinancial").doc(command.sourceClientId);
+      const destinationAggregatorRef = db.collection("clientFinancial").doc(command.destinationClientId);
+      const [sourceAggregatorSnapshot, destinationAggregatorSnapshot] = await transaction.getAll(sourceAggregatorRef, destinationAggregatorRef);
+      if (!sourceAggregatorSnapshot.exists || !sourceAggregatorSnapshot.data()
+        || !destinationAggregatorSnapshot.exists || !destinationAggregatorSnapshot.data()) {
+        throw new FinancialApiError(409, "AGGREGATOR_UNAVAILABLE", "Agregador financeiro indisponível.");
+      }
+      const sourceAggregator = parseAggregator(sourceAggregatorSnapshot.data() as DocumentData);
+      const destinationAggregator = parseAggregator(destinationAggregatorSnapshot.data() as DocumentData);
+      const presentedSource = command.sourceFinancialState;
+      const presentedDestination = command.destinationFinancialState;
+      if (!presentedSource || !presentedDestination) {
+        throw new FinancialApiError(409, "TRANSFER_FINANCIAL_STATE_REQUIRED", "Atualize os saldos apresentados antes de transferir.");
+      }
+      if (sourceAggregator.revision !== presentedSource.revision
+        || sourceAggregator.availableCreditCents !== presentedSource.availableCreditCents) {
+        throw new FinancialApiError(409, "SOURCE_AGGREGATOR_CHANGED", "O saldo da origem mudou; atualize e confirme novamente.");
+      }
+      if (destinationAggregator.revision !== presentedDestination.revision
+        || destinationAggregator.availableCreditCents !== presentedDestination.availableCreditCents) {
+        throw new FinancialApiError(409, "DESTINATION_AGGREGATOR_CHANGED", "O saldo do destino mudou; atualize e confirme novamente.");
+      }
+
+      sourceAvailableCreditCents = subtractMoneyCents(sourceAggregator.availableCreditCents as MoneyCents, netEffectCents);
+      destinationAvailableCreditCents = sumMoneyCents([destinationAggregator.availableCreditCents as MoneyCents, netEffectCents]);
+      if (sourceAvailableCreditCents < 0 || destinationAvailableCreditCents < 0) {
+        throw new FinancialApiError(409, "INSUFFICIENT_AVAILABLE_CREDIT", "A transferência deixaria um dos Clientes com saldo de crédito insuficiente.");
+      }
+      sourceRevision = sourceAggregator.revision + 1;
+      destinationRevision = destinationAggregator.revision + 1;
+      if (!Number.isSafeInteger(sourceRevision) || !Number.isSafeInteger(destinationRevision)) throw invalidState();
+
+      transaction.update(sourceAggregatorRef, {
+        availableCreditCents: sourceAvailableCreditCents,
+        revision: sourceRevision,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.update(destinationAggregatorRef, {
+        availableCreditCents: destinationAvailableCreditCents,
+        revision: destinationRevision,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (previousOperationRef && previousFingerprintToCreate) {
+      transaction.create(previousOperationRef, { fingerprint: previousFingerprintToCreate });
+    }
+    transaction.update(orderRef, {
+      clientId: command.destinationClientId,
+      clientName: destinationClient.name,
+      _lastClientTransfer: { operationId: command.operationId, fingerprint },
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.create(operationRef, { fingerprint });
+
+    return {
+      orderId: command.orderId,
+      operation: "transfer",
+      sourceAvailableCreditCents,
+      sourceRevision,
+      destinationAvailableCreditCents,
+      destinationRevision,
+      replayed: false,
+    };
+  });
 }
 
 function normalizedTarget(changes: OperationalOrderEditCommand["changes"]): Record<string, unknown> {
@@ -371,8 +560,14 @@ async function editCommercialOrder(db: Firestore, command: Extract<EditOrderComm
   }
 }
 
-export function editOrderTransaction(db: Firestore, command: EditOrderCommand): Promise<EditOrderResult> {
-  return command.kind === "operational"
-    ? editOperationalOrder(db, command)
-    : editCommercialOrder(db, command);
+export async function editOrderTransaction(db: Firestore, command: EditOrderCommand): Promise<EditOrderResult | TransferOrderResult> {
+  if (command.kind === "transfer") {
+    try {
+      return await transferOrder(db, command);
+    } catch (error) {
+      if (error instanceof FinancialDomainError) throw invalidState();
+      throw error;
+    }
+  }
+  return command.kind === "operational" ? editOperationalOrder(db, command) : editCommercialOrder(db, command);
 }

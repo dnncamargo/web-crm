@@ -727,16 +727,77 @@ Rules, criação de agregador ou ativação fora do Emulator.
 
 **OPEN — dependências preservadas pelo Checkpoint 7B.1**
 
-Troca de cliente/transferência entre agregadores, cancelamento e acerto,
-reabertura de cancelado, devolução, restituição de crédito de cancelamento e
-correção de pagamentos legados sem identidade permanecem bloqueados. A política
-comercial para quantidades que produzam frações reais de centavo continua OPEN;
-esta API aceita somente multiplicações exatamente representáveis em centavos.
-O retry tardio de `create-order` compara o documento já existente com o comando
-original: se divergente retorna colisão sem escrita, e se idêntico responde
-replay sem reaplicar crédito ou pagamento. Não é necessária alteração
-oportunística em `create-order`; 7B.2 deve preservar essa evidência e cobrir a
-interação em validação conjunta.
+Na conclusão do 7B.1, troca de cliente/transferência entre agregadores,
+cancelamento e acerto, reabertura de cancelado, devolução, restituição de
+crédito de cancelamento e correção de pagamentos legados sem identidade estavam
+OPEN. A política comercial para quantidades que produzam frações reais de
+centavo também continua OPEN; a API aceita somente multiplicações exatamente
+representáveis em centavos. Naquela base, `create-order` comparava o conteúdo
+atual com o comando original; o Checkpoint 7B.2 abaixo substitui essa
+identificação frágil pelo fingerprint imutável de criação.
+
+**IMPLEMENTED — Checkpoint 7B.2, somente Emulator local**
+
+`POST /api/financial/edit-order` agora aceita também `kind: "transfer"`, sem
+alterar as variantes `operational` e `commercial`. O comando identifica Pedido,
+Cliente de origem e destino, usa `updatedAt` como precondição, confirma os nomes
+atuais apresentados ao operador e recebe saldo/revisão dos dois agregadores
+quando o efeito líquido exigir mudança financeira. O servidor resolve
+`clientName` do documento canônico `clients/{destinationClientId}`; não aceita
+um nome independente. A transferência não altera Clientes, resumos de
+interação, Endereço ou `addressSnapshot`.
+
+Para o Pedido, `G = creditGenerated` e `A = creditApplied`; sua contribuição
+fungível é `N = G - A`. A origem passa a `saldo - N` e o destino a
+`saldo + N`, em centavos seguros. Os dois agregadores precisam existir em
+`state=ready`, corresponder aos saldos e revisões apresentados, e permanecer
+não negativos. Pedido e agregadores são gravados numa única transação. Se
+`N = 0`, não há efeito agregado a transferir e nenhum agregador é lido ou
+alterado, inclusive quando G e A se anulam. Nenhum pagamento, data financeira,
+valor ou crédito do Pedido é reescrito. `completed` continua operacional;
+`cancelled` e fatos financeiros inconclusivos são recusados.
+
+O comando exige confirmação dos nomes canônicos da origem e destino. A
+identidade idempotente usa `orders/{orderId}/transferOperations/{operationId}`
+com apenas o fingerprint do comando. Esse marcador separado é necessário para
+reconhecer IDs já usados depois que novas transferências substituem
+`_lastClientTransfer`; seu tamanho não cresce no documento do Pedido. O marcador
+é criado atomicamente com o Pedido e os agregadores. Antes de substituir
+`_lastClientTransfer`, a transação valida o marcador da última identidade
+conhecida e o cria com o fingerprint original quando ainda não existir; um
+marcador contraditório ou metadado legado inválido aborta sem escrita. Retry
+idêntico é no-op; reutilização divergente conflita; retries antigos
+comprováveis são no-op mesmo após uma transferência posterior. Esses
+documentos registram identidade idempotente mínima, não são auditoria
+financeira: não guardam operador,
+pagamentos, saldos before/after ou mudanças comerciais. Há um documento pequeno
+por transferência, sem expiração, pois expirá-lo eliminaria a garantia de
+unicidade. Escritas concorrentes de Pedido ou agregadores conflitam pelas
+precondições/transação. IDs usados antes deste marcador e já substituídos no
+`_lastClientTransfer` não podem ser reconstruídos retroativamente; não existe
+trilha histórica para isso. O endpoint segue restrito ao Emulator, sem dados
+produtivos ou cutover.
+
+`create-order` grava `_creationFingerprint`, SHA-256 determinístico do Pedido
+normalizado originalmente calculado. Um retry com fingerprint igual retorna
+no-op sem ler o saldo ou a revisão atuais e não regrava timestamps, pagamentos,
+créditos, Cliente ou nome. Fingerprint divergente retorna colisão. Documento
+legado sem fingerprint só é reconhecido por igualdade exata com o conteúdo
+atual, ignorando timestamps; se já foi alterado, não há inferência nem escrita.
+`CreateOrderResult.creationSnapshot` identifica inequivocamente os valores
+financeiros imutáveis da criação original, tanto na primeira resposta quanto
+em replay. O resultado não inclui saldo nem revisão do agregador. Replay não
+lê agregadores e não altera documentos.
+
+**OPEN — decisões que permanecem**
+
+Cancelamento e acerto, devolução, restituição de crédito de cancelamento,
+correção de pagamentos legados sem identidade, arredondamento de frações reais
+de centavo e ativação/cutover continuam abertos. A transferência não define
+política de restituição nem corrige agregadores: saldo insuficiente em qualquer
+lado rejeita a operação integralmente. APIs continuam bloqueadas fora do
+Emulator local, sem integração de UI, Rules, inicialização de agregadores ou
+migração produtiva.
 
 **IMPLEMENTED — diagnóstico local somente leitura**
 

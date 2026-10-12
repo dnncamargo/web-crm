@@ -26,6 +26,7 @@ describe("financial write test gate", () => {
     { ...enabledEnvironment, FIRESTORE_EMULATOR_HOST: "::ffff:192.168.1.10" },
     { ...enabledEnvironment, GCLOUD_PROJECT: "production-project" },
     { ...enabledEnvironment, VERCEL: "1", VERCEL_ENV: "preview" },
+    { ...enabledEnvironment, VERCEL: "1", VERCEL_ENV: "production" },
   ])("falha fechada fora da configuração autorizada", (environment) => {
     try {
       assertFinancialWriteTestGate(environment);

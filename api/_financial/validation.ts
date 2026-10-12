@@ -115,7 +115,23 @@ export interface CommercialOrderEditCommand {
   };
 }
 
-export type EditOrderCommand = OperationalOrderEditCommand | CommercialOrderEditCommand;
+export interface TransferOrderCommand {
+  kind: "transfer";
+  operationId: string;
+  orderId: string;
+  sourceClientId: string;
+  destinationClientId: string;
+  expected: OrderEditPrecondition;
+  confirmation: {
+    sourceName: string;
+    destinationName: string;
+    confirmed: true;
+  };
+  sourceFinancialState?: { availableCreditCents: number; revision: number };
+  destinationFinancialState?: { availableCreditCents: number; revision: number };
+}
+
+export type EditOrderCommand = OperationalOrderEditCommand | CommercialOrderEditCommand | TransferOrderCommand;
 
 const MAX_BODY_BYTES = 32 * 1024;
 const COMMAND_FIELDS = new Set([
@@ -157,7 +173,8 @@ const CREATE_ORDER_FIELDS = new Set([
 ]);
 const EDIT_ORDER_FIELDS = new Set([
   "kind", "orderId", "clientId", "expected", "changes", "items", "subtotalCents",
-  "deliveryFeeCents", "totalCents", "creditApplication",
+  "deliveryFeeCents", "totalCents", "creditApplication", "operationId", "sourceClientId",
+  "destinationClientId", "confirmation", "sourceFinancialState", "destinationFinancialState",
 ]);
 const OPERATIONAL_CHANGE_FIELDS = new Set([
   "deliveryDateTime", "addressId", "addressSnapshot", "notes", "tagIds", "orderStatus",
@@ -385,6 +402,56 @@ export async function parseEditOrderCommand(request: Request): Promise<EditOrder
   const body = await parseBody(request);
   assertOnlyFields(body, EDIT_ORDER_FIELDS);
   assertIdentifier(body.orderId, "orderId");
+  if (body.kind === "transfer") {
+    const transferFields = new Set([
+      "kind", "operationId", "orderId", "sourceClientId", "destinationClientId", "expected",
+      "confirmation", "sourceFinancialState", "destinationFinancialState",
+    ]);
+    if (Object.keys(body).some((key) => !transferFields.has(key))) {
+      throw new FinancialApiError(400, "INVALID_PAYLOAD", "Campos alheios à transferência não são permitidos.");
+    }
+    assertIdentifier(body.operationId, "operationId");
+    assertIdentifier(body.sourceClientId, "sourceClientId");
+    assertIdentifier(body.destinationClientId, "destinationClientId");
+    if (body.sourceClientId === body.destinationClientId) {
+      throw new FinancialApiError(409, "TRANSFER_CLIENTS_MUST_DIFFER", "Origem e destino devem ser clientes distintos.");
+    }
+    const expected = parseEditPrecondition(body.expected);
+    if (!isRecord(body.confirmation)) throw new FinancialApiError(400, "INVALID_PAYLOAD", "Confirmação da transferência inválida.");
+    assertOnlyFields(body.confirmation, new Set(["sourceName", "destinationName", "confirmed"]));
+    assertString(body.confirmation.sourceName, "confirmation.sourceName");
+    assertString(body.confirmation.destinationName, "confirmation.destinationName");
+    if (body.confirmation.confirmed !== true) throw new FinancialApiError(409, "TRANSFER_CONFIRMATION_REQUIRED", "A transferência exige confirmação explícita.");
+    const parsePresentedState = (value: unknown, fieldName: string) => {
+      if (!isRecord(value)) throw new FinancialApiError(400, "INVALID_PAYLOAD", `${fieldName} inválido.`);
+      assertOnlyFields(value, new Set(["availableCreditCents", "revision"]));
+      assertNonNegativeSafeInteger(value.availableCreditCents, `${fieldName}.availableCreditCents`);
+      assertNonNegativeSafeInteger(value.revision, `${fieldName}.revision`);
+      return { availableCreditCents: value.availableCreditCents, revision: value.revision };
+    };
+    return {
+      kind: "transfer",
+      operationId: body.operationId,
+      orderId: body.orderId,
+      sourceClientId: body.sourceClientId,
+      destinationClientId: body.destinationClientId,
+      expected,
+      confirmation: {
+        sourceName: body.confirmation.sourceName,
+        destinationName: body.confirmation.destinationName,
+        confirmed: true,
+      },
+      ...(body.sourceFinancialState === undefined ? {} : { sourceFinancialState: parsePresentedState(body.sourceFinancialState, "sourceFinancialState") }),
+      ...(body.destinationFinancialState === undefined ? {} : { destinationFinancialState: parsePresentedState(body.destinationFinancialState, "destinationFinancialState") }),
+    };
+  }
+  if (body.kind !== "operational" && body.kind !== "commercial") {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "Variante de edição inválida.");
+  }
+  if (["operationId", "sourceClientId", "destinationClientId", "confirmation", "sourceFinancialState", "destinationFinancialState"]
+    .some((key) => body[key] !== undefined)) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "Campos de transferência não são válidos nesta variante.");
+  }
   assertIdentifier(body.clientId, "clientId");
   const expected = parseEditPrecondition(body.expected);
 
