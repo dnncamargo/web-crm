@@ -32,6 +32,17 @@ export interface OrderPayment {
   receivedAt: string | null;
 }
 
+export interface OrderRefund {
+  id: string;
+  amount: number;
+  refundedAt: string;
+}
+
+export interface OrderCancellationAgreement {
+  operationId: string;
+  text: string;
+}
+
 export interface Order {
   id: string;
 
@@ -50,6 +61,8 @@ export interface Order {
   total: number;
   amountPaid: number;
   payments?: OrderPayment[];
+  refunds?: OrderRefund[];
+  cancellationAgreement?: OrderCancellationAgreement;
 
   creditApplied?: number | null;
   creditGenerated?: number | null;

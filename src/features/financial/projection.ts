@@ -14,7 +14,7 @@ import {
   getPaymentStatus,
 } from "../orders/orderUtils.js";
 import type { MoneyCents } from "./money.js";
-import type { Order, OrderPayment, PaymentStatus } from "../orders/orderTypes.js";
+import type { Order, OrderPayment, OrderRefund, PaymentStatus } from "../orders/orderTypes.js";
 
 export interface FinancialReceipt {
   orderId: string;
@@ -25,6 +25,13 @@ export interface FinancialReceipt {
 
 export interface KnownFinancialReceipt extends FinancialReceipt {
   receivedAt: string;
+}
+
+export interface KnownFinancialRefund {
+  orderId: string;
+  refundId: string;
+  amountCents: MoneyCents;
+  refundedAt: string;
 }
 
 export interface FinancialReceiptInterval {
@@ -47,6 +54,8 @@ export interface FinancialOrderBalance {
 export interface FinancialProjection {
   /** Facts with a real, explicit receivedAt that can be selected by interval. */
   knownReceipts: KnownFinancialReceipt[];
+  /** Effective cash outflows, separately dated and never folded into receipts. */
+  knownRefunds: KnownFinancialRefund[];
   /** Valid legacy facts whose historical date is deliberately unknown. */
   historicalDateUnknownReceipts: FinancialReceipt[];
   /** Current order position, never a cash-flow measurement for a period. */
@@ -142,6 +151,19 @@ export function selectKnownReceiptsInInterval(
   });
 }
 
+export function selectKnownRefundsInInterval(
+  refunds: readonly KnownFinancialRefund[],
+  interval: FinancialReceiptInterval,
+): KnownFinancialRefund[] {
+  const startMillis = instantMillis(interval.startInclusive, "startInclusive");
+  const endMillis = instantMillis(interval.endExclusive, "endExclusive");
+  if (endMillis <= startMillis) throw new RangeError("endExclusive deve ser posterior a startInclusive.");
+  return refunds.filter((refund) => {
+    const refundedAtMillis = instantMillis(refund.refundedAt, "refundedAt");
+    return refundedAtMillis >= startMillis && refundedAtMillis < endMillis;
+  });
+}
+
 /**
  * Builds a pure, read-only financial view from in-memory Orders. It neither
  * repairs legacy facts nor materializes payments, credits, or aggregators.
@@ -150,26 +172,47 @@ export function projectFinancialReadModel(orders: readonly Order[]): FinancialPr
   const reconciliation = reconcileFinancialDocuments(orders);
   const reconciliationByOrderId = new Map(reconciliation.orders.map((entry) => [entry.orderId, entry]));
   const knownReceipts: KnownFinancialReceipt[] = [];
+  const knownRefunds: KnownFinancialRefund[] = [];
   const historicalDateUnknownReceipts: FinancialReceipt[] = [];
 
   orders.forEach((order) => {
     const reconciledOrder = reconciliationByOrderId.get(order.id);
-    if (!hasReadablePaymentHistory(order)) return;
+    if (hasReadablePaymentHistory(order)) {
+      getOrderPaymentHistory(order).forEach((payment) => {
+        if (!canProjectReceipt(payment, reconciledOrder)) return;
 
-    getOrderPaymentHistory(order).forEach((payment) => {
-      if (!canProjectReceipt(payment, reconciledOrder)) return;
+        const receipt = {
+          orderId: order.id,
+          receiptId: payment.id,
+          amountCents: legacyReaisToMoneyCents(payment.amount, "Valor do recebimento"),
+          receivedAt: payment.receivedAt,
+        } satisfies FinancialReceipt;
 
-      const receipt = {
-        orderId: order.id,
-        receiptId: payment.id,
-        amountCents: legacyReaisToMoneyCents(payment.amount, "Valor do recebimento"),
-        receivedAt: payment.receivedAt,
-      } satisfies FinancialReceipt;
+        if (receipt.receivedAt === null) {
+          historicalDateUnknownReceipts.push(receipt);
+        } else {
+          knownReceipts.push(receipt as KnownFinancialReceipt);
+        }
+      });
+    }
 
-      if (receipt.receivedAt === null) {
-        historicalDateUnknownReceipts.push(receipt);
-      } else {
-        knownReceipts.push(receipt as KnownFinancialReceipt);
+    if (reconciledOrder === undefined
+      || reconciledOrder.classification === "INCONSISTENT"
+      || reconciledOrder.classification === "INDETERMINATE") return;
+    if (!Array.isArray(order.refunds)) return;
+    order.refunds.forEach((refund: OrderRefund) => {
+      if (!isExplicitIsoInstant(refund.refundedAt)) return;
+      try {
+        const amountCents = legacyReaisToMoneyCents(refund.amount, "Valor da devolução");
+        if (amountCents <= 0) return;
+        knownRefunds.push({
+          orderId: order.id,
+          refundId: refund.id,
+          amountCents,
+          refundedAt: refund.refundedAt,
+        });
+      } catch {
+        // Invalid facts remain visible through reconciliation diagnostics.
       }
     });
   });
@@ -186,6 +229,12 @@ export function projectFinancialReadModel(orders: readonly Order[]): FinancialPr
   historicalDateUnknownReceipts.sort((first, second) => (
     first.orderId.localeCompare(second.orderId) || first.receiptId.localeCompare(second.receiptId)
   ));
+  knownRefunds.sort((first, second) => {
+    const firstAt = instantMillis(first.refundedAt, "refundedAt");
+    const secondAt = instantMillis(second.refundedAt, "refundedAt");
+    if (firstAt !== secondAt) return firstAt < secondAt ? -1 : 1;
+    return first.orderId.localeCompare(second.orderId) || first.refundId.localeCompare(second.refundId);
+  });
 
   const pendingOrders = selectOperationalPendingOrders(orders);
   const pendingOrderIds = new Set(pendingOrders.map((order) => order.id));
@@ -198,8 +247,8 @@ export function projectFinancialReadModel(orders: readonly Order[]): FinancialPr
     return {
       orderId: order.id,
       orderStatus: order.orderStatus,
-      paymentStatus: hasDefinitiveBalance && canReadPaymentHistory ? getPaymentStatus(order) : null,
-      balanceCents: hasDefinitiveBalance
+      paymentStatus: order.orderStatus !== "cancelled" && hasDefinitiveBalance && canReadPaymentHistory ? getPaymentStatus(order) : null,
+      balanceCents: order.orderStatus !== "cancelled" && hasDefinitiveBalance
         ? asMoneyCents(reconciledOrder?.balanceCents ?? null)
         : null,
       creditAppliedCents: hasDefinitiveBalance
@@ -214,6 +263,7 @@ export function projectFinancialReadModel(orders: readonly Order[]): FinancialPr
 
   return {
     knownReceipts,
+    knownRefunds,
     historicalDateUnknownReceipts,
     orderBalances,
     operationalPendingOrderIds: pendingOrders.map((order) => order.id),

@@ -240,6 +240,22 @@ describe("read-only financial reconciliation", () => {
     expect(applied.clients[0]).toMatchObject({ conclusive: false, availableCreditCents: null });
   });
 
+  it("recognizes a valid negotiated cash-only cancellation while preserving legacy diagnostics", () => {
+    const negotiated = reconcileFinancialDocuments([order({
+      id: "negotiated",
+      orderStatus: "cancelled",
+      cancellationAgreement: { operationId: "cancel-123456", text: "Retenção integral do valor recebido." },
+      amountPaid: 100,
+      payments: [{ id: "payment", amount: 100, receivedAt: "2026-01-01T10:00:00.000Z" }],
+      refunds: [{ id: "refund-123456", amount: 25, refundedAt: "2026-01-02T10:00:00.000Z" }],
+    })]);
+    const legacy = reconcileFinancialDocuments([order({ id: "legacy-cancelled", orderStatus: "cancelled" })]);
+    expect(negotiated.orders[0]).toMatchObject({ classification: "VALID", calculatedGeneratedCreditCents: 0 });
+    expect(negotiated.clients[0]).toMatchObject({ conclusive: true, availableCreditCents: 0 });
+    expect(codes(negotiated)).not.toContain("CANCELLED_ORDER_SETTLEMENT_REQUIRED");
+    expect(codes(legacy)).toContain("CANCELLED_ORDER_SETTLEMENT_REQUIRED");
+  });
+
   it("does not resolve a cancellation merely because generated credit was consumed by another order", () => {
     const result = reconcileFinancialDocuments([
       order({

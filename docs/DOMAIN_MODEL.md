@@ -344,6 +344,11 @@ Quando o Produto referenciado existir, sua descrição/nome atual pode ser exibi
   - `id`
   - `amount`
   - `receivedAt: string | null`
+- `refunds?`, com itens `OrderRefund` embutidos:
+  - `id`
+  - `amount` positivo
+  - `refundedAt` real
+- `cancellationAgreement?`, com `operationId` e texto obrigatório da negociação
 - `creditApplied?`
 - `creditGenerated?`
 
@@ -358,6 +363,12 @@ dinheiro recebido. Na apresentação, esse valor pode ser projetado como um
 evento sintético com ID local determinístico e `receivedAt: null`, que significa
 data histórica desconhecida. A projeção não é persistida apenas por ser lida;
 ela só é materializada junto do primeiro novo recebimento.
+
+No Checkpoint 7C.1, uma negociação de cancelamento é guardada em
+`cancellationAgreement`. Devoluções efetivamente realizadas são fatos
+independentes em `refunds[]`, com identidade, valor positivo e
+`refundedAt`; não alteram `payments[]` ou `amountPaid`. Promessas de
+devolução permanecem somente no texto do acordo.
 
 `getOrderCashPaid` em `orderUtils.ts` é a fonte canônica para consumidores
 financeiros: soma `payments` quando presente e usa `amountPaid` apenas como
@@ -397,13 +408,10 @@ Registrar pagamento não deve alterar automaticamente `OrderStatus`. Alterar
 `OrderStatus` não deve criar recebimentos fictícios. Preservar essa distinção:
 **status operacional do Pedido é persistido; status de pagamento é derivado**.
 
-**CURRENT**: a implementação bloqueia novos recebimentos em Pedido cancelado e
-exclui suas movimentações do cálculo local de crédito disponível. Isso não
-autoriza persistir `PaymentStatus` como segunda fonte da verdade e não define
-o contrato de destino. Conforme
-[FINANCIAL_ARCHITECTURE.md](FINANCIAL_ARCHITECTURE.md), o cancelamento exigirá
-acerto financeiro explícito e a exclusão automática de crédito será revista no
-cutover, sem mudança funcional nesta documentação.
+**CURRENT**: a implementação produtiva bloqueia novos recebimentos em Pedido
+cancelado e exclui suas movimentações do cálculo local de crédito disponível.
+O comando 7C.1 é experimental no Emulator, não altera a UI ou o serviço
+produtivo, e não torna essa exclusão local uma regra do destino.
 
 ### Consequências para projeções e consultas
 
@@ -454,6 +462,12 @@ Para Pedidos elegíveis, o saldo disponível do Cliente é derivado conceitualme
 não é o contrato de destino: cancelamentos passarão a depender de um acerto
 financeiro explícito. A regra não muda até o cutover planejado.
 
+**DECIDED — Checkpoint 7C.1:** a negociação é texto obrigatório e o comando
+registra somente dinheiro efetivamente recebido/devolvido. Pedidos com crédito
+aplicado ou gerado retornam conflito até a decisão explícita sobre crédito em
+cancelamentos (**OPEN**). Nenhuma parcela de crédito é criada, consumida ou
+transferida por esse comando.
+
 ### Aplicação e nova geração no mesmo Pedido
 
 `creditApplied` e `creditGenerated` **podem coexistir no mesmo Pedido**.
@@ -485,13 +499,17 @@ Portanto, não tratar geração de crédito como mutuamente exclusiva com aplica
 - **CURRENT**: cancelar um Pedido retira suas movimentações do saldo disponível;
   reativá-lo volta a considerar as movimentações registradas, salvo recálculo
   decorrente de alteração financeira. O comportamento será substituído pelo
-  acerto explícito descrito no contrato financeiro durante o cutover;
+  tratamento explícito descrito no contrato financeiro durante o cutover;
 - **CURRENT**: pagamentos são append-only nesta versão: não há edição,
   exclusão, pagamento negativo, estorno ou reembolso. O contrato aprovado
   substitui essa limitação por correção do lançamento existente, preservando a
   identidade e sem trilha técnica adicional, após a migração;
-- **DECIDED**: cancelar um Pedido não é reembolso: o histórico de pagamentos
-  permanece e o Pedido cancelado não aceita novos recebimentos;
+- **DECIDED — Checkpoint 7C.1:** o novo comando experimental cancela por
+  negociação textual obrigatória e registra, se já ocorrido, recebimento ou
+  devolução efetiva. Pagamentos anteriores permanecem; devolução tem identidade
+  e data próprias. O saldo original de Pedido cancelado não é apresentado como
+  cobrança. O comando não cria crédito e recusa Pedidos com efeito de crédito;
+  o serviço e a UI produtivos continuam no contrato CURRENT.
 - não persistir um "saldo do cliente" separado sem uma decisão explícita de
   fonte da verdade e reconciliação. O agregador definido no contrato financeiro
   atende a essa condição como projeção, nunca como fonte independente.

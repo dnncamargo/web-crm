@@ -33,6 +33,10 @@ Rules ou ativação da API financeira.
   de aprovação de divergências e regra de arredondamento de quantidade
   fracionária.
 
+**Checkpoint 7C.1 update:** o Product Owner substituiu a proposta anterior de
+acerto por negociação textual obrigatória e registro de movimentação efetiva.
+O comando experimental não ativa a API nem altera produção.
+
 ## Mapa de compatibilidade
 
 | Formato/fato observado | Diagnóstico | Tratamento nesta etapa |
@@ -51,7 +55,8 @@ Rules ou ativação da API financeira.
 | subtotal ou taxa de entrega ausentes | `INDETERMINATE` + `ORDER_COMMERCIAL_TOTALS_INCOMPLETE` | Não há compatibilidade legada aprovada para omitir a coerência comercial. |
 | soma monetária fora do intervalo seguro | `INCONSISTENT`/`INDETERMINATE` + código aritmético | Não aproxima valores e continua os demais registros independentes. |
 | ID de pedido repetido | `INCONSISTENT` + `ORDER_ID_DUPLICATE` | Não escolhe documento nem duplica efeitos de crédito. |
-| pedido cancelado com efeito de crédito | `BLOCKED_BY_PRODUCT_DECISION` no pedido e `INDETERMINATE` no cliente | Preserva fatos e não afirma saldo dependente do acerto. |
+| pedido cancelado com efeito de crédito | `BLOCKED_BY_PRODUCT_DECISION` no pedido e `INDETERMINATE` no cliente | Preserva fatos e não afirma saldo dependente do destino explícito do crédito. |
+| cancelamento 7C.1 com negociação válida e sem efeito de crédito | `VALID` no pedido; contribuição de crédito zero | Identifica o cancelamento sem tornar o saldo original uma cobrança. Devoluções válidas continuam saídas separadas. |
 | agregador ausente | `LEGACY_COMPATIBLE` + `AGGREGATOR_ABSENT` | Não é prova de corrupção e não é criado. |
 | snapshots duplicados de agregador | `INDETERMINATE` + `AGGREGATOR_DUPLICATE_SNAPSHOT` | Nenhum snapshot ambíguo é escolhido para comparação. |
 | agregador `blocked`/não `ready` | `INDETERMINATE` | Não é comparado, desbloqueado nem inicializado. |
@@ -152,9 +157,11 @@ O diagnóstico não aplica essa aprovação e não é uma trilha técnica de cor
 
 ## Dependências e sequência de cutover
 
-Permanecem abertas: schema/comando de acerto de cancelamento, devoluções,
-crédito já consumido, regra de arredondamento de itens fracionários, política
-de aprovação de divergências e schema definitivo do agregador.
+Permanecem abertas: tratamento explícito de crédito já consumido em
+cancelamentos, regra de arredondamento de itens fracionários, política de
+aprovação de divergências e schema definitivo do agregador. O texto e as
+movimentações efetivas do cancelamento 7C.1 já têm contrato e implementação
+experimental; reabertura/correção continuam fora do escopo.
 
 Também permanece aberta a semântica aprovada para corrigir um recebimento
 legado que ainda existe apenas em `amountPaid`: não há `payment.id` persistido
@@ -179,6 +186,15 @@ O rollback deve restaurar capacidade operacional sem apagar pedidos,
 recebimentos, acertos, agregadores ou evidências de divergência. Após rollback,
 uma nova reconciliação somente leitura é obrigatória. Nunca se desfaz crédito
 consumido em outro pedido por inferência.
+
+## Checkpoint 7C.1 — projeção de cancelamentos negociados
+
+A reconciliação reconhece um cancelamento somente quando há acordo textual
+válido e nenhum efeito de crédito aplicado ou gerado. Cancelamento legado sem
+acordo, crédito ligado a cancelamento e fatos inconsistentes permanecem
+diagnosticados. A projeção inclui devoluções reais datadas em separado dos
+recebimentos e não apresenta o saldo original de Pedido cancelado como cobrança.
+Leitura não corrige nem materializa fatos.
 
 ## Critérios de aceitação do cutover futuro
 

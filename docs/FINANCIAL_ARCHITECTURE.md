@@ -307,26 +307,41 @@ de medida mínima), inclusive para registros históricos suspeitos.
 
 ### 4.1 Separação obrigatória
 
-**DECIDED**
+**DECIDED — Product Owner, Checkpoint 7C.1:** cancelamento é pouco frequente e
+será resolvido por negociação explícita, registrada em texto obrigatório. No
+comando de cancelamento, o operador registra somente uma movimentação que já
+ocorreu: nenhuma, recebimento ou devolução. Valores são positivos em centavos;
+nenhuma movimentação equivale a zero. Uma movimentação positiva exige sua data
+e hora reais com fuso explícito. A data do cancelamento não substitui
+receivedAt ou refundedAt, e a gravação técnica nunca é uma data financeira.
 
-Cancelar um pedido muda OrderStatus para cancelled, preserva pagamentos
-originais e não decide automaticamente retenção, devolução nem restituição de
-crédito. No próprio cancelamento, o operador pode selecionar devolução
-integral, devolução parcial, sem devolução ou **A combinar**. Quando os termos
-selecionados forem válidos, o Pedido entra diretamente no estado de acerto que
-eles determinam; não há etapa intermediária obrigatória de **A combinar**. A
-regra atual de excluir automaticamente pedidos cancelados do crédito disponível
-deve ser revista no cutover; não deve ser reproduzida como regra do destino.
+Uma promessa futura pode constar no texto, mas não é dinheiro movimentado, não
+cria saldo a cobrar e não gera saída projetada. Não há valor de devolução
+acordado separado do texto, etapas artificiais, estado de acerto ou fluxo
+automático de pagamento/crédito. Pagamentos anteriores permanecem intactos.
+Devoluções efetivas são fatos próprios em refunds[], nunca pagamentos
+negativos. O primeiro comando atende somente Pedidos com creditApplied e
+creditGenerated iguais a zero; qualquer efeito de crédito retorna conflito e
+continua OPEN para tratamento explícito em incremento posterior.
 
-**A combinar** significa que a decisão financeira está indefinida. Ele ocorre
-somente quando foi a opção selecionada pelo operador ou quando não existem
-termos financeiros completos e válidos. Não é uma devolução de R$ 0, não
-registra retenção, compensação ou valor de devolução, e não cria movimentação
-financeira. Os recebimentos anteriores ficam preservados.
+**CURRENT — comportamento legado:** serviços e UI produtivos ainda permitem
+alterar status pelo SDK e excluem Pedidos cancelados do saldo local de crédito.
+O novo comando existe somente no Emulator e não muda esse fluxo produtivo. A
+exclusão antiga não é regra para autoridade financeira futura.
 
-### 4.2 Dimensão conceitual mínima
+**SUPERSEDED:** as propostas anteriores de opções de devolução acordada,
+marcador “A combinar”, etapas de acerto e máquina de estados nas seções 4.2 e
+4.3 foram substituídas por esta decisão simplificada. Invariantes sobre fatos
+reais, identidade, atomicidade e crédito não foram removidas.
 
-**PROPOSED — sem schema definitivo**
+### 4.2 Proposta anterior (SUPERSEDED)
+
+O desenho abaixo é histórico e não rege o Checkpoint 7C.1. Ele propunha um
+acerto com termos em dinheiro e crédito e estados derivados; o Product Owner
+escolheu o texto obrigatório e os fatos efetivamente movimentados descritos
+acima. Não implementar esta máquina de estados por este documento.
+
+**PROPOSED — substituído**
 
 O acerto deve viver como informação financeira vinculada ao pedido cancelado,
 não como novo PaymentStatus e não como uma entidade que substitua o pedido. O
@@ -371,9 +386,10 @@ Uma implementação pode persistir apenas o marcador mínimo de termos definidos
 e derivar os quatro estados; se persistir um estado de resumo, ele deve ser
 validado contra os fatos na mesma transação e não pode divergir deles.
 
-### 4.3 Transições válidas
+### 4.3 Transições anteriormente propostas (SUPERSEDED)
 
-**DECIDED**
+O fluxo detalhado abaixo foi substituído pela decisão simplificada do
+Checkpoint 7C.1 e permanece apenas como histórico da proposta anterior.
 
     pedido active ou completed
       -> cancelar com A combinar ou sem termos válidos
@@ -408,30 +424,13 @@ exige decisão de produto antes de implementação.
 
 **DECIDED**
 
-Devolução real é uma saída de dinheiro distinta do recebimento. Cada devolução
-tem identidade estável, valor positivo e refundedAt próprio. Ela não pode ser
+Devolução real é uma saída distinta do recebimento. Cada fato em refunds[]
+tem identidade estável, valor positivo e refundedAt próprio. Não pode ser
 representada como pagamento negativo, exclusão/correção do recebimento ou
-crédito aplicado. A criação da devolução tem de ser idempotente com as mesmas
-garantias de identidade dos recebimentos.
-
-Três valores devem sempre permanecer separados:
-
-- valor acordado para devolver: termo da negociação;
-- valor efetivamente devolvido: soma de devoluções reais;
-- valor pendente de devolver: acordado menos efetivamente devolvido.
-
-Para um acordo definido, 0 <= efetivamente devolvido <= acordado <= dinheiro
-recebido elegível para o pedido. O valor retido é derivado como dinheiro
-recebido menos valor acordado para devolver; ele não vira novo recebimento. O
-limite e qualquer exceção comercial devem ser validados pela API antes de
-gravar, nunca compensados com lançamento artificial.
-
-Exemplo: o Pedido é cancelado em 10/10, com R$ 100 recebidos. O acordo em 10/10
-prevê devolver R$ 60. Nenhuma saída aparece em 10/10 apenas pelo acordo. Ao
-devolver R$ 60 por Pix em 12/10, registra-se uma devolução efetiva de R$ 60 com
-data 12/10; o saldo de devolução pendente passa a R$ 0 e o valor retido é R$ 40.
-Várias devoluções parciais são permitidas. Parcelamento programado, juros e
-cronograma de cobrança não pertencem a esta versão.
+crédito aplicado. O valor acumulado devolvido não pode superar recebimentos
+anteriores ainda não devolvidos. A negociação fica em texto; somente a saída já
+realizada entra na projeção financeira. Parcelas futuras, promessas e estados
+de acerto não são materializados.
 
 ## 6. Projeções de interface e relatórios
 
@@ -439,14 +438,11 @@ cronograma de cobrança não pertencem a esta versão.
 
 **DECIDED**
 
-Hoje terá seção própria de **acertos financeiros pendentes**, derivada dos
-pedidos e seus acertos, sem criar Task automática. Todo acerto cujo estado não
-seja concluido deve nela permanecer, até a execução de todos os seus efeitos:
-
-- cancelamento **A combinar**;
-- devolução acordada ainda não iniciada;
-- devolução parcialmente executada.
-- acerto definido cuja destinação explícita de crédito ainda não foi executada.
+Produção/entrega, pagamento pendente e eventual acompanhamento de uma
+negociação são listas distintas e não devem ser inferidas umas das outras.
+Checkpoint 7C.1 não materializa valor prometido, estado de acerto ou cobrança
+pendente a partir do texto da negociação; uma futura interface exige decisão
+explícita sobre como representar esse acompanhamento.
 
 Produção/entrega, pagamento pendente e acerto financeiro pendente são listas
 distintas e não devem ser uma inferida da outra. A futura interface reutiliza a
@@ -477,7 +473,9 @@ posição atual do Pedido; nenhum deles é somado como dinheiro recebido.
 O resultado expõe a reconciliação completa e devolve saldo de crédito `null`
 quando a reconstrução não é segura. Divergência de cache, pagamento inválido,
 identidade duplicada, data inválida, déficit de crédito ou cancelamento sem
-acerto continuam diagnósticos; a leitura não escolhe nem repara uma fonte. A
+cancelamento legado ou com crédito sem destino explícito continuam diagnósticos;
+a leitura não escolhe nem repara uma fonte. Um cancelamento 7C.1 válido sem
+efeito de crédito pode ser identificado sem inferir cobrança. A
 posição de saldo atual também permanece distinta de entradas de dinheiro por
 período.
 
@@ -495,7 +493,7 @@ A futura página terá navegação desktop e mobile e separará, sem dupla conta
 - crédito disponível atual;
 - acertos financeiros pendentes.
 
-Valor apenas acordado para devolução não entra como dinheiro devolvido. Crédito
+Uma promessa descrita no texto não entra como dinheiro devolvido. Crédito
 aplicado não é recebimento novo. Saldo atual de pedido não é fluxo ocorrido em
 um intervalo.
 
@@ -861,26 +859,43 @@ alterar Rules nesta etapa documental.
 | --- | --- | --- |
 | Recebimentos | payments[] já é canônico para novos pedidos; criação local usa ID aleatório | API usa identidade estável e idempotência |
 | Correção | pagamentos são append-only na UI e serviço | editar lançamento mantendo ID, sem auditoria técnica |
-| Cancelamento | cancela operacionalmente; proíbe novo recebimento | exige acerto financeiro separado, sem decisão automática |
-| Crédito | calculado de pedidos e exclui cancelados | agregador transacional reconciliável; cancelamento depende do acerto |
+| Cancelamento | serviço/UI produtivos ainda usam SDK; comando 7C.1 está isolado no Emulator | negociação textual e movimentações efetivas explícitas; crédito permanece OPEN |
+| Crédito | calculado de pedidos e exclui cancelados | agregador transacional reconciliável; 7C.1 rejeita efeitos de crédito sem alterá-los |
 | Hoje | pendências de pagamento apenas para active | seção independente de acertos pendentes |
 | Backend | SDK cliente escreve diretamente no Firestore | API Vercel/Admin é autoridade financeira |
 | Rules | escrita recursiva para usuário admitido | bloqueio real de escrita financeira direta, sem allow concorrente |
 
 ## 10. Decisões ainda abertas
 
-1. Schema e comando de acerto para Pedido cancelado cujo crédito já tenha sido
-   consumido. O saldo fungível e a redução protegida não autorizam restituição,
-   bloqueio ou redistribuição automática.
+1. Destino e operação explícitos de crédito em Pedido cancelado, inclusive
+   crédito consumido em outro Pedido. O checkpoint 7C.1 recusa esses casos sem
+   restituição, bloqueio ou redistribuição automática.
 2. Forma final e localização do agregado de crédito, dados mínimos para
    reconciliação e protocolo de reparo manual aprovado.
-3. Schema final do objeto de acerto e das devoluções, após auditoria de
-   compatibilidade dos documentos existentes; os estados derivados e invariantes
-   desta especificação são obrigatórios independentemente do schema.
-4. Regra para reabrir ou corrigir acerto já concluído.
+3. Regra para reabrir ou corrigir uma negociação/cancelamento já gravado.
 5. Política para divergências amountPaid versus payments descobertas na
    reconciliação: revisão humana, critério de aprovação e trilha operacional.
 6. Representação monetária final da API e regra comercial de arredondamento de
    quantidade fracionária. O núcleo puro usa centavos e rejeita frações de
    centavo; a persistência atual continua em `number` e qualquer migração exige
    validação compatível de registros legados.
+
+### Checkpoint 7C.1 — contrato de produto e implementação experimental
+
+O Product Owner simplificou a decisão anterior de acerto: por ser pouco
+frequente, o cancelamento registra negociação em texto obrigatório e dinheiro
+efetivamente movimentado. Não há valor acordado de devolução, etapas de
+negociação nem estados de acerto. Promessas futuras ficam no texto e não são
+contabilizadas.
+
+**IMPLEMENTED — Emulator-only:** o comando dedicado cancel-order grava
+orderStatus, cancellationAgreement, recebimento opcional em payments[] ou
+devolução opcional em refunds[], além da identidade idempotente, em transação.
+O recebimento mantém os fatos anteriores e não pode gerar crédito; devolução
+usa valor positivo e refundedAt e é limitada aos recebimentos ainda não
+devolvidos. Pedidos com crédito aplicado ou gerado conflitam sem escrita.
+Reconciliação reconhece apenas negociação válida sem efeito de crédito; legado
+cancelado ou histórico inconsistente continua diagnosticado. A projeção separa
+saídas de entradas e não apresenta saldo original cancelado como cobrança.
+
+O comando não altera serviços produtivos, UI, Rules, agregadores ou cutover.

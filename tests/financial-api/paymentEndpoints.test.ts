@@ -2,10 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { handleCorrectPaymentRequest } from "../../api/financial/correct-payment";
 import { handleRecordPaymentRequest } from "../../api/financial/record-payment";
+import { handleCancelOrderRequest } from "../../api/financial/cancel-order";
 
 const endpoints = [
   ["record-payment", handleRecordPaymentRequest],
   ["correct-payment", handleCorrectPaymentRequest],
+  ["cancel-order", handleCancelOrderRequest],
 ] as const;
 
 describe("payment HTTP endpoints", () => {

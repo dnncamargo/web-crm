@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   projectFinancialReadModel,
+  selectKnownRefundsInInterval,
   selectKnownReceiptsInInterval,
   selectOperationalPendingOrders,
   sumProjectedReceipts,
@@ -148,6 +149,25 @@ describe("financial read-only projection", () => {
 
     expect(projection.knownReceipts).toMatchObject([{ orderId: "cancelled", receiptId: "receipt" }]);
     expect(projection.operationalPendingOrderIds).toEqual([]);
+  });
+
+  it("projects a negotiated cancellation refund as a dated outflow separate from receipts and balance", () => {
+    const cancelled = order({
+      id: "negotiated-cancelled",
+      orderStatus: "cancelled",
+      amountPaid: 100,
+      payments: [{ id: "receipt", amount: 100, receivedAt: "2026-10-10T12:00:00.000Z" }],
+      cancellationAgreement: { operationId: "cancel-operation", text: "Devolução parcial combinada." },
+      refunds: [{ id: "refund-operation", amount: 35, refundedAt: "2026-10-12T12:00:00.000Z" }],
+    });
+    const projection = projectFinancialReadModel([cancelled]);
+    expect(projection.knownReceipts).toMatchObject([{ receiptId: "receipt", amountCents: 10000 }]);
+    expect(projection.knownRefunds).toMatchObject([{ refundId: "refund-operation", amountCents: 3500 }]);
+    expect(projection.orderBalances[0]).toMatchObject({ paymentStatus: null, balanceCents: null });
+    expect(selectKnownRefundsInInterval(projection.knownRefunds, {
+      startInclusive: "2026-10-12T00:00:00Z",
+      endExclusive: "2026-10-13T00:00:00Z",
+    })).toHaveLength(1);
   });
 
   it("uses the shared active/completed pending-payment rule and excludes paid or cancelled orders", () => {

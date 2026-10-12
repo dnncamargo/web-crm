@@ -4,6 +4,7 @@ import { isFinancialApiError } from "../../api/_financial/errors";
 import {
   parseApplyCreditCommand,
   parseCorrectPaymentCommand,
+  parseCancelOrderCommand,
   parseCreateOrderCommand,
   parseRecordPaymentCommand,
 } from "../../api/_financial/validation";
@@ -90,6 +91,43 @@ describe("payment request validation", () => {
       receivedAt: null,
     };
     await expect(parseCorrectPaymentCommand(request(command))).resolves.toMatchObject(command);
+  });
+});
+
+describe("cancel order command validation", () => {
+  const cancelCommand = {
+    orderId: "order-1",
+    clientId: "client-1",
+    operationId: "cancel-123456",
+    expected: { updatedAt: null },
+    agreement: "Acordo negociado com o cliente.",
+    movement: { kind: "none", amountCents: 0, occurredAt: null },
+  };
+
+  it("aceita acordo sem movimentação e recebimento/devolução reais", async () => {
+    await expect(parseCancelOrderCommand(request(cancelCommand))).resolves.toMatchObject(cancelCommand);
+    for (const kind of ["receipt", "refund"] as const) {
+      const body = { ...cancelCommand, movement: { kind, amountCents: 500, occurredAt: "2026-10-12T10:30:00-03:00" } };
+      await expect(parseCancelOrderCommand(request(body))).resolves.toMatchObject(body);
+    }
+  });
+
+  it.each([
+    { ...cancelCommand, extraFinancialField: 1 },
+    { ...cancelCommand, operationId: "bad" },
+    { ...cancelCommand, agreement: "   " },
+    { ...cancelCommand, movement: { ...cancelCommand.movement, amountCents: -1 } },
+    { ...cancelCommand, movement: { ...cancelCommand.movement, amountCents: 1.5 } },
+    { ...cancelCommand, movement: { ...cancelCommand.movement, amountCents: Number.POSITIVE_INFINITY } },
+    { ...cancelCommand, movement: { kind: "none", amountCents: 1, occurredAt: null } },
+    { ...cancelCommand, movement: { kind: "refund", amountCents: 1, occurredAt: null } },
+    { ...cancelCommand, movement: { kind: "receipt", amountCents: 1, occurredAt: "2026-02-30T12:00:00Z" } },
+    { ...cancelCommand, movement: { kind: "receipt", amountCents: 1, occurredAt: "2026-10-12T10:30:00" } },
+    { ...cancelCommand, movement: { kind: "both", amountCents: 1, occurredAt: "2026-10-12T10:30:00Z" } },
+  ])("rejeita contrato de cancelamento inválido", async (body) => {
+    await expect(parseCancelOrderCommand(request(body))).rejects.toSatisfy((error: unknown) => (
+      isFinancialApiError(error) && error.status === 400
+    ));
   });
 });
 
