@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { FieldValue, type DocumentData, type Firestore } from "firebase-admin/firestore";
 
 import {
@@ -137,6 +138,10 @@ function isReplay(existing: DocumentData, expected: Record<string, unknown>): bo
   return canonical(comparable) === canonical(expected);
 }
 
+function creationFingerprint(expected: Record<string, unknown>): string {
+  return createHash("sha256").update(canonical(expected)).digest("hex");
+}
+
 function domainFailure(error: FinancialDomainError): FinancialApiError {
   const status = error.code === "CREDIT_BALANCE_CHANGED" || error.code === "INSUFFICIENT_AVAILABLE_CREDIT" ? 409 : 400;
   return new FinancialApiError(status, error.code, status === 409 ? "Conflito financeiro." : "Payload financeiro inválido.");
@@ -152,6 +157,7 @@ export async function createOrderTransaction(db: Firestore, command: CreateOrder
   }
 
   const orderRef = db.collection("orders").doc(command.orderId);
+  const fingerprint = creationFingerprint(calculated.order);
   const hasFinancialEffects = command.initialPayment !== undefined || command.creditApplication !== undefined;
   const hasFinancialChanges = command.initialPayment !== undefined
     || (command.creditApplication?.applyCreditCents ?? 0) > 0;
@@ -160,29 +166,27 @@ export async function createOrderTransaction(db: Firestore, command: CreateOrder
   try {
     return await db.runTransaction(async (transaction) => {
       const orderSnapshot = await transaction.get(orderRef);
-      const aggregatorSnapshot = hasFinancialEffects ? await transaction.get(aggregatorRef) : null;
-
       if (orderSnapshot.exists) {
         const existing = orderSnapshot.data();
-        if (!existing || !isReplay(existing, calculated.order)) {
+        const persistedFingerprint = existing?._creationFingerprint;
+        const matchesOriginal = typeof persistedFingerprint === "string"
+          ? persistedFingerprint === fingerprint
+          : Boolean(existing && isReplay(existing, calculated.order));
+        if (!existing || !matchesOriginal) {
           throw new FinancialApiError(409, "ORDER_ID_COLLISION", "A identidade do Pedido já existe com conteúdo divergente.");
-        }
-        const aggregator = aggregatorSnapshot?.exists && aggregatorSnapshot.data()
-          ? parseAggregator(aggregatorSnapshot.data() as DocumentData)
-          : null;
-        if (hasFinancialEffects && !aggregator) {
-          throw new FinancialApiError(409, "AGGREGATOR_UNAVAILABLE", "Agregador financeiro indisponível.");
         }
         return {
           orderId: command.orderId,
           amountPaidCents: calculated.cashPaidCents,
           creditAppliedCents: calculated.appliedCreditCents,
           creditGeneratedCents: calculated.creditGeneratedCents,
-          availableCreditCents: aggregator?.availableCreditCents ?? null,
-          revision: aggregator?.revision ?? null,
+          availableCreditCents: null,
+          revision: null,
           replayed: true,
         };
       }
+
+      const aggregatorSnapshot = hasFinancialEffects ? await transaction.get(aggregatorRef) : null;
 
       let aggregator: StoredAggregator | null = null;
       if (hasFinancialEffects) {
@@ -224,6 +228,7 @@ export async function createOrderTransaction(db: Firestore, command: CreateOrder
 
       transaction.create(orderRef, {
         ...calculated.order,
+        _creationFingerprint: fingerprint,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });

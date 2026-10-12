@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto";
 
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { describe, expect, it } from "vitest";
 
 import { getFinancialAdminDb } from "../../api/_financial/admin";
 import { createOrderTransaction } from "../../api/_financial/createOrder";
+import { editOrderTransaction } from "../../api/_financial/orderEdit";
+import { applyCreditTransaction } from "../../api/_financial/applyCredit";
+import { recordPaymentTransaction } from "../../api/_financial/paymentTransactions";
 import { isFinancialApiError } from "../../api/_financial/errors";
 import type { CreateOrderCommand } from "../../api/_financial/validation";
 import type { Firestore } from "firebase-admin/firestore";
@@ -175,6 +179,123 @@ describe("create order transaction with Firestore Emulator", () => {
     expect((await db.collection("orders").where("clientId", "==", ids.clientId).get()).size).toBe(1);
     expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.payments).toHaveLength(1);
     expect((await db.doc(`clientFinancial/${ids.clientId}`).get()).data()?.revision).toBe(2);
+  });
+
+  it("reconhece retry original após edição operacional sem reverter campos ou timestamps", async () => {
+    const db = getFinancialAdminDb();
+    const ids = fixtureIds();
+    const original = command(ids.clientId, ids.orderId);
+    await createOrderTransaction(db, original);
+    const created = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    const updatedAt = created?.updatedAt as Timestamp;
+    await editOrderTransaction(db, {
+      kind: "operational", orderId: ids.orderId, clientId: ids.clientId,
+      expected: { updatedAt: { seconds: updatedAt.seconds, nanoseconds: updatedAt.nanoseconds } },
+      changes: { notes: "Nota operacional posterior" },
+    });
+    const afterEdit = (await db.doc(`orders/${ids.orderId}`).get()).data();
+
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true, availableCreditCents: null, revision: null });
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ notes: "Nota operacional posterior", updatedAt: afterEdit?.updatedAt });
+  });
+
+  it("reconhece retry original após edição comercial sem reverter itens ou totais", async () => {
+    const db = getFinancialAdminDb();
+    const ids = fixtureIds();
+    const original = command(ids.clientId, ids.orderId);
+    await seedAggregator(ids.clientId, 0, 1);
+    await createOrderTransaction(db, original);
+    const created = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    const updatedAt = created?.updatedAt as Timestamp;
+    await editOrderTransaction(db, {
+      kind: "commercial", orderId: ids.orderId, clientId: ids.clientId,
+      expected: { updatedAt: { seconds: updatedAt.seconds, nanoseconds: updatedAt.nanoseconds } },
+      items: [{ id: "item-test", productId: "product-test", productName: "Produto reajustado", quantity: 1, unitPriceCents: 11000, totalCents: 11000 }],
+      subtotalCents: 11000, deliveryFeeCents: 0, totalCents: 11000,
+    });
+    const afterEdit = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true });
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ total: 110, items: [{ productName: "Produto reajustado" }], updatedAt: afterEdit?.updatedAt });
+  });
+
+  it("reconhece retry original após recebimento ou aplicação de crédito sem reaplicar efeitos", async () => {
+    const db = getFinancialAdminDb();
+    const paymentIds = fixtureIds();
+    const original = command(paymentIds.clientId, paymentIds.orderId);
+    await seedAggregator(paymentIds.clientId, 0, 1);
+    await createOrderTransaction(db, original);
+    await recordPaymentTransaction(db, {
+      orderId: paymentIds.orderId, clientId: paymentIds.clientId, paymentId: `payment-${randomUUID()}`,
+      amountCents: 1000, receivedAt: "2026-10-11T12:30:00Z", presentedAvailableCreditCents: 0, presentedRevision: 1,
+    });
+    const afterPayment = (await db.doc(`orders/${paymentIds.orderId}`).get()).data();
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true });
+    expect((await db.doc(`orders/${paymentIds.orderId}`).get()).data()).toMatchObject({ payments: afterPayment?.payments, amountPaid: 10, updatedAt: afterPayment?.updatedAt });
+    expect((await db.doc(`clientFinancial/${paymentIds.clientId}`).get()).data()).toMatchObject({ revision: 2 });
+
+    const creditIds = fixtureIds();
+    const creditOriginal = command(creditIds.clientId, creditIds.orderId);
+    await seedAggregator(creditIds.clientId, 5000, 7);
+    await createOrderTransaction(db, creditOriginal);
+    await applyCreditTransaction(db, {
+      operationId: `operation-${randomUUID()}`, orderId: creditIds.orderId, clientId: creditIds.clientId,
+      applyCreditCents: 1000, presentedAvailableCreditCents: 5000, presentedRevision: 7, confirmed: true,
+    }, { uid: "emulator-operator", email: "operator@example.test" });
+    const afterCredit = (await db.doc(`orders/${creditIds.orderId}`).get()).data();
+    await expect(createOrderTransaction(db, structuredClone(creditOriginal))).resolves.toMatchObject({ replayed: true });
+    expect((await db.doc(`orders/${creditIds.orderId}`).get()).data()).toMatchObject({ creditApplied: 10, updatedAt: afterCredit?.updatedAt });
+    expect((await db.doc(`clientFinancial/${creditIds.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 4000, revision: 8 });
+  });
+
+  it("reconhece retry original após transferência sem restaurar cliente ou snapshot de nome", async () => {
+    const db = getFinancialAdminDb();
+    const ids = fixtureIds();
+    const destinationClientId = fixtureIds().clientId;
+    const original = command(ids.clientId, ids.orderId, { clientName: "Nome original" });
+    await createOrderTransaction(db, original);
+    await db.doc(`clients/${ids.clientId}`).set({ name: "Cliente origem", active: true });
+    await db.doc(`clients/${destinationClientId}`).set({ name: "Cliente destino", active: true });
+    const created = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    const updatedAt = created?.updatedAt as Timestamp;
+    await editOrderTransaction(db, {
+      kind: "transfer", operationId: `transfer-${randomUUID()}`, orderId: ids.orderId,
+      sourceClientId: ids.clientId, destinationClientId,
+      expected: { updatedAt: { seconds: updatedAt.seconds, nanoseconds: updatedAt.nanoseconds } },
+      confirmation: { sourceName: "Cliente origem", destinationName: "Cliente destino", confirmed: true },
+    });
+    const afterTransfer = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true });
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ clientId: destinationClientId, clientName: "Cliente destino", updatedAt: afterTransfer?.updatedAt });
+    await expect(createOrderTransaction(db, command(ids.clientId, ids.orderId, { notes: "Retry divergente" }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "ORDER_ID_COLLISION");
+  });
+
+  it("serializa criação e tentativa de transferência concorrentes para a mesma identidade", async () => {
+    const db = getFinancialAdminDb();
+    const ids = fixtureIds(); const destinationClientId = fixtureIds().clientId;
+    await db.doc(`clients/${ids.clientId}`).set({ name: "Cliente origem", active: true });
+    await db.doc(`clients/${destinationClientId}`).set({ name: "Cliente destino", active: true });
+    const original = command(ids.clientId, ids.orderId);
+    const transfer = editOrderTransaction(db, {
+      kind: "transfer", operationId: `transfer-${randomUUID()}`, orderId: ids.orderId,
+      sourceClientId: ids.clientId, destinationClientId,
+      expected: { updatedAt: null },
+      confirmation: { sourceName: "Cliente origem", destinationName: "Cliente destino", confirmed: true },
+    });
+    const results = await Promise.allSettled([createOrderTransaction(db, original), transfer]);
+    expect(results[0]?.status).toBe("fulfilled");
+    expect(results[1]?.status).toBe("rejected");
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ clientId: ids.clientId, clientName: "Cliente de teste" });
+  });
+
+  it("usa comparação exata como fallback legado e conflita quando não há prova histórica suficiente", async () => {
+    const db = getFinancialAdminDb();
+    const ids = fixtureIds();
+    const original = command(ids.clientId, ids.orderId);
+    await createOrderTransaction(db, original);
+    await db.doc(`orders/${ids.orderId}`).update({ _creationFingerprint: FieldValue.delete() });
+    await expect(createOrderTransaction(db, structuredClone(original))).resolves.toMatchObject({ replayed: true });
+    await db.doc(`orders/${ids.orderId}`).update({ notes: "Estado alterado sem fingerprint" });
+    await expect(createOrderTransaction(db, structuredClone(original))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "ORDER_ID_COLLISION");
   });
 
   it("permite somente uma concorrente consumir o mesmo crédito", async () => {

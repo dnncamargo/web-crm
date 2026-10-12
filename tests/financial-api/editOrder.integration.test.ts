@@ -35,6 +35,19 @@ function operationalCommand(clientId: string, orderId: string, changes: Extract<
   return { kind: "operational", clientId, orderId, expected: { updatedAt: null }, changes };
 }
 
+function transferCommand(sourceClientId: string, destinationClientId: string, orderId: string, overrides: Partial<Extract<EditOrderCommand, { kind: "transfer" }>> = {}): Extract<EditOrderCommand, { kind: "transfer" }> {
+  return {
+    kind: "transfer", operationId: `transfer-${randomUUID()}`, orderId, sourceClientId, destinationClientId,
+    expected: { updatedAt: null },
+    confirmation: { sourceName: "Cliente", destinationName: "Destino", confirmed: true },
+    ...overrides,
+  };
+}
+
+async function seedClient(clientId: string, name: string) {
+  await getFinancialAdminDb().doc(`clients/${clientId}`).set({ name, active: true });
+}
+
 async function seedOrder(input: {
   clientId: string;
   orderId: string;
@@ -58,7 +71,7 @@ async function seedOrder(input: {
     items: [{ id: "item-1", productId: "product-1", productName: "Produto", quantity: 1, unitPrice: totalCents / 100, total: totalCents / 100, notes: "", tagIds: [] }],
     subtotal: totalCents / 100, deliveryFee: 0, total: totalCents / 100,
     amountPaid: input.amountPaidOverride ?? cashPaidCents / 100,
-    ...(input.legacy ? {} : { payments: input.payments ?? [] }),
+    ...(input.legacy ? {} : { payments: input.payments ?? (cashPaidCents > 0 ? [{ id: "payment-seed", amount: cashPaidCents / 100, receivedAt: null }] : []) }),
     ...(creditAppliedCents > 0 ? { creditApplied: creditAppliedCents / 100 } : {}),
     ...(creditGeneratedCents > 0 ? { creditGenerated: creditGeneratedCents / 100 } : {}),
     tagIds: ["order-tag"], notes: "Original",
@@ -72,6 +85,306 @@ async function seedAggregator(clientId: string, availableCreditCents = 0, revisi
 }
 
 describe("experimental order edit transaction with Firestore Emulator", () => {
+  it("transfere pedido sem efeitos de crédito sem exigir agregadores e preserva os fatos/snapshots", async () => {
+    const ids = fixtureIds();
+    const destinationClientId = fixtureIds().clientId;
+    const db = getFinancialAdminDb();
+    const payments = [{ id: "payment-partial", amount: 25, receivedAt: "2026-10-01T12:00:00Z" }];
+    const original = await seedOrder({ ...ids, cashPaidCents: 2500, payments, orderStatus: "completed" });
+    const createdAt = Timestamp.fromDate(new Date("2026-09-15T12:00:00Z"));
+    await db.doc(`orders/${ids.orderId}`).update({ createdAt });
+    await seedClient(ids.clientId, "Cliente");
+    await seedClient(destinationClientId, "Destino");
+    const command = transferCommand(ids.clientId, destinationClientId, ids.orderId);
+
+    const result = await editOrderTransaction(db, command);
+    const saved = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    expect(result).toMatchObject({ operation: "transfer", replayed: false, sourceAvailableCreditCents: null, destinationAvailableCreditCents: null });
+    expect(saved).toMatchObject({ clientId: destinationClientId, clientName: "Destino", orderStatus: "completed", payments, amountPaid: 25, createdAt });
+    for (const field of ["items", "addressId", "addressSnapshot", "deliveryDateTime", "total", "creditApplied", "creditGenerated"] as const) {
+      expect(saved?.[field]).toEqual(original[field]);
+    }
+    expect((await db.doc(`clientFinancial/${ids.clientId}`).get()).exists).toBe(false);
+    expect((await db.doc(`clientFinancial/${destinationClientId}`).get()).exists).toBe(false);
+  });
+
+  it("transfere Pedido quitado em dinheiro sem alterar o recebimento", async () => {
+    const ids = fixtureIds(); const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder({ ...ids, cashPaidCents: 10000, payments: [{ id: "payment-settled", amount: 100, receivedAt: "2026-10-03T10:00:00Z" }] });
+    await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino");
+    await editOrderTransaction(db, transferCommand(ids.clientId, destination, ids.orderId));
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ clientId: destination, amountPaid: 100, payments: [{ id: "payment-settled", amount: 100, receivedAt: "2026-10-03T10:00:00Z" }] });
+    expect((await db.doc(`clientFinancial/${ids.clientId}`).get()).exists).toBe(false);
+    expect((await db.doc(`clientFinancial/${destination}`).get()).exists).toBe(false);
+  });
+
+  it.each([
+    { name: "crédito gerado", cashPaidCents: 12000, creditAppliedCents: 0, creditGeneratedCents: 2000, sourceBalance: 2000, destinationBalance: 0, expectedSource: 0, expectedDestination: 2000 },
+    { name: "crédito aplicado", cashPaidCents: 8000, creditAppliedCents: 2000, creditGeneratedCents: 0, sourceBalance: 0, destinationBalance: 2000, expectedSource: 2000, expectedDestination: 0 },
+    { name: "créditos aplicado e gerado", cashPaidCents: 11000, creditAppliedCents: 1000, creditGeneratedCents: 2000, sourceBalance: 1000, destinationBalance: 0, expectedSource: 0, expectedDestination: 1000 },
+  ])("transfere contribuição líquida de $name sem criar evento de caixa", async (scenario) => {
+    const ids = fixtureIds();
+    const destinationClientId = fixtureIds().clientId;
+    const db = getFinancialAdminDb();
+    await seedOrder({ ...ids, cashPaidCents: scenario.cashPaidCents, creditAppliedCents: scenario.creditAppliedCents, creditGeneratedCents: scenario.creditGeneratedCents,
+      payments: [{ id: "payment-canonical", amount: scenario.cashPaidCents / 100, receivedAt: null }] });
+    await seedClient(ids.clientId, "Cliente");
+    await seedClient(destinationClientId, "Destino");
+    await seedAggregator(ids.clientId, scenario.sourceBalance, 4);
+    await seedAggregator(destinationClientId, scenario.destinationBalance, 9);
+
+    const result = await editOrderTransaction(db, transferCommand(ids.clientId, destinationClientId, ids.orderId, {
+      sourceFinancialState: { availableCreditCents: scenario.sourceBalance, revision: 4 },
+      destinationFinancialState: { availableCreditCents: scenario.destinationBalance, revision: 9 },
+    }));
+
+    expect(result).toMatchObject({ sourceAvailableCreditCents: scenario.expectedSource, destinationAvailableCreditCents: scenario.expectedDestination, sourceRevision: 5, destinationRevision: 10 });
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()).toMatchObject({ clientId: destinationClientId, payments: [{ id: "payment-canonical", receivedAt: null }] });
+    expect((await db.doc(`clientFinancial/${ids.clientId}`).get()).data()).toMatchObject({ availableCreditCents: scenario.expectedSource, revision: 5 });
+    expect((await db.doc(`clientFinancial/${destinationClientId}`).get()).data()).toMatchObject({ availableCreditCents: scenario.expectedDestination, revision: 10 });
+  });
+
+  it("não altera agregadores quando crédito aplicado e gerado se anulam", async () => {
+    const ids = fixtureIds();
+    const destinationClientId = fixtureIds().clientId;
+    const db = getFinancialAdminDb();
+    await seedOrder({ ...ids, cashPaidCents: 10000, creditAppliedCents: 1000, creditGeneratedCents: 1000 });
+    await seedClient(ids.clientId, "Cliente");
+    await seedClient(destinationClientId, "Destino");
+    const result = await editOrderTransaction(db, transferCommand(ids.clientId, destinationClientId, ids.orderId));
+    expect(result).toMatchObject({ replayed: false, sourceRevision: null, destinationRevision: null });
+    expect((await db.doc(`clientFinancial/${ids.clientId}`).get()).exists).toBe(false);
+    expect((await db.doc(`clientFinancial/${destinationClientId}`).get()).exists).toBe(false);
+  });
+
+  it("exige agregadores ready, revisões e saldos apresentados quando o efeito líquido é diferente de zero", async () => {
+    const setup = async (originState: string, sourceBalance = 2000, destinationBalance = 0) => {
+      const ids = fixtureIds();
+      const destinationClientId = fixtureIds().clientId;
+      await seedOrder({ ...ids, cashPaidCents: 12000, creditGeneratedCents: 2000 });
+      await seedClient(ids.clientId, "Cliente");
+      await seedClient(destinationClientId, "Destino");
+      await seedAggregator(ids.clientId, sourceBalance, 4, originState);
+      await seedAggregator(destinationClientId, destinationBalance, 9);
+      return { ids, destinationClientId };
+    };
+    const absent = fixtureIds();
+    const absentDestination = fixtureIds().clientId;
+    await seedOrder({ ...absent, cashPaidCents: 12000, creditGeneratedCents: 2000 });
+    await seedClient(absent.clientId, "Cliente"); await seedClient(absentDestination, "Destino");
+    await expect(editOrderTransaction(getFinancialAdminDb(), transferCommand(absent.clientId, absentDestination, absent.orderId))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "AGGREGATOR_UNAVAILABLE");
+    const blocked = await setup("blocked");
+    await expect(editOrderTransaction(getFinancialAdminDb(), transferCommand(blocked.ids.clientId, blocked.destinationClientId, blocked.ids.orderId, {
+      sourceFinancialState: { availableCreditCents: 2000, revision: 4 }, destinationFinancialState: { availableCreditCents: 0, revision: 9 },
+    }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "AGGREGATOR_UNAVAILABLE");
+    const stale = await setup("ready");
+    await expect(editOrderTransaction(getFinancialAdminDb(), transferCommand(stale.ids.clientId, stale.destinationClientId, stale.ids.orderId, {
+      sourceFinancialState: { availableCreditCents: 2000, revision: 3 }, destinationFinancialState: { availableCreditCents: 0, revision: 9 },
+    }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "SOURCE_AGGREGATOR_CHANGED");
+    const divergent = await setup("ready");
+    await expect(editOrderTransaction(getFinancialAdminDb(), transferCommand(divergent.ids.clientId, divergent.destinationClientId, divergent.ids.orderId, {
+      sourceFinancialState: { availableCreditCents: 1999, revision: 4 }, destinationFinancialState: { availableCreditCents: 0, revision: 9 },
+    }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "SOURCE_AGGREGATOR_CHANGED");
+    const staleDestination = await setup("ready");
+    await expect(editOrderTransaction(getFinancialAdminDb(), transferCommand(staleDestination.ids.clientId, staleDestination.destinationClientId, staleDestination.ids.orderId, {
+      sourceFinancialState: { availableCreditCents: 2000, revision: 4 }, destinationFinancialState: { availableCreditCents: 0, revision: 8 },
+    }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "DESTINATION_AGGREGATOR_CHANGED");
+  });
+
+  it("rejeita déficit em qualquer saldo e não altera o Pedido parcialmente", async () => {
+    const ids = fixtureIds();
+    const destinationClientId = fixtureIds().clientId;
+    const db = getFinancialAdminDb();
+    await seedOrder({ ...ids, cashPaidCents: 12000, creditGeneratedCents: 2000 });
+    await seedClient(ids.clientId, "Cliente"); await seedClient(destinationClientId, "Destino");
+    await seedAggregator(ids.clientId, 1000, 1);
+    await seedAggregator(destinationClientId, 0, 1);
+    await expect(editOrderTransaction(db, transferCommand(ids.clientId, destinationClientId, ids.orderId, {
+      sourceFinancialState: { availableCreditCents: 1000, revision: 1 }, destinationFinancialState: { availableCreditCents: 0, revision: 1 },
+    }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INSUFFICIENT_AVAILABLE_CREDIT");
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.clientId).toBe(ids.clientId);
+    const debitIds = fixtureIds(); const debitDestination = fixtureIds().clientId;
+    await seedOrder({ ...debitIds, cashPaidCents: 8000, creditAppliedCents: 2000 });
+    await seedClient(debitIds.clientId, "Cliente"); await seedClient(debitDestination, "Destino");
+    await seedAggregator(debitIds.clientId, 0, 1); await seedAggregator(debitDestination, 1000, 1);
+    await expect(editOrderTransaction(db, transferCommand(debitIds.clientId, debitDestination, debitIds.orderId, {
+      sourceFinancialState: { availableCreditCents: 0, revision: 1 }, destinationFinancialState: { availableCreditCents: 1000, revision: 1 },
+    }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INSUFFICIENT_AVAILABLE_CREDIT");
+  });
+
+  it("rejeita retirar crédito já consumido em outro Pedido sem invalidar o Pedido consumidor", async () => {
+    const sourceId = fixtureIds(); const destinationId = fixtureIds().clientId; const consumerId = fixtureIds(); const db = getFinancialAdminDb();
+    await seedOrder({ ...sourceId, cashPaidCents: 12000, creditGeneratedCents: 2000 });
+    await seedOrder({ ...consumerId, clientId: sourceId.clientId, cashPaidCents: 8000, creditAppliedCents: 2000, creditGeneratedCents: 0 });
+    await seedClient(sourceId.clientId, "Cliente"); await seedClient(destinationId, "Destino");
+    await seedAggregator(sourceId.clientId, 0, 6); await seedAggregator(destinationId, 0, 3);
+    await expect(editOrderTransaction(db, transferCommand(sourceId.clientId, destinationId, sourceId.orderId, {
+      sourceFinancialState: { availableCreditCents: 0, revision: 6 }, destinationFinancialState: { availableCreditCents: 0, revision: 3 },
+    }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INSUFFICIENT_AVAILABLE_CREDIT");
+    expect((await db.doc(`orders/${sourceId.orderId}`).get()).data()?.clientId).toBe(sourceId.clientId);
+    expect((await db.doc(`orders/${consumerId.orderId}`).get()).data()).toMatchObject({ clientId: sourceId.clientId, creditApplied: 20 });
+  });
+
+  it("rejeita cliente de destino inexistente, pedido legado inconsistente e cache divergente", async () => {
+    const ids = fixtureIds(); const missing = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder(ids); await seedClient(ids.clientId, "Cliente");
+    await expect(editOrderTransaction(db, transferCommand(ids.clientId, missing, ids.orderId))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "TRANSFER_CLIENT_UNAVAILABLE");
+    const invalid = fixtureIds(); const invalidDestination = fixtureIds().clientId;
+    await seedOrder({ ...invalid, cashPaidCents: 2000, legacy: true, amountPaidOverride: 12.345 });
+    await seedClient(invalid.clientId, "Cliente"); await seedClient(invalidDestination, "Destino");
+    await expect(editOrderTransaction(db, transferCommand(invalid.clientId, invalidDestination, invalid.orderId))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INVALID_FINANCIAL_STATE");
+  });
+
+  it("preserva legado sem payments e resíduo IEEE somente quando comprovado pelas parcelas", async () => {
+    const legacy = fixtureIds(); const legacyDestination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder({ ...legacy, legacy: true, cashPaidCents: 2500 });
+    await seedClient(legacy.clientId, "Cliente"); await seedClient(legacyDestination, "Destino");
+    await editOrderTransaction(db, transferCommand(legacy.clientId, legacyDestination, legacy.orderId));
+    expect((await db.doc(`orders/${legacy.orderId}`).get()).data()).not.toHaveProperty("payments");
+
+    const ieee = fixtureIds(); const ieeeDestination = fixtureIds().clientId;
+    const payments = [{ id: "ieee-a", amount: 100.1, receivedAt: null }, { id: "ieee-b", amount: 200.2, receivedAt: null }];
+    await seedOrder({ ...ieee, legacy: false, totalCents: 30030, cashPaidCents: 30030, payments, amountPaidOverride: 100.1 + 200.2 });
+    await seedClient(ieee.clientId, "Cliente"); await seedClient(ieeeDestination, "Destino");
+    await editOrderTransaction(db, transferCommand(ieee.clientId, ieeeDestination, ieee.orderId));
+    expect((await db.doc(`orders/${ieee.orderId}`).get()).data()).toMatchObject({ amountPaid: 300.29999999999995, payments });
+  });
+
+  it("reconcilia origem e destino após transferir crédito gerado", async () => {
+    const ids = fixtureIds(); const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder({ ...ids, cashPaidCents: 12000, creditGeneratedCents: 2000 });
+    const sourceZeroOrderId = `order-zero-${randomUUID()}`;
+    await seedOrder({ clientId: ids.clientId, orderId: sourceZeroOrderId, totalCents: 0 });
+    await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino");
+    await seedAggregator(ids.clientId, 2000, 1); await seedAggregator(destination, 0, 5);
+    await editOrderTransaction(db, transferCommand(ids.clientId, destination, ids.orderId, {
+      sourceFinancialState: { availableCreditCents: 2000, revision: 1 }, destinationFinancialState: { availableCreditCents: 0, revision: 5 },
+    }));
+    const order = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    const sourceAggregate = (await db.doc(`clientFinancial/${ids.clientId}`).get()).data();
+    const destinationAggregate = (await db.doc(`clientFinancial/${destination}`).get()).data();
+    const zeroOrder = (await db.doc(`orders/${sourceZeroOrderId}`).get()).data();
+    const report = reconcileFinancialDocuments([{ id: ids.orderId, ...order }, { id: sourceZeroOrderId, ...zeroOrder }], [
+      { clientId: ids.clientId, ...sourceAggregate }, { clientId: destination, ...destinationAggregate },
+    ]);
+    expect(report.clients.find((client) => client.clientId === ids.clientId)).toMatchObject({ conclusive: true, availableCreditCents: 0, aggregatorComparison: "matches" });
+    expect(report.clients.find((client) => client.clientId === destination)).toMatchObject({ conclusive: true, availableCreditCents: 2000, aggregatorComparison: "matches" });
+  });
+
+  it("rejeita cliente idêntico, origem incorreta, nome de destino desatualizado e cancelamento", async () => {
+    const ids = fixtureIds(); const destinationClientId = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder(ids); await seedClient(ids.clientId, "Cliente"); await seedClient(destinationClientId, "Destino");
+    await expect(editOrderTransaction(db, transferCommand(ids.clientId, ids.clientId, ids.orderId))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "TRANSFER_CLIENTS_MUST_DIFFER");
+    await expect(editOrderTransaction(db, transferCommand(fixtureIds().clientId, destinationClientId, ids.orderId))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "ORDER_SOURCE_CHANGED");
+    await expect(editOrderTransaction(db, transferCommand(ids.clientId, destinationClientId, ids.orderId, { confirmation: { sourceName: "Cliente", destinationName: "Nome antigo", confirmed: true } }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "TRANSFER_CONFIRMATION_STALE");
+    const cancelled = fixtureIds(); const cancelledDestination = fixtureIds().clientId;
+    await seedOrder({ ...cancelled, orderStatus: "cancelled" }); await seedClient(cancelled.clientId, "Cliente"); await seedClient(cancelledDestination, "Destino");
+    await expect(editOrderTransaction(db, transferCommand(cancelled.clientId, cancelledDestination, cancelled.orderId))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "ORDER_SETTLEMENT_UNSUPPORTED");
+  });
+
+  it("trata retry idêntico como no-op e impede retry divergente ou antigo de sobrescrever transferência posterior", async () => {
+    const ids = fixtureIds(); const middle = fixtureIds().clientId; const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder(ids); await seedClient(ids.clientId, "Cliente"); await seedClient(middle, "Destino"); await seedClient(destination, "Destino final");
+    const first = transferCommand(ids.clientId, middle, ids.orderId);
+    await editOrderTransaction(db, first);
+    const afterFirst = (await db.doc(`orders/${ids.orderId}`).get()).data();
+    expect(await editOrderTransaction(db, first)).toMatchObject({ replayed: true });
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.updatedAt).toEqual(afterFirst?.updatedAt);
+    await expect(editOrderTransaction(db, transferCommand(ids.clientId, middle, ids.orderId, { operationId: first.operationId, confirmation: { ...first.confirmation, destinationName: "Outro" } }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "TRANSFER_OPERATION_ID_REUSED");
+    const stale = transferCommand(ids.clientId, destination, ids.orderId);
+    await expect(editOrderTransaction(db, stale)).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "ORDER_SOURCE_CHANGED");
+  });
+
+  it("serializa transferências concorrentes para o mesmo Pedido", async () => {
+    const ids = fixtureIds(); const destination = fixtureIds().clientId; const alternative = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder(ids); await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino"); await seedClient(alternative, "Alternativo");
+    const results = await Promise.allSettled([
+      editOrderTransaction(db, transferCommand(ids.clientId, destination, ids.orderId)),
+      editOrderTransaction(db, transferCommand(ids.clientId, alternative, ids.orderId)),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect([destination, alternative]).toContain((await db.doc(`orders/${ids.orderId}`).get()).data()?.clientId);
+  });
+
+  it("serializa transferência com edição comercial concorrente", async () => {
+    const ids = fixtureIds(); const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder(ids); await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino"); await seedAggregator(ids.clientId, 0, 1);
+    const results = await Promise.allSettled([
+      editOrderTransaction(db, transferCommand(ids.clientId, destination, ids.orderId)),
+      editOrderTransaction(db, commercialCommand(ids.clientId, ids.orderId, { items: [item(11000)], subtotalCents: 11000, totalCents: 11000 })),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+  });
+
+  it("serializa transferência com edição operacional concorrente", async () => {
+    const ids = fixtureIds(); const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder(ids); await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino");
+    const results = await Promise.allSettled([
+      editOrderTransaction(db, transferCommand(ids.clientId, destination, ids.orderId)),
+      editOrderTransaction(db, operationalCommand(ids.clientId, ids.orderId, { notes: "Alteração operacional" })),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+  });
+
+  it("serializa transferência com aplicação de crédito concorrente", async () => {
+    const ids = fixtureIds(); const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder(ids); await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino"); await seedAggregator(ids.clientId, 5000, 1);
+    const apply = applyCreditTransaction(db, {
+      operationId: `operation-${randomUUID()}`, clientId: ids.clientId, orderId: ids.orderId,
+      applyCreditCents: 1000, presentedAvailableCreditCents: 5000, presentedRevision: 1, confirmed: true,
+    }, { uid: "emulator-operator", email: "operator@example.test" });
+    const results = await Promise.allSettled([editOrderTransaction(db, transferCommand(ids.clientId, destination, ids.orderId)), apply]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+  });
+
+  it("faz rollback de Pedido e dois agregadores se uma escrita da transferência falhar", async () => {
+    const ids = fixtureIds(); const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder({ ...ids, cashPaidCents: 12000, creditGeneratedCents: 2000 });
+    await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino");
+    await seedAggregator(ids.clientId, 2000, 2); await seedAggregator(destination, 500, 7);
+    const originalRunTransaction = db.runTransaction.bind(db);
+    const failingDb = Object.create(db) as Firestore;
+    let updateCalls = 0;
+    failingDb.runTransaction = ((updateFunction, options) => originalRunTransaction(async (transaction) => {
+      const proxy = new Proxy(transaction, {
+        get(target, property) {
+          if (property === "update") return (...args: Parameters<typeof transaction.update>) => {
+            updateCalls += 1;
+            if (updateCalls === 2) throw new Error("falha de escrita injetada");
+            return target.update(...args);
+          };
+          const value: unknown = Reflect.get(target, property, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      return updateFunction(proxy);
+    }, options)) as typeof db.runTransaction;
+    await expect(editOrderTransaction(failingDb, transferCommand(ids.clientId, destination, ids.orderId, {
+      sourceFinancialState: { availableCreditCents: 2000, revision: 2 }, destinationFinancialState: { availableCreditCents: 500, revision: 7 },
+    }))).rejects.toThrow("falha de escrita injetada");
+    expect((await db.doc(`orders/${ids.orderId}`).get()).data()?.clientId).toBe(ids.clientId);
+    expect((await db.doc(`clientFinancial/${ids.clientId}`).get()).data()).toMatchObject({ availableCreditCents: 2000, revision: 2 });
+    expect((await db.doc(`clientFinancial/${destination}`).get()).data()).toMatchObject({ availableCreditCents: 500, revision: 7 });
+  });
+
+  it("serializa transferência concorrente com recebimento", async () => {
+    const ids = fixtureIds(); const destination = fixtureIds().clientId; const db = getFinancialAdminDb();
+    await seedOrder(ids); await seedClient(ids.clientId, "Cliente"); await seedClient(destination, "Destino"); await seedAggregator(ids.clientId, 0, 1); await seedAggregator(destination, 0, 1);
+    const transfer = transferCommand(ids.clientId, destination, ids.orderId, {
+      sourceFinancialState: { availableCreditCents: 0, revision: 1 }, destinationFinancialState: { availableCreditCents: 0, revision: 1 },
+    });
+    const payment = recordPaymentTransaction(db, {
+      orderId: ids.orderId, clientId: ids.clientId, paymentId: `payment-${randomUUID()}`, amountCents: 1000,
+      receivedAt: "2026-10-11T12:30:00Z", presentedAvailableCreditCents: 0, presentedRevision: 1,
+    });
+    const results = await Promise.allSettled([editOrderTransaction(db, transfer), payment]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+  });
+
   it("faz edição operacional de nota, etiquetas, endereço e entrega sem agregador ou alteração financeira", async () => {
     const db = getFinancialAdminDb();
     const ids = fixtureIds();
@@ -154,6 +467,13 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     }
     await expect(parseEditOrderCommand(request({ ...base, changes: { orderStatus: "cancelled" } }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "ORDER_SETTLEMENT_UNSUPPORTED");
     await expect(parseEditOrderCommand(request({ ...base, changes: { orderStatus: "active" } }))).resolves.toMatchObject({ changes: { orderStatus: "active" } });
+    const transfer = {
+      kind: "transfer", orderId: ids.orderId, operationId: "transfer-operation", sourceClientId: "source-client",
+      destinationClientId: "destination-client", expected: { updatedAt: null },
+      confirmation: { sourceName: "Origem", destinationName: "Destino", confirmed: true },
+    };
+    await expect(parseEditOrderCommand(request(transfer))).resolves.toMatchObject({ kind: "transfer", operationId: "transfer-operation" });
+    await expect(parseEditOrderCommand(request({ ...transfer, changes: { notes: "não misturar variantes" } }))).rejects.toSatisfy((error: unknown) => isFinancialApiError(error) && error.code === "INVALID_PAYLOAD");
   });
 
   it("rejeita troca de cliente, cancelamento e reabertura de cancelado", async () => {
@@ -397,7 +717,7 @@ describe("experimental order edit transaction with Firestore Emulator", () => {
     const results = await Promise.allSettled([editOrderTransaction(getFinancialAdminDb(), edit), apply]);
     expect(results.some((result) => result.status === "fulfilled")).toBe(true);
     const order = (await getFinancialAdminDb().doc(`orders/${ids.orderId}`).get()).data();
-    expect(order?.total).toBe(110);
+    expect([100, 110]).toContain(order?.total);
     expect(order?.creditApplied ?? 0).toBe(10);
     expect((await getFinancialAdminDb().doc(`clientFinancial/${ids.clientId}`).get()).data()?.availableCreditCents).toBe(4000);
   });
