@@ -6,11 +6,10 @@ import {
 import {
   reconcileFinancialDocuments,
   type ClientCreditReconstruction,
-  type ReconciliationFinding,
+  type ReconciledOrder,
   type ReconciliationResult,
 } from "./reconciliation.js";
 import {
-  getOrderBalanceInfo,
   getOrderPaymentHistory,
   getPaymentStatus,
 } from "../orders/orderUtils.js";
@@ -38,7 +37,7 @@ export interface FinancialReceiptInterval {
 export interface FinancialOrderBalance {
   orderId: string;
   orderStatus: Order["orderStatus"];
-  paymentStatus: PaymentStatus;
+  paymentStatus: PaymentStatus | null;
   balanceCents: MoneyCents | null;
   creditAppliedCents: MoneyCents | null;
   creditGeneratedCents: MoneyCents | null;
@@ -60,18 +59,6 @@ export interface FinancialProjection {
   reconciliation: ReconciliationResult;
 }
 
-const receiptIntegrityCodes = new Set([
-  "PAYMENTS_INVALID_STRUCTURE",
-  "PAYMENT_INVALID_STRUCTURE",
-  "PAYMENT_ID_INVALID",
-  "PAYMENT_ID_DUPLICATE",
-  "PAYMENT_AMOUNT_NON_POSITIVE",
-  "PAYMENT_DATE_INVALID_OR_MISSING",
-  "AMOUNT_PAID_PAYMENTS_MISMATCH",
-  "MONETARY_ARITHMETIC_INVALID",
-  "ORDER_ID_DUPLICATE",
-]);
-
 function isExplicitIsoInstant(value: string): boolean {
   return /T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(value)
     && !Number.isNaN(new Date(value).getTime());
@@ -85,12 +72,17 @@ function instantMillis(value: string, name: string): number {
   return new Date(value).getTime();
 }
 
-function hasReceiptIntegrityIssue(findings: readonly ReconciliationFinding[]): boolean {
-  return findings.some((finding) => receiptIntegrityCodes.has(finding.code));
+function hasReadablePaymentHistory(order: Order): boolean {
+  return order.payments === undefined || Array.isArray(order.payments);
 }
 
-function canProjectReceipt(payment: OrderPayment, findings: readonly ReconciliationFinding[]): boolean {
-  if (hasReceiptIntegrityIssue(findings)) return false;
+function canProjectReceipt(payment: OrderPayment, reconciledOrder: ReconciledOrder | undefined): boolean {
+  if (reconciledOrder === undefined
+    || reconciledOrder.classification === "INCONSISTENT"
+    || reconciledOrder.classification === "INDETERMINATE") {
+    return false;
+  }
+
   if (payment.receivedAt !== null && !isExplicitIsoInstant(payment.receivedAt)) return false;
 
   try {
@@ -114,6 +106,10 @@ export function selectOperationalPendingOrders(orders: readonly Order[]): Order[
   return orders
     .filter((order) => {
       if (order.orderStatus !== "active" && order.orderStatus !== "completed") {
+        return false;
+      }
+
+      if (!hasReadablePaymentHistory(order)) {
         return false;
       }
 
@@ -158,10 +154,10 @@ export function projectFinancialReadModel(orders: readonly Order[]): FinancialPr
 
   orders.forEach((order) => {
     const reconciledOrder = reconciliationByOrderId.get(order.id);
-    const findings = reconciledOrder?.findings ?? [];
+    if (!hasReadablePaymentHistory(order)) return;
 
     getOrderPaymentHistory(order).forEach((payment) => {
-      if (!canProjectReceipt(payment, findings)) return;
+      if (!canProjectReceipt(payment, reconciledOrder)) return;
 
       const receipt = {
         orderId: order.id,
@@ -178,11 +174,15 @@ export function projectFinancialReadModel(orders: readonly Order[]): FinancialPr
     });
   });
 
-  knownReceipts.sort((first, second) => (
-    first.receivedAt.localeCompare(second.receivedAt)
-    || first.orderId.localeCompare(second.orderId)
-    || first.receiptId.localeCompare(second.receiptId)
-  ));
+  knownReceipts.sort((first, second) => {
+    const firstReceivedAt = instantMillis(first.receivedAt, "receivedAt");
+    const secondReceivedAt = instantMillis(second.receivedAt, "receivedAt");
+    if (firstReceivedAt !== secondReceivedAt) {
+      return firstReceivedAt < secondReceivedAt ? -1 : 1;
+    }
+
+    return first.orderId.localeCompare(second.orderId) || first.receiptId.localeCompare(second.receiptId);
+  });
   historicalDateUnknownReceipts.sort((first, second) => (
     first.orderId.localeCompare(second.orderId) || first.receiptId.localeCompare(second.receiptId)
   ));
@@ -191,19 +191,17 @@ export function projectFinancialReadModel(orders: readonly Order[]): FinancialPr
   const pendingOrderIds = new Set(pendingOrders.map((order) => order.id));
   const orderBalances = orders.map((order) => {
     const reconciledOrder = reconciliationByOrderId.get(order.id);
-    const balanceInfo = getOrderBalanceInfo(order);
     const hasDefinitiveBalance = reconciledOrder?.classification === "VALID"
       || reconciledOrder?.classification === "LEGACY_COMPATIBLE";
+    const canReadPaymentHistory = hasReadablePaymentHistory(order);
 
     return {
       orderId: order.id,
       orderStatus: order.orderStatus,
-      paymentStatus: getPaymentStatus(order),
-      balanceCents: hasDefinitiveBalance && balanceInfo.type === "remaining"
-        ? legacyReaisToMoneyCents(balanceInfo.amount, "Saldo do pedido")
-        : hasDefinitiveBalance
-          ? legacyReaisToMoneyCents(balanceInfo.rawBalance, "Saldo do pedido")
-          : null,
+      paymentStatus: hasDefinitiveBalance && canReadPaymentHistory ? getPaymentStatus(order) : null,
+      balanceCents: hasDefinitiveBalance
+        ? asMoneyCents(reconciledOrder?.balanceCents ?? null)
+        : null,
       creditAppliedCents: hasDefinitiveBalance
         ? legacyReaisToMoneyCents(order.creditApplied ?? 0, "Crédito aplicado")
         : null,

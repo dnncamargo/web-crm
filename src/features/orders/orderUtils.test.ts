@@ -91,4 +91,15 @@ describe("order payment calculations", () => {
     expect(getOrderBalanceInfo(order).amount).toBe(50);
     expect(getPaymentStatus(order)).toBe("partial");
   });
+
+  it("uses cents for an exact settlement despite floating-point representations", () => {
+    const order = financial({
+      total: 0.1 + 0.2,
+      amountPaid: 0.3,
+      payments: [{ id: "payment", amount: 0.3, receivedAt: null }],
+    });
+
+    expect(getOrderBalanceInfo(order)).toMatchObject({ type: "settled", amount: 0, rawBalance: 0 });
+    expect(getPaymentStatus(order)).toBe("paid");
+  });
 });
