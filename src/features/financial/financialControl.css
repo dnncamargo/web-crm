@@ -108,7 +108,7 @@
 }
 
 .financial-control-table {
-  min-width: 1050px;
+  min-width: 980px;
   font-size: 0.82rem;
 }
 
@@ -133,14 +133,7 @@
   color: var(--danger);
 }
 
-.financial-report-print {
-  display: none;
-}
-
-@page financial-report {
-  size: A4 landscape;
-  margin: 12mm;
-}
+.financial-report-print { display: none; }
 
 @media (max-width: 1050px) {
   .financial-control-toolbar {
@@ -162,92 +155,5 @@
     flex: 1;
     padding-inline: 6px;
     font-size: 0.82rem;
-  }
-}
-
-@media print {
-  html:has(.financial-report-print),
-  body:has(.financial-report-print),
-  #root:has(.financial-report-print) {
-    width: auto !important;
-    min-width: 0 !important;
-    background: #fff !important;
-  }
-
-  body:has(.financial-report-print) * {
-    visibility: hidden !important;
-  }
-
-  body:has(.financial-report-print) .financial-report-print,
-  body:has(.financial-report-print) .financial-report-print * {
-    visibility: visible !important;
-  }
-
-  body:has(.financial-report-print) .financial-report-print {
-    display: block !important;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    color: #111;
-    font: 9pt/1.35 Arial, sans-serif;
-    page: financial-report;
-  }
-
-  .financial-report-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: start;
-    border-bottom: 1px solid #777;
-    margin-bottom: 8mm;
-    padding-bottom: 4mm;
-  }
-
-  .financial-report-header h1,
-  .financial-report-header h2,
-  .financial-report-header p {
-    margin: 0 0 2mm;
-  }
-
-  .financial-report-title {
-    text-align: right;
-  }
-
-  .financial-report-table {
-    margin-top: 5mm;
-    font-size: 8pt;
-  }
-
-  .financial-report-table thead {
-    display: table-header-group;
-  }
-
-  .financial-report-table th,
-  .financial-report-table td {
-    border: 1px solid #aaa;
-    padding: 2mm;
-    vertical-align: top;
-  }
-
-  .financial-report-table th {
-    background: #eee !important;
-  }
-
-  .financial-report-table tr {
-    break-inside: avoid;
-  }
-
-  .financial-report-total {
-    margin-top: 5mm;
-    font-weight: 700;
-    break-inside: avoid;
-  }
-
-  .financial-report-footer {
-    margin-top: 8mm;
-    border-top: 1px solid #aaa;
-    padding-top: 2mm;
-    color: #555;
-    font-size: 8pt;
   }
 }

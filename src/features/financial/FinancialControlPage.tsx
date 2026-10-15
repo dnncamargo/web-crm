@@ -1,15 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { FileText } from "lucide-react";
 
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { createOpenEntityNavigationState } from "../../navigation/entityNavigation";
 import { formatCurrencyBR } from "../../utils/money";
 import { getOrderStatusLabel, getPaymentStatusLabel } from "../orders/orderUtils";
 import { useOrders } from "../orders/useOrders";
-import type { Order, OrderStatus } from "../orders/orderTypes";
+import type { OrderStatus } from "../orders/orderTypes";
 import { getStoreProfile } from "../store-profile/storeProfileService";
 import { DEFAULT_STORE_PROFILE } from "../store-profile/storeProfileTypes";
 import type { StoreProfile } from "../store-profile/storeProfileTypes";
@@ -17,6 +15,7 @@ import { projectFinancialReadModel, selectKnownReceiptsInInterval, selectKnownRe
 import { legacyReaisToMoneyCents, sumMoneyCents } from "./money";
 import type { FinancialControlPeriod, FinancialControlSort } from "./financialControl";
 import { canPrintFinancialReport, compareFinancialControlValues, filterOrdersByCreationPeriod, getFinancialEventRowKey, getOrderCreationDate, isValidFinancialControlPeriod, matchesFinancialSearch } from "./financialControl";
+import { openFinancialReportPrintWindow } from "./financialReportPrint";
 import "./financialControl.css";
 
 type FinancialControlView = "orders" | "cash";
@@ -52,14 +51,6 @@ function formatDateInput(value: string): string {
   return `${day}/${month}/${year}`;
 }
 
-function orderIdLabel(order: Order): string {
-  return `#${order.id}`;
-}
-
-function OrderLink({ order }: { order: Order }) {
-  return <Link to="/pedidos" state={createOpenEntityNavigationState(order.id)}>{orderIdLabel(order)}</Link>;
-}
-
 export function FinancialControlPage() {
   const { orders, loadingOrders, ordersError } = useOrders();
   const [view, setView] = useState<FinancialControlView>("orders");
@@ -76,6 +67,7 @@ export function FinancialControlPage() {
   const [storeProfile, setStoreProfile] = useState<StoreProfile>(DEFAULT_STORE_PROFILE);
   const [storeProfileLoading, setStoreProfileLoading] = useState(true);
   const [storeProfileUnavailable, setStoreProfileUnavailable] = useState(false);
+  const [printError, setPrintError] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -229,7 +221,8 @@ export function FinancialControlPage() {
   }
 
   function printReport() {
-    window.print();
+    const report = document.querySelector<HTMLElement>(".financial-report-print");
+    setPrintError(!report || !openFinancialReportPrintWindow(report.outerHTML, currentReportTitle));
   }
 
   return (
@@ -239,6 +232,7 @@ export function FinancialControlPage() {
         description="Consulte a posição atual dos Pedidos e os movimentos efetivos de caixa por período."
         action={<Button type="button" variant="secondary" onClick={printReport} disabled={!canPrintFinancialReport(loadingOrders || storeProfileLoading, reportQueryError, currentPeriod)}><FileText size={16} /> Imprimir A4</Button>}
       />
+      {printError && <p className="financial-control-error" role="alert">Não foi possível abrir o relatório. Permita pop-ups para imprimir.</p>}
 
       <div className="financial-control-tabs" role="group" aria-label="Visão financeira">
         <button type="button" aria-pressed={view === "orders"} className={view === "orders" ? "active" : ""} onClick={() => setView("orders")}>Pedidos e saldos</button>
@@ -272,13 +266,13 @@ export function FinancialControlPage() {
           <Card><span>Saldo atual identificado</span><strong>{formatCurrencyBR(orderTotals.balanceCents / 100)}</strong><small>{orderTotals.conclusiveCount} conclusivo(s); {orderTotals.inconclusiveCount} sem saldo conclusivo</small></Card>
         </div>
         {ordersWithoutCreationDate.length > 0 && <p className="financial-control-note">{ordersWithoutCreationDate.length} Pedido(s) sem data de criação não entram no intervalo selecionado.</p>}
-        <Card className="financial-control-table-card"><div className="financial-control-table-wrap"><table className="financial-control-table"><thead><tr><th>Data de criação</th><th>Cliente</th><th>Pedido</th><th>Operacional</th><th>Financeiro</th><th>Total</th><th>Recebido</th><th>Crédito aplicado</th><th>Crédito gerado</th><th>Saldo atual</th></tr></thead><tbody>
+        <Card className="financial-control-table-card"><div className="financial-control-table-wrap"><table className="financial-control-table"><thead><tr><th>Data de criação</th><th>Cliente</th><th>Operacional</th><th>Financeiro</th><th>Total</th><th>Recebido</th><th>Crédito aplicado</th><th>Crédito gerado</th><th>Saldo atual</th></tr></thead><tbody>
           {visibleOrders.map((order) => {
             const balance = balancesByOrderId.get(order.id);
             const createdOn = getOrderCreationDate(order);
             const reconciledOrder = reconciledOrdersById.get(order.id);
             const totalCents = orderTotalCentsById.get(order.id);
-            return <tr key={order.id}><td>{createdOn ? formatCivilDate(createdOn) : "Data desconhecida"}</td><td>{order.clientName}</td><td><OrderLink order={order} /></td><td>{getOrderStatusLabel(order.orderStatus)}</td><td>{balance?.paymentStatus ? getPaymentStatusLabel(balance.paymentStatus) : "Inconclusivo"}</td><td>{totalCents === undefined ? "Inconclusivo" : formatCurrencyBR(totalCents / 100)}</td><td>{reconciledOrder?.cashPaidCents === null || reconciledOrder?.cashPaidCents === undefined ? "Inconclusivo" : formatCurrencyBR(reconciledOrder.cashPaidCents / 100)}</td><td>{balance?.creditAppliedCents === null || balance?.creditAppliedCents === undefined ? "Inconclusivo" : formatCurrencyBR(balance.creditAppliedCents / 100)}</td><td>{balance?.creditGeneratedCents === null || balance?.creditGeneratedCents === undefined ? "Inconclusivo" : formatCurrencyBR(balance.creditGeneratedCents / 100)}</td><td>{balance?.balanceCents === null || balance?.balanceCents === undefined ? "Inconclusivo" : formatCurrencyBR(balance.balanceCents / 100)}</td></tr>;
+            return <tr key={order.id}><td>{createdOn ? formatCivilDate(createdOn) : "Data desconhecida"}</td><td>{order.clientName}</td><td>{getOrderStatusLabel(order.orderStatus)}</td><td>{balance?.paymentStatus ? getPaymentStatusLabel(balance.paymentStatus) : "Inconclusivo"}</td><td>{totalCents === undefined ? "Inconclusivo" : formatCurrencyBR(totalCents / 100)}</td><td>{reconciledOrder?.cashPaidCents === null || reconciledOrder?.cashPaidCents === undefined ? "Inconclusivo" : formatCurrencyBR(reconciledOrder.cashPaidCents / 100)}</td><td>{balance?.creditAppliedCents === null || balance?.creditAppliedCents === undefined ? "Inconclusivo" : formatCurrencyBR(balance.creditAppliedCents / 100)}</td><td>{balance?.creditGeneratedCents === null || balance?.creditGeneratedCents === undefined ? "Inconclusivo" : formatCurrencyBR(balance.creditGeneratedCents / 100)}</td><td>{balance?.balanceCents === null || balance?.balanceCents === undefined ? "Inconclusivo" : formatCurrencyBR(balance.balanceCents / 100)}</td></tr>;
           })}
         </tbody></table></div>{visibleOrders.length === 0 && <p className="empty-state">Nenhum Pedido corresponde ao período e aos filtros.</p>}</Card>
       </>}
@@ -290,8 +284,8 @@ export function FinancialControlPage() {
           <Card><span>Movimento líquido</span><strong>{formatCurrencyBR((cashTotals.receiptsCents - cashTotals.refundsCents) / 100)}</strong><small>Entradas menos devoluções efetivas</small></Card>
         </div>
         {unknownDateReceiptsMatchingFilters.length > 0 && <p className="financial-control-note">Há {unknownDateReceiptsMatchingFilters.length} recebimento(s), totalizando {formatCurrencyBR(unknownDateReceiptCents / 100)}, com data histórica desconhecida e correspondentes aos demais filtros. Eles não entram em nenhum período nem no total acima.</p>}
-        <Card className="financial-control-table-card"><div className="financial-control-table-wrap"><table className="financial-control-table"><thead><tr><th>Data efetiva</th><th>Cliente</th><th>Pedido</th><th>Movimento</th><th>Operacional</th><th>Valor</th></tr></thead><tbody>
-          {visibleCashEvents.map((event) => <tr key={event.id}><td>{formatDate(event.date)}</td><td>{event.clientName}</td><td><Link to="/pedidos" state={createOpenEntityNavigationState(event.orderId)}>#{event.orderId}</Link></td><td>{event.kind === "receipt" ? "Recebimento" : "Devolução efetiva"}</td><td>{getOrderStatusLabel(event.orderStatus)}</td><td className={event.kind === "refund" ? "financial-control-outflow" : ""}>{event.kind === "refund" ? "− " : "+ "}{formatCurrencyBR(event.valueCents / 100)}</td></tr>)}
+        <Card className="financial-control-table-card"><div className="financial-control-table-wrap"><table className="financial-control-table"><thead><tr><th>Data efetiva</th><th>Cliente</th><th>Movimento</th><th>Operacional</th><th>Valor</th></tr></thead><tbody>
+          {visibleCashEvents.map((event) => <tr key={event.id}><td>{formatDate(event.date)}</td><td>{event.clientName}</td><td>{event.kind === "receipt" ? "Recebimento" : "Devolução efetiva"}</td><td>{getOrderStatusLabel(event.orderStatus)}</td><td className={event.kind === "refund" ? "financial-control-outflow" : ""}>{event.kind === "refund" ? "− " : "+ "}{formatCurrencyBR(event.valueCents / 100)}</td></tr>)}
         </tbody></table></div>{visibleCashEvents.length === 0 && <p className="empty-state">Nenhuma movimentação efetiva corresponde ao período e aos filtros.</p>}</Card>
       </>}
 
@@ -304,11 +298,11 @@ export function FinancialControlPage() {
         <p><strong>Critério:</strong> {view === "orders" ? "data de criação do Pedido; saldo na posição atual" : "receivedAt para recebimentos e refundedAt para devoluções efetivas"}</p>
         <p><strong>Filtros:</strong> busca “{activeSearch || "todos"}”; ordenação por {activeSort}; {view === "orders" ? `situação operacional ${ordersOperationalFilter}, financeira ${paymentFilter}` : `movimento ${cashEventFilter}, situação operacional ${cashOperationalFilter}`}</p>
         {view === "orders" ? <>
-          <table className="financial-report-table"><thead><tr><th>Data criação</th><th>Cliente / Pedido</th><th>Operacional</th><th>Financeiro</th><th>Total</th><th>Recebido</th><th>Crédito aplicado</th><th>Crédito gerado</th><th>Saldo atual</th></tr></thead><tbody>{visibleOrders.length === 0 ? <tr><td colSpan={9}>Nenhum Pedido corresponde à seleção.</td></tr> : visibleOrders.map((order) => { const balance = balancesByOrderId.get(order.id); const reconciledOrder = reconciledOrdersById.get(order.id); const totalCents = orderTotalCentsById.get(order.id); const createdOn = getOrderCreationDate(order); return <tr key={order.id}><td>{createdOn ? formatCivilDate(createdOn) : "Desconhecida"}</td><td>{order.clientName}<br />#{order.id}</td><td>{getOrderStatusLabel(order.orderStatus)}</td><td>{balance?.paymentStatus ? getPaymentStatusLabel(balance.paymentStatus) : "Inconclusivo"}</td><td>{totalCents === undefined ? "Inconclusivo" : formatCurrencyBR(totalCents / 100)}</td><td>{reconciledOrder?.cashPaidCents == null ? "Inconclusivo" : formatCurrencyBR(reconciledOrder.cashPaidCents / 100)}</td><td>{balance?.creditAppliedCents == null ? "Inconclusivo" : formatCurrencyBR(balance.creditAppliedCents / 100)}</td><td>{balance?.creditGeneratedCents == null ? "Inconclusivo" : formatCurrencyBR(balance.creditGeneratedCents / 100)}</td><td>{balance?.balanceCents == null ? "Inconclusivo" : formatCurrencyBR(balance.balanceCents / 100)}</td></tr>; })}</tbody></table>
+          <table className="financial-report-table"><thead><tr><th>Data criação</th><th>Cliente</th><th>Operacional</th><th>Financeiro</th><th>Total</th><th>Recebido</th><th>Crédito aplicado</th><th>Crédito gerado</th><th>Saldo atual</th></tr></thead><tbody>{visibleOrders.length === 0 ? <tr><td colSpan={9}>Nenhum Pedido corresponde à seleção.</td></tr> : visibleOrders.map((order) => { const balance = balancesByOrderId.get(order.id); const reconciledOrder = reconciledOrdersById.get(order.id); const totalCents = orderTotalCentsById.get(order.id); const createdOn = getOrderCreationDate(order); return <tr key={order.id}><td>{createdOn ? formatCivilDate(createdOn) : "Desconhecida"}</td><td>{order.clientName}</td><td>{getOrderStatusLabel(order.orderStatus)}</td><td>{balance?.paymentStatus ? getPaymentStatusLabel(balance.paymentStatus) : "Inconclusivo"}</td><td>{totalCents === undefined ? "Inconclusivo" : formatCurrencyBR(totalCents / 100)}</td><td>{reconciledOrder?.cashPaidCents == null ? "Inconclusivo" : formatCurrencyBR(reconciledOrder.cashPaidCents / 100)}</td><td>{balance?.creditAppliedCents == null ? "Inconclusivo" : formatCurrencyBR(balance.creditAppliedCents / 100)}</td><td>{balance?.creditGeneratedCents == null ? "Inconclusivo" : formatCurrencyBR(balance.creditGeneratedCents / 100)}</td><td>{balance?.balanceCents == null ? "Inconclusivo" : formatCurrencyBR(balance.balanceCents / 100)}</td></tr>; })}</tbody></table>
           {ordersWithoutCreationDate.length > 0 && <p>Pedidos sem data de criação fora deste intervalo: {ordersWithoutCreationDate.length}.</p>}
           <p className="financial-report-total">Total identificado dos Pedidos: {formatCurrencyBR(orderTotals.totalOrdersCents / 100)} · total inválido excluído: {orderTotals.ordersWithoutValidTotal} · saldo atual identificado: {formatCurrencyBR(orderTotals.balanceCents / 100)} · saldos inconclusivos: {orderTotals.inconclusiveCount}</p>
         </> : <>
-          <table className="financial-report-table"><thead><tr><th>Data efetiva</th><th>Cliente / Pedido</th><th>Movimento</th><th>Situação operacional</th><th>Valor</th></tr></thead><tbody>{visibleCashEvents.length === 0 ? <tr><td colSpan={5}>Nenhuma movimentação corresponde à seleção.</td></tr> : visibleCashEvents.map((event) => <tr key={event.id}><td>{formatDate(event.date)}</td><td>{event.clientName}<br />#{event.orderId}</td><td>{event.kind === "receipt" ? "Recebimento" : "Devolução efetiva"}</td><td>{getOrderStatusLabel(event.orderStatus)}</td><td>{event.kind === "refund" ? "− " : "+ "}{formatCurrencyBR(event.valueCents / 100)}</td></tr>)}</tbody></table>
+          <table className="financial-report-table"><thead><tr><th>Data efetiva</th><th>Cliente</th><th>Movimento</th><th>Situação operacional</th><th>Valor</th></tr></thead><tbody>{visibleCashEvents.length === 0 ? <tr><td colSpan={5}>Nenhuma movimentação corresponde à seleção.</td></tr> : visibleCashEvents.map((event) => <tr key={event.id}><td>{formatDate(event.date)}</td><td>{event.clientName}</td><td>{event.kind === "receipt" ? "Recebimento" : "Devolução efetiva"}</td><td>{getOrderStatusLabel(event.orderStatus)}</td><td>{event.kind === "refund" ? "− " : "+ "}{formatCurrencyBR(event.valueCents / 100)}</td></tr>)}</tbody></table>
           <p className="financial-report-total">Recebimentos: {formatCurrencyBR(cashTotals.receiptsCents / 100)} · Devoluções: {formatCurrencyBR(cashTotals.refundsCents / 100)} · líquido: {formatCurrencyBR((cashTotals.receiptsCents - cashTotals.refundsCents) / 100)}</p>
           {unknownDateReceiptsMatchingFilters.length > 0 && <p>Recebimentos correspondentes aos demais filtros, fora do período por data desconhecida: {unknownDateReceiptsMatchingFilters.length} ({formatCurrencyBR(unknownDateReceiptCents / 100)}).</p>}
         </>}

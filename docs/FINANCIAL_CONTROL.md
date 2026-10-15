@@ -14,8 +14,7 @@ agregador, API, escrita ou fato financeiro novo.
   eventos e datas desconhecidas;
 - `getOrderStatusLabel`, `getPaymentStatusLabel` e `formatCurrencyBR` para
   apresentação existente; fatos monetários usam centavos da reconciliação;
-- `PageHeader`, `Card`, `Button`, `createOpenEntityNavigationState` e o perfil
-  canônico `appSettings/storeProfile`;
+- `PageHeader`, `Card`, `Button` e o perfil canônico `appSettings/storeProfile`;
 - tokens do tema e shell responsivo do CRM.
 
 **NEW**
@@ -23,7 +22,8 @@ agregador, API, escrita ou fato financeiro novo.
 - rota `/controle-financeiro` e `FinancialControlPage`;
 - seletores puros de data de criação, busca e ordenação em
   `financialControl.ts`;
-- apresentação de tabela e de impressão A4 em `financialControl.css`;
+- apresentação de tabela em `financialControl.css` e documento de impressão
+  isolado em `financialReportPrint.ts`;
 - contrato desta página e testes focados de seleção.
 
 Não havia página ou tabela compartilhada compatível com a distinção entre
@@ -48,11 +48,17 @@ Busca por cliente/Pedido, filtros operacionais/financeiros e ordenação são
 mantidos separadamente para cada visão. Indicadores e relatório usam a mesma
 lista filtrada. Registros inconclusivos ficam identificados; saldos
 inconclusivos não entram na soma de saldos identificados.
+As tabelas de tela e o relatório mostram o nome do cliente sem link ou ID
+técnico do Pedido; a busca ainda aceita o ID. A identidade da projeção e das
+linhas de caixa continua incluindo o Pedido.
 
 ## Impressão
 
-O botão de impressão gera relatório A4 paisagem com título da visão, perfil da
-loja, período, critério, filtros, registros e totais da seleção atual. A tabela
-repete seu cabeçalho e mantém cada registro junto em quebras de página. As
-folhas, controles e navegação do aplicativo ficam ocultos durante a impressão.
-O formato não reutiliza nem altera a impressão térmica.
+O botão abre uma janela com somente o relatório e CSS próprio, declarando A4
+paisagem e margens físicas de 12 mm. Ela não carrega o CSS global que declara
+papel térmico de 80 mm. O documento contém título da visão, perfil da loja,
+período, critério, filtros, registros e totais da seleção atual. A tabela
+repete seu cabeçalho e evita dividir registros entre páginas. O relatório não
+inclui link nem ID técnico de Pedido. A pré-visualização A4 e a paginação
+precisam ser conferidas manualmente no navegador/impressora de destino; o
+fluxo térmico existente não é alterado.
