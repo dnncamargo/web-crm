@@ -724,7 +724,13 @@ textarea:focus {
     flex-direction: column;
   }
 
-  .search-filter-toolbar > .toolbar-search,
+  .search-filter-toolbar > .toolbar-search {
+    width: 100%;
+    min-width: 0;
+    height: 38px;
+    flex: 0 0 38px;
+  }
+
   .search-filter-toolbar > .filter-pill,
   .search-filter-toolbar > .toolbar-select,
   .search-filter-toolbar > .segmented-control {
@@ -760,17 +766,25 @@ textarea:focus {
   background: var(--surface);
 }
 
+.ios-calendar-header,
+.ios-calendar-weekdays,
+.ios-calendar-grid {
+  width: 100%;
+}
+
 .ios-calendar-header {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .ios-calendar-header strong {
   display: block;
   font-size: 1rem;
   font-weight: 500;
+  line-height: 1.25;
   text-align: center;
   text-transform: capitalize;
 }
@@ -778,12 +792,16 @@ textarea:focus {
 .ios-calendar-header button {
   width: 44px;
   height: 44px;
+  display: grid;
+  place-items: center;
   appearance: none;
   border: var(--border-base);
   border-radius: var(--radius-xxl);
   padding: 0;
   background: var(--surface-soft);
   color: var(--text);
+  font: inherit;
+  line-height: 1;
   cursor: pointer;
 }
 
@@ -804,13 +822,16 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   padding-top: 8px;
+  min-width: 0;
 }
 
 .ios-calendar-weekdays span {
   min-width: 0;
+  display: grid;
+  place-items: center;
   color: var(--muted);
   font-size: 0.74rem;
-  text-align: center;
+  line-height: 1;
 }
 
 .ios-calendar-grid {
@@ -824,7 +845,9 @@ textarea:focus {
   min-width: 0;
   min-height: 48px;
   display: grid;
-  place-items: center;
+  grid-template-rows: 30px 5px;
+  place-content: center;
+  justify-items: center;
   gap: 1px;
   appearance: none;
   border: 0;
@@ -843,10 +866,14 @@ textarea:focus {
 .ios-calendar-day > span {
   width: 30px;
   height: 30px;
+  margin: 0;
+  padding: 0;
   display: grid;
   place-items: center;
   border-radius: var(--radius-xxl);
   font-size: 0.9rem;
+  line-height: 1;
+  text-align: center;
 }
 
 .ios-calendar-day.muted {
@@ -873,8 +900,11 @@ textarea:focus {
   width: 5px;
   height: 5px;
   display: block;
+  justify-self: center;
+  margin: 0;
   border-radius: var(--radius-xxl);
   background: transparent;
+  line-height: 0;
 }
 
 .calendar-dot.visible {
