@@ -1,6 +1,7 @@
 export const APP_ROUTES = {
   login: "/login",
   settings: "/configuracoes",
+  financialControl: "/controle-financeiro",
   storeProfile: "/configuracoes/perfil-da-loja",
   pix: "/configuracoes/pix",
   appearance: "/configuracoes/aparencia",

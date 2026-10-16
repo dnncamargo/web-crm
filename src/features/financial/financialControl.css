@@ -1,0 +1,159 @@
+.financial-control-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.financial-control-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.financial-control-tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.financial-control-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.financial-control-toolbar {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.financial-control-field {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.financial-control-field input,
+.financial-control-field select {
+  min-width: 0;
+  min-height: 36px;
+  border: var(--border-base);
+  border-radius: var(--radius-xxl);
+  padding: 0 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.financial-control-search {
+  grid-column: span 2;
+}
+
+.financial-control-criteria,
+.financial-control-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.financial-control-error {
+  color: var(--danger);
+}
+
+.financial-control-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.financial-control-metrics .card {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px;
+}
+
+.financial-control-metrics span,
+.financial-control-metrics small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.financial-control-metrics strong {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.financial-control-table-card {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.financial-control-table-wrap {
+  overflow-x: auto;
+}
+
+.financial-control-table,
+.financial-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.financial-control-table {
+  min-width: 980px;
+  font-size: 0.82rem;
+}
+
+.financial-control-table th,
+.financial-control-table td {
+  border-bottom: 1px solid var(--divider);
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
+.financial-control-table th {
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.financial-control-table td:nth-last-child(-n+5) {
+  white-space: nowrap;
+}
+
+.financial-control-outflow {
+  color: var(--danger);
+}
+
+.financial-report-print { display: none; }
+
+@media (max-width: 1050px) {
+  .financial-control-toolbar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .financial-control-toolbar,
+  .financial-control-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .financial-control-search {
+    grid-column: auto;
+  }
+
+  .financial-control-tabs button {
+    flex: 1;
+    padding-inline: 6px;
+    font-size: 0.82rem;
+  }
+}
