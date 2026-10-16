@@ -249,7 +249,7 @@ textarea:focus {
 @media (max-width: 860px) {
   .app-shell {
     display: block;
-    padding-bottom: 86px;
+    padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
   }
 
   .sidebar {
@@ -285,14 +285,14 @@ textarea:focus {
 
   .mobile-nav {
     position: fixed;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
+    left: calc(10px + env(safe-area-inset-left, 0px));
+    right: calc(10px + env(safe-area-inset-right, 0px));
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     z-index: 40;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
-    padding: 6px;
+    padding: 5px;
     border: var(--border-base);
     border-radius: var(--radius-xxl);
     background: var(--transparent);
@@ -306,17 +306,72 @@ textarea:focus {
     display: grid;
     place-items: center;
     align-content: center;
-    gap: 2px;
+    gap: 3px;
+    padding: 2px;
+    border: 0;
     border-radius: var(--radius-xxl);
+    background: var(--transparent-color);
     color: var(--muted);
     text-decoration: none;
-    font-size: 0.72rem;
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.68rem;
     line-height: 1;
+  }
+
+  .mobile-nav-link svg {
+    flex: 0 0 auto;
   }
 
   .mobile-nav-link.active {
     background: var(--accent-soft);
     color: var(--accent);
+  }
+
+  .mobile-nav-more {
+    position: relative;
+    min-width: 0;
+  }
+
+  .mobile-nav-more-trigger {
+    width: 100%;
+    height: 100%;
+  }
+
+  .mobile-nav-more-menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    z-index: 50;
+    width: min(220px, calc(100vw - 28px));
+    max-height: min(45vh, 220px);
+    overflow-y: auto;
+    display: grid;
+    gap: 3px;
+    padding: 6px;
+    border: var(--border-base);
+    border-radius: var(--radius-md);
+    background: var(--surface-popover);
+    box-shadow: var(--shadow);
+  }
+
+  .mobile-nav-more-link {
+    min-width: 0;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    font-size: 0.86rem;
+    text-decoration: none;
+  }
+
+  .mobile-nav-more-link:hover,
+  .mobile-nav-more-link.active {
+    background: var(--accent-surface);
+    color: var(--text);
   }
 }
 
