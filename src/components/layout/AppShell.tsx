@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { CalendarDays, CheckSquare, CircleDollarSign, Package, ShoppingBag, Tags, UsersRound } from "lucide-react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 
 import { APP_ROUTES } from "../../appRoutes";
@@ -13,15 +14,24 @@ import { useAuth } from "../../features/auth/useAuth";
 import { createOpenEntityNavigationState } from "../../navigation/entityNavigation";
 import { UserIdentityMenu } from "./UserIdentityMenu";
 
-const navItems = [
+const desktopNavGroups = [
+  [
+    { to: "/", label: "Hoje", end: true, Icon: CalendarDays },
+    { to: "/pedidos", label: "Pedidos", Icon: ShoppingBag },
+    { to: "/clientes", label: "Clientes", Icon: UsersRound },
+    { to: "/produtos", label: "Produtos", Icon: Package },
+    { to: "/tarefas", label: "Tarefas", Icon: CheckSquare },
+    { to: "/etiquetas", label: "Etiquetas", Icon: Tags },
+  ],
+  [{ to: APP_ROUTES.financialControl, label: "Financeiro", Icon: CircleDollarSign }],
+];
+
+const mobileNavItems = [
   { to: "/", label: "Hoje", end: true },
   { to: "/pedidos", label: "Pedidos" },
   { to: "/clientes", label: "Clientes" },
   { to: "/produtos", label: "Produtos" },
   { to: APP_ROUTES.financialControl, label: "Financeiro" },
-  { to: "/tarefas", label: "Tarefas" },
-  { to: "/etiquetas", label: "Etiquetas" },
-  { to: APP_ROUTES.settings, label: "Configurações" },
 ];
 
 function normalizeSearchValue(value: string) {
@@ -123,12 +133,23 @@ export function AppShell() {
         </div>
 
         <nav className="sidebar-nav" aria-label="Navegação principal">
-          {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-              {item.label}
-            </NavLink>
+          {desktopNavGroups.map((group, groupIndex) => (
+            <div className={groupIndex === 1 ? "sidebar-nav-group sidebar-nav-group-separated" : "sidebar-nav-group"} key={groupIndex}>
+              {group.map(({ to, label, end, Icon }) => (
+                <NavLink key={to} to={to} end={end} className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+                  <Icon size={18} aria-hidden="true" />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
+
+        {user && (
+          <div className="sidebar-user-menu">
+            <UserIdentityMenu user={user} logout={logout} />
+          </div>
+        )}
       </aside>
 
       <main className="main-area">
@@ -180,7 +201,11 @@ export function AppShell() {
             )}
           </div>
 
-          {user && <UserIdentityMenu user={user} logout={logout} />}
+          {user && (
+            <div className="topbar-user-menu">
+              <UserIdentityMenu user={user} logout={logout} />
+            </div>
+          )}
         </header>
 
         <section className="content-area">
@@ -189,7 +214,7 @@ export function AppShell() {
       </main>
 
       <nav className="mobile-nav" aria-label="Navegação mobile">
-        {navItems.slice(0, 5).map((item) => (
+        {mobileNavItems.map((item) => (
           <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? "mobile-nav-link active" : "mobile-nav-link")}>
             {item.label}
           </NavLink>
