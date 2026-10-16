@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { APP_ROUTES } from "./appRoutes";
 import { AppShell } from "./components/layout/AppShell";
+import { LegacyFinancialControlRedirect } from "./LegacyFinancialControlRedirect";
 import { ClientsPage } from "./features/clients/ClientsPage";
 import { OrdersPage } from "./features/orders/OrdersPage";
 import { OrderReceiptPage } from "./features/orders/OrderReceiptPage";
@@ -45,7 +46,7 @@ function ProtectedRoutes() {
       <Route path="pedidos/:orderId/via" element={<OrderReceiptPage />} />
       <Route element={<AppShell />}>
         <Route path={APP_ROUTES.legacyDiagnostic} element={<Navigate to={APP_ROUTES.diagnostic} replace />} />
-        <Route path={APP_ROUTES.legacyFinancialControl} element={<Navigate to={APP_ROUTES.financialControl} replace />} />
+        <Route path={APP_ROUTES.legacyFinancialControl} element={<LegacyFinancialControlRedirect />} />
         <Route path={APP_ROUTES.companionActivation} element={<AuthenticatedContent />} />
         <Route path={APP_ROUTES.diagnostic} element={<AndroidPrintWakePage />} />
         <Route index element={<TodayPage />} />

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import type { RefObject } from "react";
 import { CalendarDays, CheckSquare, CircleDollarSign, Ellipsis, Package, ShoppingBag, Tags, UsersRound } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 
@@ -17,22 +18,45 @@ const moreItems = [
   { to: "/etiquetas", label: "Etiquetas", Icon: Tags },
 ];
 
-interface MobilePrimaryNavigationProps {
-  defaultMoreOpen?: boolean;
-}
-
 function isMoreRoute(pathname: string) {
   return moreItems.some(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
 }
 
-export function MobilePrimaryNavigation({ defaultMoreOpen = false }: MobilePrimaryNavigationProps) {
-  const [openState, setOpenState] = useState<{ pathname: string | null; open: boolean }>({ pathname: null, open: defaultMoreOpen });
+export function MobilePrimaryNavigation() {
+  const location = useLocation();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const restoreTriggerFocusRef = useRef(false);
+
+  useEffect(() => {
+    if (restoreTriggerFocusRef.current) {
+      triggerRef.current?.focus();
+      restoreTriggerFocusRef.current = false;
+    }
+  }, [location.key]);
+
+  return (
+    <MobilePrimaryNavigationAtLocation
+      key={location.key}
+      pathname={location.pathname}
+      triggerRef={triggerRef}
+      onDestinationSelected={() => {
+        restoreTriggerFocusRef.current = true;
+      }}
+    />
+  );
+}
+
+interface MobilePrimaryNavigationAtLocationProps {
+  onDestinationSelected: () => void;
+  pathname: string;
+  triggerRef: RefObject<HTMLButtonElement | null>;
+}
+
+function MobilePrimaryNavigationAtLocation({ onDestinationSelected, pathname, triggerRef }: MobilePrimaryNavigationAtLocationProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
   const menuId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const firstLinkRef = useRef<HTMLAnchorElement>(null);
-  const { pathname } = useLocation();
-  const moreOpen = (openState.pathname === null || openState.pathname === pathname) && openState.open;
   const moreActive = isMoreRoute(pathname);
 
   useEffect(() => {
@@ -44,13 +68,13 @@ export function MobilePrimaryNavigation({ defaultMoreOpen = false }: MobilePrima
 
     function handlePointerDown(event: PointerEvent) {
       if (event.target instanceof Node && !menuRef.current?.contains(event.target)) {
-        setOpenState({ pathname, open: false });
+        setMoreOpen(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setOpenState({ pathname, open: false });
+        setMoreOpen(false);
         triggerRef.current?.focus();
       }
     }
@@ -62,7 +86,7 @@ export function MobilePrimaryNavigation({ defaultMoreOpen = false }: MobilePrima
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [moreOpen, pathname]);
+  }, [moreOpen, pathname, triggerRef]);
 
   return (
     <nav className="mobile-nav" aria-label="Navegação mobile">
@@ -81,8 +105,8 @@ export function MobilePrimaryNavigation({ defaultMoreOpen = false }: MobilePrima
           aria-label="Mais opções de navegação"
           aria-expanded={moreOpen}
           aria-controls={menuId}
-          aria-current={moreActive ? "page" : undefined}
-          onClick={() => setOpenState({ pathname, open: !moreOpen })}
+          aria-current={moreActive && !moreOpen ? "page" : undefined}
+          onClick={() => setMoreOpen((currentOpen) => !currentOpen)}
         >
           <Ellipsis size={17} aria-hidden="true" />
           <span>Mais</span>
@@ -96,8 +120,8 @@ export function MobilePrimaryNavigation({ defaultMoreOpen = false }: MobilePrima
                 to={to}
                 className={({ isActive }) => (isActive ? "mobile-nav-more-link active" : "mobile-nav-more-link")}
                 onClick={() => {
-                  setOpenState({ pathname, open: false });
-                  triggerRef.current?.focus();
+                  setMoreOpen(false);
+                  onDestinationSelected();
                 }}
               >
                 <Icon size={17} aria-hidden="true" />
