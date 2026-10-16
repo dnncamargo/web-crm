@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { LogOut, Settings2, UserRound } from "lucide-react";
 import type { User } from "firebase/auth";
 import { Link } from "react-router-dom";
@@ -29,6 +29,7 @@ export function UserIdentityMenu({ defaultOpen = false, user, logout }: UserIden
   const [open, setOpen] = useState(defaultOpen);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
   const identityLabel = getUserIdentityLabel(user);
 
   useEffect(() => {
@@ -71,7 +72,7 @@ export function UserIdentityMenu({ defaultOpen = false, user, logout }: UserIden
         type="button"
         aria-label="Abrir menu do usuário"
         aria-expanded={open}
-        aria-controls="auth-identity-menu"
+        aria-controls={menuId}
         onClick={() => setOpen((currentOpen) => !currentOpen)}
       >
         <IdentityAvatar user={user} />
@@ -79,7 +80,7 @@ export function UserIdentityMenu({ defaultOpen = false, user, logout }: UserIden
       </button>
 
       {open && (
-        <div className="auth-identity-dropdown" id="auth-identity-menu">
+        <div className="auth-identity-dropdown" id={menuId}>
           <div className="auth-identity-menu-header">
             <IdentityAvatar user={user} />
             <span>{identityLabel}</span>

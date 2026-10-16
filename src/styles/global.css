@@ -151,6 +151,8 @@ textarea:focus {
   position: sticky;
   top: 0;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
   padding: 24px 18px;
   border-right: var(--divider);
   background: var(--bg-soft);
@@ -162,17 +164,65 @@ textarea:focus {
   gap: 6px;
 }
 
+.sidebar-nav-group {
+  display: grid;
+  gap: 6px;
+}
+
+.sidebar-nav-group-separated {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: var(--divider);
+}
+
+.sidebar-user-menu {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: var(--divider);
+}
+
+.sidebar-user-menu .auth-identity-menu {
+  width: 100%;
+}
+
+.sidebar-user-menu .auth-identity-trigger {
+  width: 100%;
+  padding: 8px;
+}
+
+.sidebar-user-menu .auth-identity-name {
+  max-width: 100%;
+}
+
+.sidebar-user-menu .auth-identity-dropdown {
+  top: auto;
+  right: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
+}
+
+.topbar-user-menu {
+  display: none;
+}
+
 .mobile-nav {
   display: none;
 }
 
 .nav-link {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 10px 12px 10px 14px;
   border-radius: var(--radius-sm);
   color: var(--muted);
   text-decoration: none;
   font-size: 0.95rem;
+}
+
+.nav-link svg {
+  flex: 0 0 auto;
 }
 
 .nav-link:hover {
@@ -204,6 +254,10 @@ textarea:focus {
 
   .sidebar {
     display: none;
+  }
+
+  .topbar-user-menu {
+    display: block;
   }
 
   .content-area {
