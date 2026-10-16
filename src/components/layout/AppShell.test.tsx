@@ -53,20 +53,23 @@ describe("AppShell desktop navigation", () => {
     expect(link).not.toBeNull();
   });
 
-  it("preserves the current mobile destinations and user trigger", () => {
+  it("renders the four primary mobile destinations and user trigger", () => {
     const markup = renderShell();
     const navigation = markup.match(/<nav class="mobile-nav"[^>]*>(.*?)<\/nav>/)?.[1] ?? "";
-    const labels = [...navigation.matchAll(/>(Hoje|Pedidos|Clientes|Produtos|Financeiro)<\/a>/g)].map((match) => match[1]);
+    const labels = [...navigation.matchAll(/<span>(Hoje|Pedidos|Financeiro)<\/span>/g)].map((match) => match[1]);
 
-    expect(labels).toEqual(["Hoje", "Pedidos", "Clientes", "Produtos", "Financeiro"]);
+    expect(labels).toEqual(["Hoje", "Pedidos", "Financeiro"]);
+    expect(navigation).toContain('aria-label="Mais opções de navegação"');
+    expect(navigation).toContain(">Mais</span>");
+    expect(navigation).not.toContain("Configurações");
     expect(markup).toContain("Abrir menu do usuário");
   });
 
-  it("uses distinct accessible menu IDs for desktop and mobile triggers", () => {
+  it("uses distinct accessible menu IDs for both user triggers and Mais", () => {
     const markup = renderShell();
     const controls = [...markup.matchAll(/aria-controls="([^"]+)"/g)].map((match) => match[1]);
 
-    expect(controls).toHaveLength(2);
-    expect(new Set(controls).size).toBe(2);
+    expect(controls).toHaveLength(3);
+    expect(new Set(controls).size).toBe(3);
   });
 });

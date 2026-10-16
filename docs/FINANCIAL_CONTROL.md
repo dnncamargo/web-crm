@@ -19,7 +19,8 @@ agregador, API, escrita ou fato financeiro novo.
 
 **NEW**
 
-- rota `/controle-financeiro` e `FinancialControlPage`;
+- rota canônica `/financeiro` e `FinancialControlPage`, com compatibilidade via
+  redirecionamento de `/controle-financeiro`;
 - seletores puros de data de criação, busca e ordenação em
   `financialControl.ts`;
 - apresentação de tabela em `financialControl.css` e documento de impressão

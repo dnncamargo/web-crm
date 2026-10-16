@@ -15,6 +15,11 @@ describe("canonical application routes", () => {
     expect(APP_ROUTES.login).toBe("/login");
   });
 
+  it("uses /financeiro as the canonical financial route and preserves its legacy path", () => {
+    expect(APP_ROUTES.financialControl).toBe("/financeiro");
+    expect(APP_ROUTES.legacyFinancialControl).toBe("/controle-financeiro");
+  });
+
   it("builds printer-scoped diagnostic links without exposing extra fields", () => {
     expect(getDiagnosticRoute("printer 1")).toBe("/configuracoes/impressoras/diagnostico?printer=printer+1");
   });

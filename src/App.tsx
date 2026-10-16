@@ -45,6 +45,7 @@ function ProtectedRoutes() {
       <Route path="pedidos/:orderId/via" element={<OrderReceiptPage />} />
       <Route element={<AppShell />}>
         <Route path={APP_ROUTES.legacyDiagnostic} element={<Navigate to={APP_ROUTES.diagnostic} replace />} />
+        <Route path={APP_ROUTES.legacyFinancialControl} element={<Navigate to={APP_ROUTES.financialControl} replace />} />
         <Route path={APP_ROUTES.companionActivation} element={<AuthenticatedContent />} />
         <Route path={APP_ROUTES.diagnostic} element={<AndroidPrintWakePage />} />
         <Route index element={<TodayPage />} />

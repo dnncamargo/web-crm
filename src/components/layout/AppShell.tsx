@@ -12,6 +12,7 @@ import { useTags } from "../../features/tags/useTags";
 import { formatCurrencyBR } from "../../utils/money";
 import { useAuth } from "../../features/auth/useAuth";
 import { createOpenEntityNavigationState } from "../../navigation/entityNavigation";
+import { MobilePrimaryNavigation } from "./MobilePrimaryNavigation";
 import { UserIdentityMenu } from "./UserIdentityMenu";
 
 const desktopNavGroups = [
@@ -24,14 +25,6 @@ const desktopNavGroups = [
     { to: "/etiquetas", label: "Etiquetas", Icon: Tags },
   ],
   [{ to: APP_ROUTES.financialControl, label: "Financeiro", Icon: CircleDollarSign }],
-];
-
-const mobileNavItems = [
-  { to: "/", label: "Hoje", end: true },
-  { to: "/pedidos", label: "Pedidos" },
-  { to: "/clientes", label: "Clientes" },
-  { to: "/produtos", label: "Produtos" },
-  { to: APP_ROUTES.financialControl, label: "Financeiro" },
 ];
 
 function normalizeSearchValue(value: string) {
@@ -213,13 +206,7 @@ export function AppShell() {
         </section>
       </main>
 
-      <nav className="mobile-nav" aria-label="Navegação mobile">
-        {mobileNavItems.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? "mobile-nav-link active" : "mobile-nav-link")}>
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
+      <MobilePrimaryNavigation />
     </div>
   );
 }
