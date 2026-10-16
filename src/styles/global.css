@@ -786,6 +786,11 @@ textarea:focus {
     width: 100%;
   }
 
+  .search-filter-toolbar > .toolbar-search {
+    height: 38px;
+    flex: 0 0 38px;
+  }
+
   .search-filter-toolbar > .segmented-control {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
