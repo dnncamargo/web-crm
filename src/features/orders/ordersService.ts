@@ -167,7 +167,7 @@ export async function correctOrderPayment(
   const response = await fetch("/api/financial/correct-payment", {
     method: "POST",
     headers: {
-      Authorization: \`Bearer \${token}\`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
