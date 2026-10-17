@@ -8,6 +8,7 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { SlidePanel } from "../../components/ui/SlidePanel";
 import { useAddresses } from "../addresses/useAddresses";
 import type { NewAddressData } from "../addresses/addressTypes";
+import type { NewClientData } from "../clients/clientTypes";
 import { useClients } from "../clients/useClients";
 import { useProducts } from "../products/useProducts";
 import { useTags } from "../tags/useTags";
@@ -36,7 +37,7 @@ type OrderSortMode = "createdAt" | "deliveryDateTime" | "clientName" | "total";
 
 export function OrdersPage() {
   const navigate = useNavigate();
-  const { filteredClients, loading: loadingClients, error: clientsError, editClient } = useClients();
+  const { clients, loading: loadingClients, error: clientsError, addClient, editClient } = useClients();
 
   const { addresses, addressesError, saveAddressForClient } = useAddresses();
 
@@ -165,6 +166,10 @@ export function OrdersPage() {
     await addOrder(data);
     await registerOrderInteraction(data);
     closePanel();
+  }
+
+  async function handleCreateClientForOrder(data: NewClientData) {
+    return addClient(data);
   }
 
   async function handleCreateAddressForOrder(data: NewAddressData) {
@@ -378,7 +383,10 @@ export function OrdersPage() {
         {panel?.type === "create-order" && (
           <OrderForm
             orders={orders}
-            clients={filteredClients}
+            clients={clients}
+            clientsLoading={loadingClients}
+            onCreateClient={handleCreateClientForOrder}
+            panelLevel={1}
             addresses={addresses}
             products={products}
             itemTags={orderItemTags}
@@ -392,7 +400,10 @@ export function OrdersPage() {
           <OrderForm
             order={panel.order}
             orders={orders}
-            clients={filteredClients}
+            clients={clients}
+            clientsLoading={loadingClients}
+            onCreateClient={handleCreateClientForOrder}
+            panelLevel={1}
             addresses={addresses}
             products={products}
             itemTags={orderItemTags}
@@ -416,7 +427,10 @@ export function OrdersPage() {
           <OrderForm
             order={stackedEditOrder}
             orders={orders}
-            clients={filteredClients}
+            clients={clients}
+            clientsLoading={loadingClients}
+            onCreateClient={handleCreateClientForOrder}
+            panelLevel={2}
             addresses={addresses}
             products={products}
             itemTags={orderItemTags}

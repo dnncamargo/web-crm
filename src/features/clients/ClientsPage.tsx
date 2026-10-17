@@ -200,8 +200,9 @@ export function ClientsPage() {
   }
 
   async function handleCreateClient(data: NewClientData) {
-    await addClient(data);
+    const createdClient = await addClient(data);
     closePanel();
+    return createdClient;
   }
 
   async function handlePanelEditClient(data: UpdateClientData) {

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import {
   calculateOrderSubtotal,
   calculateOrderTotal,
@@ -17,6 +17,9 @@ import { formatCurrencyBR, parseCurrencyInput } from "../../../utils/money";
 import type { Address, NewAddressData } from "../../addresses/addressTypes";
 import { AddressForm } from "../../addresses/components/AddressForm";
 import type { Client } from "../../clients/clientTypes";
+import type { NewClientData } from "../../clients/clientTypes";
+import { ClientQuickForm } from "../../clients/components/ClientQuickForm";
+import { normalizeClientSearch } from "../../clients/useClients";
 import type { Product } from "../../products/productTypes";
 import type { NewOrderData, Order, OrderItem, OrderStatus } from "../orderTypes";
 import { AddressPickerContent } from "../../addresses/components/AddressPickerContent";
@@ -39,6 +42,9 @@ interface OrderFormProps {
   order?: Order;
   orders: Order[];
   clients: Client[];
+  clientsLoading?: boolean;
+  onCreateClient?: (data: NewClientData) => Promise<{ id: string }>;
+  panelLevel?: 1 | 2;
   addresses: Address[];
   products: Product[];
   itemTags?: Tag[];
@@ -109,8 +115,13 @@ function getProductUnit(product?: Product) {
   return product?.unit?.trim() || DEFAULT_ITEM_UNIT;
 }
 
-export function OrderForm({ order, orders, clients, addresses, products, itemTags = [], onCancel, onSave, onCreateAddress, onDirtyChange }: OrderFormProps) {
+export function OrderForm({ order, orders, clients, clientsLoading = false, addresses, products, itemTags = [], onCancel, onSave, onCreateAddress, onCreateClient, panelLevel = 1, onDirtyChange }: OrderFormProps) {
   const [clientId, setClientId] = useState(order?.clientId ?? "");
+  const [clientSearch, setClientSearch] = useState(order?.clientName ?? clients.find((client) => client.id === order?.clientId)?.name ?? "");
+  const [clientListOpen, setClientListOpen] = useState(false);
+  const [activeClientIndex, setActiveClientIndex] = useState(-1);
+  const [clientPanelOpen, setClientPanelOpen] = useState(false);
+  const [createdClient, setCreatedClient] = useState<Client | null>(null);
   const [addressId, setAddressId] = useState(order?.addressId ?? "");
   const [addressSelectionTouched, setAddressSelectionTouched] = useState(false);
   const [deliveryDateTime, setDeliveryDateTime] = useState(order?.deliveryDateTime ?? "");
@@ -121,6 +132,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   const [addressPanelMode, setAddressPanelMode] = useState<"choose" | "create" | null>(null);
   const [createdAddress, setCreatedAddress] = useState<Address | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
 
   const initialItems: OrderFormItem[] = order?.items.length
     ? order.items.map((item) => {
@@ -159,6 +171,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   const [initialFormSignature] = useState(() =>
       JSON.stringify({
         clientId: order?.clientId ?? "",
+        clientSearch: order?.clientName ?? clients.find((client) => client.id === order?.clientId)?.name ?? "",
         addressId: order?.addressId ?? "",
         deliveryDateTime: order?.deliveryDateTime ?? "",
         deliveryFee: currencyToInput(order?.deliveryFee ?? 0),
@@ -171,6 +184,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
 
   const currentFormSignature = JSON.stringify({
     clientId,
+    clientSearch,
     addressId,
     deliveryDateTime,
     deliveryFee,
@@ -201,9 +215,33 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   }, [currentFormSignature, initialFormSignature, onDirtyChange]);
 
   const selectableClients = useMemo(
-    () => clients.filter((client) => client.active || client.id === order?.clientId),
-    [clients, order?.clientId],
+    () => {
+      const availableClients = createdClient && !clients.some((client) => client.id === createdClient.id)
+        ? [...clients, createdClient]
+        : clients;
+      return availableClients.filter((client) => client.active || client.id === order?.clientId);
+    },
+    [clients, createdClient, order?.clientId],
   );
+
+  const normalizedClientSearch = normalizeClientSearch(clientSearch);
+  const matchingClients = useMemo(() => {
+    if (!normalizedClientSearch) return [];
+    return selectableClients
+      .map((client) => {
+        const normalizedName = normalizeClientSearch(client.name);
+        const normalizedContacts = (client.contacts ?? []).map((contact) => normalizeClientSearch(contact.value));
+        return { client, exact: normalizedName === normalizedClientSearch, matches: normalizedName.includes(normalizedClientSearch) || normalizedContacts.some((contact) => contact.includes(normalizedClientSearch)) };
+      })
+      .filter(({ matches }) => matches)
+      .sort((first, second) => Number(second.exact) - Number(first.exact) || first.client.name.localeCompare(second.client.name, "pt-BR"))
+      .slice(0, 8)
+      .map(({ client }) => client);
+  }, [normalizedClientSearch, selectableClients]);
+  const exactClient = (createdClient && !clients.some((client) => client.id === createdClient.id) ? [...clients, createdClient] : clients)
+    .find((client) => normalizeClientSearch(client.name) === normalizedClientSearch);
+  const exactClientIsInactive = Boolean(exactClient && !exactClient.active && exactClient.id !== order?.clientId);
+  const canCreateClient = Boolean(normalizedClientSearch && !clientsLoading && !exactClient && onCreateClient);
 
   const activeAddresses = useMemo(() => addresses.filter((address) => address.active), [addresses]);
   const orderAddressId = order?.addressId;
@@ -239,7 +277,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     return Array.from(new Set([DEFAULT_ITEM_UNIT, ...productUnits]));
   }, [activeProducts]);
 
-  const selectedClient = clients.find((client) => client.id === clientId);
+  const selectedClient = selectableClients.find((client) => client.id === clientId);
   const selectedAddress = addresses.find((address) => address.id === addressId) ??
     (createdAddress?.id === addressId ? createdAddress : undefined);
 
@@ -389,7 +427,7 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
 
-    if (!selectedClient || !deliveryDateTime || parsedItems.length === 0) {
+    if (savingRef.current || !selectedClient || !deliveryDateTime || parsedItems.length === 0) {
       return;
     }
 
@@ -418,8 +456,10 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     const nextAddressId = addressChanged ? selectedAddress?.id ?? null : order?.addressId ?? null;
 
     setSaving(true);
+    savingRef.current = true;
 
-    await onSave({
+    try {
+      await onSave({
       clientId: selectedClient.id,
       clientName: selectedClient.name,
 
@@ -444,11 +484,13 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
       orderStatus,
       notes: notes.trim(),
       tagIds: order?.tagIds ?? [],
-    });
-
-    setSaving(false);
-    onDirtyChange?.(false);
-    onCancel();
+      });
+      onDirtyChange?.(false);
+      onCancel();
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
 
   function getProductName(productId: string) {
@@ -491,8 +533,11 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
   function handleClientChange(nextClientId: string) {
     setClientId(nextClientId);
     setAddressSelectionTouched(true);
+    setClientListOpen(false);
+    setActiveClientIndex(-1);
 
-    const nextClient = clients.find((client) => client.id === nextClientId);
+    const nextClient = selectableClients.find((client) => client.id === nextClientId);
+    setClientSearch(nextClient?.name ?? "");
 
     const primaryAddress = nextClient?.primaryAddressId
       ? addresses.find((address) => address.id === nextClient.primaryAddressId && address.active)
@@ -520,6 +565,48 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
     setAddressId("");
   }
 
+  function handleClientSearchChange(value: string) {
+    if (clientId) handleClientChange("");
+    setClientSearch(value);
+    setClientListOpen(true);
+    setActiveClientIndex(-1);
+  }
+
+  function handleClientSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setClientListOpen(true);
+      setActiveClientIndex((index) => Math.max(0, Math.min(index + 1, matchingClients.length - 1 + Number(canCreateClient))));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setClientListOpen(true);
+      setActiveClientIndex((index) => index < 0 ? -1 : Math.max(index - 1, 0));
+    } else if (event.key === "Enter" && clientListOpen && matchingClients[activeClientIndex]) {
+      event.preventDefault();
+      handleClientChange(matchingClients[activeClientIndex].id);
+    } else if (event.key === "Enter" && clientListOpen && canCreateClient && (matchingClients.length === 0 || activeClientIndex === matchingClients.length)) {
+      event.preventDefault();
+      setClientListOpen(false);
+      setClientPanelOpen(true);
+    } else if (event.key === "Escape") {
+      setClientListOpen(false);
+    }
+  }
+
+  async function handleCreateClient(data: NewClientData) {
+    if (!onCreateClient) return { id: "" };
+    const created = await onCreateClient(data);
+    const client: Client = { ...data, id: created.id };
+    setCreatedClient(client);
+    setClientId(client.id);
+    setClientSearch(client.name);
+    setClientListOpen(false);
+    setClientPanelOpen(false);
+    setAddressId("");
+    setAddressSelectionTouched(true);
+    return created;
+  }
+
   async function handleCreateAddress(data: NewAddressData) {
     if (!onCreateAddress) {
       return;
@@ -544,18 +631,66 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
             </div>
 
             <div className="input-group single-column">
-              <label>
-                Cliente
-                <select value={clientId} onChange={(event) => handleClientChange(event.target.value)}>
-                  <option value="">Selecione um cliente</option>
-
-                  {selectableClients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="order-client-autocomplete">
+                <label htmlFor="order-client-search">Cliente</label>
+                <input
+                  id="order-client-search"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={clientListOpen && Boolean(normalizedClientSearch)}
+                  aria-controls="order-client-options"
+                  aria-activedescendant={clientListOpen && matchingClients[activeClientIndex]
+                    ? `order-client-option-${activeClientIndex}`
+                    : clientListOpen && canCreateClient && activeClientIndex === matchingClients.length
+                      ? "order-client-create-option"
+                      : undefined}
+                  value={clientSearch}
+                  onFocus={() => setClientListOpen(true)}
+                  onChange={(event) => handleClientSearchChange(event.target.value)}
+                  onKeyDown={handleClientSearchKeyDown}
+                  onBlur={() => setTimeout(() => setClientListOpen(false), 120)}
+                  placeholder="Digite o nome ou WhatsApp"
+                />
+                {clientListOpen && normalizedClientSearch && (
+                  <div className="order-client-options" id="order-client-options" role="group" aria-label="Clientes encontrados">
+                    {matchingClients.length > 0 && <div role="listbox" aria-label="Sugestões de clientes">
+                      {matchingClients.map((client, index) => (
+                        <button
+                          id={`order-client-option-${index}`}
+                          key={client.id}
+                          type="button"
+                          role="option"
+                          aria-selected={client.id === clientId}
+                          className="order-client-option"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => handleClientChange(client.id)}
+                        >
+                          <strong>{client.name}</strong>
+                          <span>{client.contacts?.find((contact) => contact.isPrimary)?.value ?? "Cliente"}</span>
+                        </button>
+                      ))}
+                    </div>}
+                    {clientsLoading ? <span className="order-client-empty">Carregando clientes…</span> : matchingClients.length === 0 && <span className="order-client-empty">Nenhum cliente encontrado.</span>}
+                    {!clientsLoading && exactClientIsInactive ? (
+                      <span className="order-client-empty">Este cliente já existe, mas está inativo. Ative-o para usar em novos pedidos.</span>
+                    ) : canCreateClient ? (
+                      <button
+                        id="order-client-create-option"
+                        type="button"
+                        className="order-client-create"
+                        aria-current={activeClientIndex === matchingClients.length ? "true" : undefined}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          setClientListOpen(false);
+                          setClientPanelOpen(true);
+                        }}
+                      >
+                        + Cadastrar cliente “{clientSearch.trim()}”
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
 
               <label>
                 Endereço de entrega
@@ -583,11 +718,11 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
               </label>
 
               <div className="inline-field-actions">
-                <Button type="button" variant="ghost" onClick={() => setAddressPanelMode("choose")}>
+                <Button type="button" variant="ghost" onClick={() => { setClientPanelOpen(false); setAddressPanelMode("choose"); }}>
                   Escolher endereço
                 </Button>
 
-                <Button type="button" variant="ghost" onClick={() => setAddressPanelMode("create")} disabled={!selectedClient || !onCreateAddress}>
+                <Button type="button" variant="ghost" onClick={() => { setClientPanelOpen(false); setAddressPanelMode("create"); }} disabled={!selectedClient || !onCreateAddress}>
                   + Endereço
                 </Button>
               </div>
@@ -948,6 +1083,23 @@ export function OrderForm({ order, orders, clients, addresses, products, itemTag
           </Button>
         </div>
       </form>
+      <SlidePanel
+        open={clientPanelOpen}
+        level={panelLevel === 1 ? 2 : 3}
+        size="normal"
+        title="Cadastrar cliente"
+        description="Cadastre o cliente e ele será selecionado neste pedido."
+        onClose={() => setClientPanelOpen(false)}
+      >
+        {clientPanelOpen && onCreateClient && (
+          <ClientQuickForm
+            favorite={false}
+            initialName={clientSearch.trim()}
+            onCancel={() => setClientPanelOpen(false)}
+            onSave={handleCreateClient}
+          />
+        )}
+      </SlidePanel>
       <SlidePanel
         open={addressPanelMode !== null}
         level={3}
