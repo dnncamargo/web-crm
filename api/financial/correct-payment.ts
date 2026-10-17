@@ -1,5 +1,5 @@
 import { getFinancialAdminDb } from "../_financial/admin.js";
-import { authorizeFinancialRequest } from "../_financial/auth.js";
+import { authorizeFinancialRequest, isFinancialAdmissionEmail } from "../_financial/auth.js";
 import { FinancialApiError, isFinancialApiError } from "../_financial/errors.js";
 import { assertPaymentCorrectionWriteGate } from "../_financial/gate.js";
 import {
@@ -20,7 +20,8 @@ async function assertProductionCorrectionReady(): Promise<void> {
   const allowedEmails: unknown = admission.data()?.allowedGoogleEmails;
   if (!admission.exists
     || !Array.isArray(allowedEmails)
-    || !allowedEmails.some((email) => typeof email === "string" && email.trim().length > 0)) {
+    || allowedEmails.length === 0
+    || !allowedEmails.every((email) => typeof email === "string" && isFinancialAdmissionEmail(email.trim()))) {
     throw new FinancialApiError(503, "FINANCIAL_OPERATION_DISABLED", "Operação financeira indisponível.");
   }
 }

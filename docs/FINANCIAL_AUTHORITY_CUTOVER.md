@@ -493,3 +493,19 @@ clientes com fatos financeiros inconsistentes/inconclusivos continua bloqueada.
 O Checkpoint 10 não habilita registro de pagamento, aplicação de crédito,
 edição comercial, criação de Pedidos pelo Admin API nem implantação de Rules.
 Esses fluxos exigem o cutover coordenado das fases acima.
+
+### Credencial do Firebase Admin em Vercel Production
+
+A função financeira em Production exige a variável server-side
+`FIREBASE_SERVICE_ACCOUNT_JSON`, contendo uma credencial de conta de serviço
+do mesmo projeto indicado por `VITE_FIREBASE_PROJECT_ID` (ou por
+`FIREBASE_PROJECT_ID`/`GCLOUD_PROJECT`, quando definidos). Cadastre o valor
+somente no ambiente Production do projeto Vercel; nunca use uma variável
+`VITE_*` para a credencial privada, nem a inclua no Git, no cliente ou nos
+logs. A identidade precisa ter acesso de dados do Firestore suficiente para
+ler `config/authAdmission` e executar as transações restritas de correção.
+
+O GET de prontidão permanece em erro até a credencial estar configurada e a
+allowlist ser lida e validada. Preview segue bloqueado. Não crie nem copie uma
+chave pela aplicação; o responsável pelo projeto deve provisionar e cadastrar
+a credencial pelo canal seguro da Vercel.
