@@ -69,6 +69,7 @@ describe("OrderForm client autocomplete", () => {
     const user = userEvent.setup();
     const { onSave } = renderOrderForm();
     const clientInput = screen.getByRole("combobox", { name: "Cliente" });
+    expect((clientInput as HTMLInputElement).placeholder).toBe("Digite o nome do cliente ou o telefone");
 
     await user.clear(clientInput);
     await user.type(clientInput, "jose");

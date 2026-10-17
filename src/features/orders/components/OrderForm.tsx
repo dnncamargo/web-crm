@@ -649,7 +649,7 @@ export function OrderForm({ order, orders, clients, clientsLoading = false, addr
                   onChange={(event) => handleClientSearchChange(event.target.value)}
                   onKeyDown={handleClientSearchKeyDown}
                   onBlur={() => setTimeout(() => setClientListOpen(false), 120)}
-                  placeholder="Digite o nome ou WhatsApp"
+                  placeholder="Digite o nome do cliente ou o telefone"
                 />
                 {clientListOpen && normalizedClientSearch && (
                   <div className="order-client-options" id="order-client-options" role="group" aria-label="Clientes encontrados">

@@ -511,6 +511,11 @@
   border-bottom: var(--divider);
 }
 
+.order-client-autocomplete > label {
+  padding: 0;
+  border-bottom: 0;
+}
+
 .order-client-autocomplete input {
   width: 100%;
   min-height: 26px;
