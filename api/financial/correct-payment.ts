@@ -33,6 +33,11 @@ export async function handleCorrectPaymentRequest(request: Request): Promise<Res
       return new Response(null, { status: 204 });
     } catch (error) {
       if (isFinancialApiError(error)) return jsonError(error);
+      console.error("Financial payment correction readiness failed", {
+        name: error instanceof Error ? error.name : "unknown",
+        code: typeof error === "object" && error !== null && "code" in error
+          && typeof error.code === "string" ? error.code : undefined,
+      });
       return Response.json({ error: { code: "INTERNAL_ERROR" } }, { status: 500 });
     }
   }

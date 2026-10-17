@@ -50,6 +50,31 @@ describe("payment HTTP endpoints", () => {
     await expect(response.json()).resolves.toEqual({ error: { code: "FINANCIAL_OPERATION_DISABLED" } });
   });
 
+  it("converte falha inesperada de prontidão em INTERNAL_ERROR e registra apenas metadados seguros", async () => {
+    vi.stubEnv("VERCEL", "1");
+    vi.stubEnv("VERCEL_ENV", "production");
+    const error = Object.assign(new Error("private service-account details"), { code: "permission-denied" });
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const admin = await import("../../api/_financial/admin");
+    const getDb = vi.spyOn(admin, "getFinancialAdminDb").mockImplementation(() => {
+      throw error;
+    });
+
+    try {
+      const response = await handleCorrectPaymentRequest(new Request("https://example.test/api/financial/correct-payment"));
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toEqual({ error: { code: "INTERNAL_ERROR" } });
+      expect(log).toHaveBeenCalledWith("Financial payment correction readiness failed", {
+        name: "Error",
+        code: "permission-denied",
+      });
+      expect(JSON.stringify(log.mock.calls)).not.toContain("private service-account details");
+    } finally {
+      getDb.mockRestore();
+      log.mockRestore();
+    }
+  });
+
   it("permite que a rota de correção em Production chegue à verificação de autenticação", async () => {
     vi.stubEnv("VERCEL", "1");
     vi.stubEnv("VERCEL_ENV", "production");
