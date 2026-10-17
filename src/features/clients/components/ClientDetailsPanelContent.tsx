@@ -16,6 +16,8 @@ interface ClientDetailsPanelContentProps {
   onEditAddress: (address: Address) => void;
   onSetActive: (checked: boolean) => Promise<void>;
   onSetFavorite: (checked: boolean) => Promise<void>;
+  onDelete: () => void;
+  deletionError: string;
 }
 
 export function ClientDetailsPanelContent({
@@ -27,6 +29,8 @@ export function ClientDetailsPanelContent({
   onCreateAddress,
   onEditAddress,
   onSetActive,
+  onDelete,
+  deletionError,
 }: ClientDetailsPanelContentProps) {
   const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
 
@@ -195,8 +199,15 @@ export function ClientDetailsPanelContent({
           <Button type="button" variant="primary" onClick={onEdit}>
             Editar
           </Button>
+          {!client.active && (
+            <Button type="button" variant="ghost" onClick={onDelete}>
+              Excluir definitivamente
+            </Button>
+          )}
         </div>
       </div>
+      {client.active && <p className="muted-text">Para excluir definitivamente, primeiro inative o Cliente.</p>}
+      {deletionError && <p className="error-text" role="alert">{deletionError}</p>}
     </div>
   );
 }

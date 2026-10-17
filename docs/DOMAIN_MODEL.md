@@ -48,6 +48,12 @@ esse documento administrativo. Usuários admitidos compartilham o mesmo banco de
 negócio; autenticação não representa propriedade por `uid` e não implica roles,
 claims, RBAC, ACL ou permissões diferenciadas.
 
+As Rules não se aplicam ao Firebase Admin SDK. A exclusão física de Clientes e
+Pedidos é feita somente pelas rotas server-side autenticadas; as Rules negam
+essas exclusões diretas pelo SDK cliente. A ativação das rotas de exclusão em
+produção exige a variável explícita `SAFE_DELETION_PRODUCTION_ENABLED=enabled`.
+Essa fronteira não altera nem habilita as demais rotas financeiras.
+
 O Store Profile é uma configuração global compartilhada, não um perfil escopado
 por usuário.
 
@@ -183,6 +189,16 @@ O Cliente também pode manter:
 Esses campos são resumo/derivação. Não devem se tornar uma fonte independente capaz de contradizer pedidos e interações.
 
 Ao implementar automações que os atualizem, documentar o evento de escrita e, se múltiplos documentos forem afetados, avaliar atomicidade.
+
+### Exclusão física
+
+O estado existente `active: false` é a forma de inativação e deve ser preferido
+quando houver histórico. A exclusão definitiva exige Cliente inativo, ausência
+de Pedidos, Tarefas e Endereços referenciados, ausência de subcoleções e saldo
+financeiro conclusivamente zerado. A operação é transacional e também remove o
+documento de projeção `clientFinancial` somente quando ele está pronto e zerado.
+As Rules impedem novos Pedidos, Tarefas e Endereços ligados a Clientes inativos;
+edições que mantêm um vínculo histórico são permitidas.
 
 ## 6. Endereço
 
@@ -376,6 +392,21 @@ mantido. São valores não negativos em centavos, limitados respectivamente a
 `creditApplied` e `creditGenerated` originais. Os fatos originais não são
 reescritos. A decisão e o efeito líquido no agregador são transacionais; a
 ausência da decisão não representa valores zero.
+
+### Exclusão física
+
+Uma exclusão comum só pode remover Pedido `cancelled` com reconciliação
+financeira conclusiva, sem recebimentos, devoluções ou efeitos de crédito, sem
+crédito disponível para o Cliente e sem documentos em subcoleções. A existência
+de `total` não comprova movimentação financeira. Se os fatos ou a reconciliação
+forem inconclusivos, o Pedido permanece preservado. As Rules negam exclusão
+direta de documentos de Pedido e de suas subcoleções.
+
+Os três IDs de Pedido confirmados pelo produto como dados fictícios têm um
+caminho separado que exige a frase explícita `EXCLUIR DADOS DE TESTE`. A rota
+confere o ID e os valores monetários esperados, o vínculo ao Cliente Teste e a
+ausência de Pedidos externos ao conjunto confirmado. Esse caminho não altera
+totais, pagamentos ou créditos antes da remoção.
 
 `getOrderCashPaid` em `orderUtils.ts` é a fonte canônica para consumidores
 financeiros: soma `payments` quando presente e usa `amountPaid` apenas como

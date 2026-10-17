@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 
 import { auth, db } from "../../services/firebase";
+import { requestSafeDeletion } from "../../services/safeDeletionClient";
 import { isLocalFinancialPaymentCorrectionEnabled } from "./financialPaymentCorrectionEnvironment";
 import { legacyReaisToMoneyCents } from "../financial/money";
 import type { NewOrderData, Order, OrderPayment, UpdateOrderData } from "./orderTypes";
@@ -293,4 +294,8 @@ export async function updateOrder(orderId: string, data: UpdateOrderData) {
       updatedAt: serverTimestamp(),
     });
   });
+}
+
+export async function deleteOrder(orderId: string, testDataConfirmation?: string) {
+  await requestSafeDeletion("/api/delete-order", "orderId", orderId, testDataConfirmation);
 }

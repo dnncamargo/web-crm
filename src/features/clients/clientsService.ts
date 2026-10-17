@@ -1,5 +1,6 @@
 import { addDoc, collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc, type Unsubscribe } from "firebase/firestore";
 import { db } from "../../services/firebase";
+import { requestSafeDeletion } from "../../services/safeDeletionClient";
 import type { Client, NewClientData, UpdateClientData } from "./clientTypes";
 const clientsCollection = collection(db, "clients");
 function removeUndefinedFields<T>(value: T): T {
@@ -41,4 +42,8 @@ export async function toggleClientFavorite(clientId: string, favorite: boolean) 
 export async function toggleClientActive(clientId: string, active: boolean) {
   const clientRef = doc(db, "clients", clientId);
   return updateDoc(clientRef, { active, updatedAt: serverTimestamp() });
+}
+
+export async function deleteClient(clientId: string) {
+  await requestSafeDeletion("/api/delete-client", "clientId", clientId);
 }

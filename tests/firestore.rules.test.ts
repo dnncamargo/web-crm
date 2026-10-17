@@ -152,4 +152,28 @@ describe("Firestore authenticated boundary", () => {
       allowedGoogleEmails: ["wrong@example.test"],
     }));
   });
+
+  it("blocks direct deletion of Clients and Orders and all their subcollections", async () => {
+    const db = testEnvironment.authenticatedContext("crm-user", allowedGoogleToken).firestore();
+    await db.doc("clients/client-1").set({ name: "Cliente", active: true });
+    await assertSucceeds(db.doc("orders/order-1").set({ clientId: "client-1" }));
+    await assertFails(db.doc("orders/order-1").delete());
+    await assertFails(db.doc("clients/client-1").delete());
+    await assertFails(db.doc("orders/order-1/cancellationOperations/op-1").set({ text: "Teste" }));
+    await assertFails(db.doc("clients/client-1/private/history").set({ value: "Teste" }));
+  });
+
+  it("prevents new linked records after a Client is inactive while retaining existing-record edits", async () => {
+    const db = testEnvironment.authenticatedContext("crm-user", allowedGoogleToken).firestore();
+    await db.doc("clients/client-1").set({ name: "Cliente", active: true });
+    await assertSucceeds(db.doc("orders/order-1").set({ clientId: "client-1", notes: "Antes" }));
+    await assertSucceeds(db.doc("addresses/address-1").set({ clientId: "client-1" }));
+    await assertSucceeds(db.doc("tasks/task-1").set({ clientId: "client-1" }));
+    await db.doc("clients/client-1").update({ active: false });
+
+    await assertSucceeds(db.doc("orders/order-1").update({ notes: "Histórico preservado" }));
+    await assertFails(db.doc("orders/order-2").set({ clientId: "client-1" }));
+    await assertFails(db.doc("addresses/address-2").set({ clientId: "client-1" }));
+    await assertFails(db.doc("tasks/task-2").set({ clientId: "client-1" }));
+  });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Client, NewClientData, UpdateClientData } from "./clientTypes";
-import { createClient, listenClients, toggleClientActive, toggleClientFavorite, updateClient } from "./clientsService";
+import { createClient, deleteClient, listenClients, toggleClientActive, toggleClientFavorite, updateClient } from "./clientsService";
 
 export function filterClientsBySearch(clients: Client[], search: string, tagLabelsById: Record<string, string> = {}) {
   const normalizedSearch = search.trim().toLowerCase();
@@ -61,5 +61,9 @@ export function useClients(tagLabelsById: Record<string, string> = {}) {
     await toggleClientActive(client.id, active);
   }
 
-  return { clients, filteredClients, search, setSearch, showOnlyFavorites, setShowOnlyFavorites, loading, error, addClient, editClient, setFavorite, setActive };
+  async function removeClient(client: Client) {
+    await deleteClient(client.id);
+  }
+
+  return { clients, filteredClients, search, setSearch, showOnlyFavorites, setShowOnlyFavorites, loading, error, addClient, editClient, setFavorite, setActive, removeClient };
 }

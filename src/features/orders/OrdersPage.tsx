@@ -25,6 +25,10 @@ import { isLocalFinancialPaymentCorrectionEnabled } from "./financialPaymentCorr
 import { useOrders } from "./useOrders";
 import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent";
 import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
+import { formatCurrencyBR } from "../../utils/money";
+import { formatDateTimeBR, getOrderCashPaid } from "./orderUtils";
+import { getCancelledOrderDeletionBlockReason } from "./orderDeletionEligibility";
+import { isConfirmedTestOrderId, testOrderDeletionConfirmation } from "./testOrderDeletion";
 
 type OrderPanelState = { type: "create-order" } | { type: "edit-order"; order: Order } | { type: "view-order"; order: Order } | null;
 
@@ -41,7 +45,7 @@ export function OrdersPage() {
   const { addresses, addressesError, saveAddressForClient } = useAddresses();
 
   const { products, loadingProducts, productsError } = useProducts();
-  const { orders, filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder, registerPayment, correctPayment } = useOrders(products);
+  const { orders, filteredOrders, search, setSearch, showOnlyActive, setShowOnlyActive, loadingOrders, ordersError, addOrder, editOrder, registerPayment, correctPayment, removeOrder } = useOrders(products);
   const { tags, activeTags } = useTags();
 
   const [panel, setPanel] = useState<OrderPanelState>(null);
@@ -55,6 +59,7 @@ export function OrdersPage() {
   const [correctionApiReady, setCorrectionApiReady] = useState(false);
   const [orderFormIsDirty, setOrderFormIsDirty] = useState(false);
   const [stackedOrderFormIsDirty, setStackedOrderFormIsDirty] = useState(false);
+  const [deletionError, setDeletionError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -206,6 +211,37 @@ export function OrdersPage() {
 
   function openViewOrder(selectedOrder: Order) {
     setPanel({ type: "view-order", order: selectedOrder });
+    setDeletionError("");
+  }
+
+  async function handleDeleteOrder(order: Order) {
+    if (getCancelledOrderDeletionBlockReason(order, orders) !== null) return;
+    const confirmed = window.confirm(
+      `Excluir definitivamente este Pedido cancelado?\n\n${order.clientName}\nID: ${order.id}\nEntrega: ${formatDateTimeBR(order.deliveryDateTime)}\nTotal: ${formatCurrencyBR(order.total)}\nRecebido: ${formatCurrencyBR(getOrderCashPaid(order))}\n\nA exclusão será recusada se o estado financeiro mudar ou houver registros dependentes. Essa ação não pode ser desfeita.`,
+    );
+    if (!confirmed) return;
+    setDeletionError("");
+    try {
+      await removeOrder(order.id);
+      closePanel();
+    } catch (error) {
+      setDeletionError(error instanceof Error ? error.message : "Não foi possível excluir o Pedido.");
+    }
+  }
+
+  async function handleDeleteTestOrder(order: Order) {
+    if (!isConfirmedTestOrderId(order.id)) return;
+    const confirmation = window.prompt(
+      `Confirme a exclusão deste dado fictício de teste. Confira o registro:\n\n${order.clientName}\nID: ${order.id}\nEntrega: ${formatDateTimeBR(order.deliveryDateTime)}\nStatus: ${order.orderStatus}\nTotal: ${formatCurrencyBR(order.total)}\nRecebido: ${formatCurrencyBR(getOrderCashPaid(order))}\n\nDigite ${testOrderDeletionConfirmation} para confirmar a exclusão permanente.`,
+    );
+    if (confirmation !== testOrderDeletionConfirmation) return;
+    setDeletionError("");
+    try {
+      await removeOrder(order.id, confirmation);
+      closePanel();
+    } catch (error) {
+      setDeletionError(error instanceof Error ? error.message : "Não foi possível excluir o dado de teste.");
+    }
   }
 
   useOpenEntityFromNavigation({ entities: orders, loading: loadingOrders, onOpen: openViewOrder });
@@ -373,6 +409,11 @@ export function OrdersPage() {
             onRegisterPayment={() => openStackedPaymentOrder(selectedOrder ?? panel.order)}
             canCorrectPayments={correctionApiReady && isLocalFinancialPaymentCorrectionEnabled()}
             onCorrectPayment={(paymentId) => openStackedPaymentCorrection(selectedOrder ?? panel.order, paymentId)}
+            onDelete={() => void handleDeleteOrder(selectedOrder ?? panel.order)}
+            deletionBlockReason={getCancelledOrderDeletionBlockReason(selectedOrder ?? panel.order, orders)}
+            deletionError={deletionError}
+            onDeleteTestData={() => void handleDeleteTestOrder(selectedOrder ?? panel.order)}
+            canDeleteConfirmedTestData={isConfirmedTestOrderId((selectedOrder ?? panel.order).id)}
           />
         )}
         {panel?.type === "create-order" && (

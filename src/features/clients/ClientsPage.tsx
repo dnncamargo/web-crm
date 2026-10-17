@@ -36,7 +36,7 @@ export function ClientsPage() {
 
   const tagLabelsById = useMemo(() => Object.fromEntries(activeTags.map((tag) => [tag.id, tag.label])), [activeTags]);
 
-  const { clients, filteredClients, search, setSearch, loading, error, addClient, editClient, setFavorite, setActive } = useClients(tagLabelsById);
+  const { clients, filteredClients, search, setSearch, loading, error, addClient, editClient, setFavorite, setActive, removeClient } = useClients(tagLabelsById);
 
   const { getAddressesByClient, saveAddressForClient } = useAddresses();
 
@@ -49,6 +49,7 @@ export function ClientsPage() {
   const [showOnlyWithContactFrequency, setShowOnlyWithContactFrequency] = useState(false);
   const [showOnlyWithBirthDate, setShowOnlyWithBirthDate] = useState(false);
   const [createClientFavorite, setCreateClientFavorite] = useState(false);
+  const [deletionError, setDeletionError] = useState("");
 
   const visibleClients = useMemo(
     () =>
@@ -100,6 +101,22 @@ export function ClientsPage() {
   function openViewClient(client: Client) {
     setPanel({ type: "view-client", client });
     setStackedPanel(null);
+    setDeletionError("");
+  }
+
+  async function handleDeleteClient(client: Client) {
+    if (client.active) return;
+    const confirmed = window.confirm(
+      `Excluir definitivamente este Cliente?\n\n${client.name}\nID: ${client.id}\n\nA exclusão só será aceita se não houver registros dependentes nem saldo financeiro. Essa ação não pode ser desfeita.`,
+    );
+    if (!confirmed) return;
+    setDeletionError("");
+    try {
+      await removeClient(client);
+      closePanel();
+    } catch (error) {
+      setDeletionError(error instanceof Error ? error.message : "Não foi possível excluir o Cliente.");
+    }
   }
 
   useOpenEntityFromNavigation({ entities: clients, loading, onOpen: openViewClient });
@@ -377,6 +394,8 @@ export function ClientsPage() {
               await setFavorite(panel.client, checked);
               updateViewedClient(panel.client.id, { favorite: checked });
             }}
+            onDelete={() => void handleDeleteClient(panel.client)}
+            deletionError={deletionError}
           />
         )}
       </SlidePanel>

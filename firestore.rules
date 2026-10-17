@@ -12,13 +12,72 @@ service cloud.firestore {
         ).data.allowedGoogleEmails;
     }
 
+    function isActiveClient(clientId) {
+      return clientId is string
+        && exists(/databases/$(database)/documents/clients/$(clientId))
+        && get(/databases/$(database)/documents/clients/$(clientId)).data.active == true;
+    }
+
+    function hasAllowedClientReference() {
+      return !('clientId' in request.resource.data)
+        || request.resource.data.clientId == null
+        || isActiveClient(request.resource.data.clientId);
+    }
+
+    function keepsExistingClientReference() {
+      return resource.data.clientId is string
+        && request.resource.data.clientId == resource.data.clientId;
+    }
+
     match /config/authAdmission {
       allow read, write: if false;
     }
 
-    match /{document=**} {
-      allow read, write: if request.path != /databases/$(database)/documents/config/authAdmission
-        && isAllowedGoogleUser();
+    match /clients/{clientId} {
+      allow read, create, update: if isAllowedGoogleUser();
+      allow delete: if false;
+    }
+
+    match /clients/{clientId}/{path=**} {
+      allow read, write: if false;
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAllowedGoogleUser();
+      allow create: if isAllowedGoogleUser() && isActiveClient(request.resource.data.clientId);
+      allow update: if isAllowedGoogleUser()
+        && (keepsExistingClientReference() || isActiveClient(request.resource.data.clientId));
+      allow delete: if false;
+    }
+
+    match /orders/{orderId}/{path=**} {
+      allow read, write: if false;
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isAllowedGoogleUser();
+      allow create: if isAllowedGoogleUser() && hasAllowedClientReference();
+      allow update: if isAllowedGoogleUser()
+        && (keepsExistingClientReference() || hasAllowedClientReference());
+      allow delete: if isAllowedGoogleUser();
+    }
+
+    match /addresses/{addressId} {
+      allow read: if isAllowedGoogleUser();
+      allow create: if isAllowedGoogleUser() && hasAllowedClientReference();
+      allow update: if isAllowedGoogleUser()
+        && (keepsExistingClientReference() || hasAllowedClientReference());
+      allow delete: if isAllowedGoogleUser();
+    }
+
+    match /{collection}/{documentId} {
+      allow read, create, update, delete: if isAllowedGoogleUser()
+        && !(collection in ["config", "clients", "orders", "tasks", "addresses"]);
+    }
+
+    match /{collection}/{documentId}/{path=**} {
+      allow read, create, update, delete: if isAllowedGoogleUser()
+        && !(collection in ["config", "clients", "orders", "tasks", "addresses"]);
     }
   }
 }

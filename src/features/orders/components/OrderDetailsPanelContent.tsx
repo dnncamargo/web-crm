@@ -14,9 +14,14 @@ interface OrderDetailsPanelContentProps {
   onRegisterPayment: () => void;
   canCorrectPayments: boolean;
   onCorrectPayment: (paymentId: string) => void;
+  onDelete: () => void;
+  deletionBlockReason: string | null;
+  deletionError: string;
+  onDeleteTestData: () => void;
+  canDeleteConfirmedTestData: boolean;
 }
 
-export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdit, onPrint, onRegisterPayment, canCorrectPayments, onCorrectPayment }: OrderDetailsPanelContentProps) {
+export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdit, onPrint, onRegisterPayment, canCorrectPayments, onCorrectPayment, onDelete, deletionBlockReason, deletionError, onDeleteTestData, canDeleteConfirmedTestData }: OrderDetailsPanelContentProps) {
   const paymentStatus = getPaymentStatus(order);
   const balanceInfo = getOrderBalanceInfo(order);
   const creditApplied = order.creditApplied ?? 0;
@@ -231,8 +236,22 @@ export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdi
           <Button type="button" variant="primary" onClick={onEdit}>
             Editar pedido
           </Button>
+          {order.orderStatus === "cancelled" && !deletionBlockReason && (
+            <Button type="button" variant="ghost" onClick={onDelete}>
+              Excluir pedido
+            </Button>
+          )}
+          {canDeleteConfirmedTestData && (
+            <Button type="button" variant="ghost" onClick={onDeleteTestData}>
+              Excluir dado de teste
+            </Button>
+          )}
         </div>
       </div>
+      {order.orderStatus === "cancelled" && deletionBlockReason && (
+        <p className="muted-text" role="note">Exclusão indisponível: {deletionBlockReason}</p>
+      )}
+      {deletionError && <p className="error-text" role="alert">{deletionError}</p>}
     </div>
   );
 }

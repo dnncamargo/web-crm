@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Product } from "../products/productTypes";
 import type { NewOrderData, Order, UpdateOrderData } from "./orderTypes";
 import { getOrderItemProductName } from "./orderUtils";
-import { correctOrderPayment, createOrder, listenOrders, registerOrderPayment, updateOrder, type CorrectOrderPaymentInput, type RegisterOrderPaymentInput } from "./ordersService";
+import { correctOrderPayment, createOrder, deleteOrder, listenOrders, registerOrderPayment, updateOrder, type CorrectOrderPaymentInput, type RegisterOrderPaymentInput } from "./ordersService";
 import type { OrderPayment } from "./orderTypes";
 
 export function useOrders(products: Product[] = []) {
@@ -65,6 +65,10 @@ export function useOrders(products: Product[] = []) {
     await updateOrder(orderId, data);
   }
 
+  async function removeOrder(orderId: string, testDataConfirmation?: string) {
+    await deleteOrder(orderId, testDataConfirmation);
+  }
+
   async function registerPayment(orderId: string, input: RegisterOrderPaymentInput) {
     await registerOrderPayment(orderId, input);
   }
@@ -84,6 +88,7 @@ export function useOrders(products: Product[] = []) {
     ordersError,
     addOrder,
     editOrder,
+    removeOrder,
     registerPayment,
     correctPayment,
   };
