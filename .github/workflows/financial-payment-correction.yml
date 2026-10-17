@@ -37,6 +37,13 @@ jobs:
         run: npm ci
       - name: Run application tests
         run: npm test
+        env:
+          VITE_FIREBASE_API_KEY: "test-api-key-not-for-deployment"
+          VITE_FIREBASE_AUTH_DOMAIN: "demo-web-crm-ui-tests.firebaseapp.com"
+          VITE_FIREBASE_PROJECT_ID: "demo-web-crm-ui-tests"
+          VITE_FIREBASE_STORAGE_BUCKET: "demo-web-crm-ui-tests.appspot.com"
+          VITE_FIREBASE_MESSAGING_SENDER_ID: "000000000000"
+          VITE_FIREBASE_APP_ID: "1:000000000000:web:0000000000000000"
       - name: Run financial API and Emulator integration tests
         run: npm run test:financial-api
       - name: Build
