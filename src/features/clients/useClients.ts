@@ -3,7 +3,7 @@ import type { Client, NewClientData, UpdateClientData } from "./clientTypes";
 import { createClient, listenClients, toggleClientActive, toggleClientFavorite, updateClient } from "./clientsService";
 
 export function filterClientsBySearch(clients: Client[], search: string, tagLabelsById: Record<string, string> = {}) {
-  const normalizedSearch = search.trim().toLowerCase();
+  const normalizedSearch = normalizeClientSearch(search);
 
   if (!normalizedSearch) {
     return clients;
@@ -13,9 +13,17 @@ export function filterClientsBySearch(clients: Client[], search: string, tagLabe
     const primaryContact = client.contacts?.find((contact) => contact.isPrimary);
     const clientTagLabels = (client.tagIds ?? []).map((tagId) => tagLabelsById[tagId] ?? tagId);
 
-    const searchableText = [client.name, primaryContact?.value, client.notes, ...clientTagLabels, ...(client.tagIds ?? [])].filter(Boolean).join(" ").toLowerCase();
+    const searchableText = normalizeClientSearch([client.name, primaryContact?.value, client.notes, ...clientTagLabels, ...(client.tagIds ?? [])].filter(Boolean).join(" "));
     return searchableText.includes(normalizedSearch);
   });
+}
+
+export function normalizeClientSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLocaleLowerCase("pt-BR");
 }
 
 export function useClients(tagLabelsById: Record<string, string> = {}) {
@@ -46,7 +54,8 @@ export function useClients(tagLabelsById: Record<string, string> = {}) {
   }, [clients, search, showOnlyFavorites, tagLabelsById]);
 
   async function addClient(data: NewClientData) {
-    await createClient(data);
+    const createdClient = await createClient(data);
+    return { id: createdClient.id };
   }
 
   async function editClient(clientId: string, data: UpdateClientData) {

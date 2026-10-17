@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import { Button } from "../../../components/ui/Button";
@@ -6,19 +6,23 @@ import type { ContactFrequency, NewClientData } from "../clientTypes";
 
 interface ClientQuickFormProps {
   favorite: boolean;
+  initialName?: string;
   onCancel: () => void;
-  onSave: (data: NewClientData) => Promise<void>;
+  onSave: (data: NewClientData) => Promise<{ id: string }>;
 }
 
 export function ClientQuickForm({
   favorite,
+  initialName = "",
   onCancel,
   onSave,
 }: ClientQuickFormProps) {
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialName);
   const [phone, setPhone] = useState("");
   const [contactFrequency, setContactFrequency] = useState<ContactFrequency>("none");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const savingRef = useRef(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -26,40 +30,47 @@ export function ClientQuickForm({
     const trimmedName = name.trim();
     const trimmedPhone = phone.trim();
 
-    if (!trimmedName) {
+    if (savingRef.current || !trimmedName) {
       return;
     }
 
     const primaryContactId = trimmedPhone ? crypto.randomUUID() : null;
 
     setSaving(true);
+    savingRef.current = true;
+    setSaveError("");
 
-    await onSave({
-      name: trimmedName,
-      active: true,
-      favorite,
-      birthDate: "",
-      contactFrequency,
-      contacts:
-        trimmedPhone && primaryContactId
-          ? [
-              {
-                id: primaryContactId,
-                type: "whatsapp",
-                value: trimmedPhone,
-                label: "WhatsApp principal",
-                isPrimary: true,
-              },
-            ]
-          : [],
-      primaryContactId,
-      primaryAddressId: null,
-      tagIds: [],
-      notes: "",
-    });
-
-    setSaving(false);
-    onCancel();
+    try {
+      await onSave({
+        name: trimmedName,
+        active: true,
+        favorite,
+        birthDate: "",
+        contactFrequency,
+        contacts:
+          trimmedPhone && primaryContactId
+            ? [
+                {
+                  id: primaryContactId,
+                  type: "whatsapp",
+                  value: trimmedPhone,
+                  label: "WhatsApp principal",
+                  isPrimary: true,
+                },
+              ]
+            : [],
+        primaryContactId,
+        primaryAddressId: null,
+        tagIds: [],
+        notes: "",
+      });
+      onCancel();
+    } catch {
+      setSaveError("Não foi possível cadastrar o cliente. Confira sua conexão e tente novamente.");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
   }
 
   return (
@@ -73,6 +84,7 @@ export function ClientQuickForm({
             </div>
 
             <div className="input-group single-column">
+              {saveError && <p className="form-error" role="alert">{saveError}</p>}
               <label>
                 Nome
                 <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ex: Maria Oliveira" />

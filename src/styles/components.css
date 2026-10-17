@@ -500,6 +500,97 @@
   color: var(--placeholder-color);
 }
 
+.order-client-autocomplete {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  border-bottom: var(--divider);
+}
+
+.order-client-autocomplete > label {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.order-client-autocomplete input {
+  width: 100%;
+  min-height: 26px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.order-client-autocomplete:focus-within {
+  background: var(--surface-soft);
+}
+
+.order-client-options {
+  display: grid;
+  gap: 2px;
+  margin: 2px -4px -4px;
+  padding: 4px;
+  border: var(--border-base);
+  border-radius: var(--radius-sm);
+  background: var(--surface-popover);
+  box-shadow: var(--shadow-panel);
+}
+
+.order-client-option,
+.order-client-create {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.order-client-option:hover,
+.order-client-option[aria-selected="true"],
+.order-client-create:hover {
+  background: var(--accent-surface);
+}
+
+.order-client-option strong {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.order-client-option span,
+.order-client-empty {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.order-client-empty {
+  padding: 6px 8px;
+}
+
+.order-client-create {
+  border-top: var(--divider);
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.form-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.82rem;
+}
+
 /* Slide panels and reusable panel content */
 .slide-panel-header-actions {
   display: flex;
