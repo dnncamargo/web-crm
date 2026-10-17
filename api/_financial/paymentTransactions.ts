@@ -412,10 +412,8 @@ export async function correctPaymentProductionTransaction(
     .limit(MAX_PRODUCTION_CLIENT_ORDERS_FOR_CORRECTION + 1);
 
   return db.runTransaction(async (transaction) => {
-    const [orderSnapshot, clientOrdersSnapshot] = await Promise.all([
-      transaction.get(orderRef),
-      transaction.get(clientOrdersQuery),
-    ]);
+    const orderSnapshot = await transaction.get(orderRef);
+    const clientOrdersSnapshot = await transaction.get(clientOrdersQuery);
 
     if (!orderSnapshot.exists) {
       throw new FinancialApiError(409, "ORDER_NOT_FOUND", "Pedido não encontrado.");
