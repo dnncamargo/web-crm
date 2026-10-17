@@ -1,4 +1,4 @@
-import type { Firestore, Query } from "firebase-admin/firestore";
+import { Timestamp, type DocumentReference, type Firestore, type Query } from "firebase-admin/firestore";
 
 import { reconcileFinancialDocuments } from "../../src/features/financial/reconciliation.js";
 import type { ReconciliationOrderDocument } from "../../src/features/financial/reconciliation.js";
@@ -110,9 +110,18 @@ export async function deleteInactiveClient(db: Firestore, clientId: string): Pro
   });
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowedKeys: readonly string[]): boolean {
+  const allowed = new Set(allowedKeys);
+  return Object.keys(value).every((key) => allowed.has(key));
+}
+
 function isTestOrderData(id: string, data: Record<string, unknown>, fixtures: readonly ConfirmedTestOrderDeletionFixture[]): boolean {
   const fixture = fixtures.find((entry) => entry.id === id);
-  if (!fixture || data.clientName !== "Cliente Teste"
+  if (!fixture || data.orderStatus !== "cancelled" || data.clientName !== "Cliente Teste"
     || typeof data.clientId !== "string"
     || typeof data.total !== "number" || typeof data.amountPaid !== "number"
     || (data.creditApplied !== undefined && data.creditApplied !== null && data.creditApplied !== 0)
@@ -144,53 +153,170 @@ function isTestOrderData(id: string, data: Record<string, unknown>, fixtures: re
   }
 }
 
-export async function deleteConfirmedTestOrder(
+function testOrderNetCreditCents(
+  data: Record<string, unknown>,
+  fixture: ConfirmedTestOrderDeletionFixture,
+): number {
+  const generatedCents = Math.max(fixture.cashPaidCents - fixture.totalCents, 0);
+  const agreement = data.cancellationAgreement;
+  if (!isRecord(agreement) || !isRecord(agreement.creditDecision)) return generatedCents;
+  const { appliedRestoredCents, generatedRetainedCents } = agreement.creditDecision;
+  if (!Number.isSafeInteger(appliedRestoredCents) || appliedRestoredCents !== 0
+    || !Number.isSafeInteger(generatedRetainedCents) || (generatedRetainedCents as number) > generatedCents) {
+    blocked("TEST_DATA_FINANCIAL_STATE_UNATTRIBUTABLE", "A projeção financeira não pode ser atribuída com segurança ao conjunto fictício.");
+  }
+  return generatedRetainedCents as number;
+}
+
+function isOrderOperationDocument(data: Record<string, unknown>): boolean {
+  return hasOnlyKeys(data, ["fingerprint"])
+    && typeof data.fingerprint === "string"
+    && /^[a-f0-9]{64}$/i.test(data.fingerprint);
+}
+
+function isClientFinancialOperationDocument(
+  id: string,
+  data: Record<string, unknown>,
+  clientId: string,
+  fixtureIds: ReadonlySet<string>,
+): boolean {
+  if (!hasOnlyKeys(data, ["fingerprint", "result", "actorUid", "createdAt"])
+    || typeof data.fingerprint !== "string" || !/^[a-f0-9]{64}$/i.test(data.fingerprint)
+    || typeof data.actorUid !== "string" || !(data.createdAt instanceof Timestamp)
+    || !isRecord(data.result)) return false;
+  const result = data.result;
+  return hasOnlyKeys(result, ["operationId", "clientId", "orderId", "appliedCents", "availableCreditCents", "revision"])
+    && result.operationId === id
+    && result.clientId === clientId
+    && typeof result.orderId === "string" && fixtureIds.has(result.orderId)
+    && [result.appliedCents, result.availableCreditCents, result.revision]
+      .every((value) => Number.isSafeInteger(value) && (value as number) >= 0);
+}
+
+type PendingDeletion = {
+  ref: DocumentReference;
+};
+
+export async function deleteConfirmedTestOrderSet(
   db: Firestore,
-  orderId: string,
+  requestedOrderId: string,
   confirmation: string,
   fixtures: readonly ConfirmedTestOrderDeletionFixture[] = confirmedTestOrderDeletionFixtures,
 ): Promise<void> {
   if (confirmation !== testOrderDeletionConfirmation) {
     blocked("TEST_DATA_CONFIRMATION_REQUIRED", "Confirme explicitamente que este registro é um dado de teste.");
   }
-  const orderRef = db.collection("orders").doc(orderId);
+  if (fixtures.length !== 3 || !fixtures.some((fixture) => fixture.id === requestedOrderId)) {
+    blocked("NOT_CONFIRMED_TEST_DATA", "O ID não pertence ao conjunto de dados fictícios confirmado.");
+  }
+  const fixtureIds = new Set(fixtures.map((fixture) => fixture.id));
+  const orderRefs = fixtures.map((fixture) => db.collection("orders").doc(fixture.id));
   await db.runTransaction(async (transaction) => {
-    const orderSnapshot = await transaction.get(orderRef);
-    if (!orderSnapshot.exists) blocked("ORDER_NOT_FOUND", "Pedido não encontrado.");
-    const data = orderSnapshot.data();
-    if (!data || !isTestOrderData(orderId, data, fixtures)) {
-      blocked("NOT_CONFIRMED_TEST_DATA", "O ID e os valores atuais não correspondem ao registro de teste confirmado.");
+    const orderSnapshots = await transaction.getAll(...orderRefs);
+    if (orderSnapshots.some((snapshot) => !snapshot.exists)) {
+      blocked("TEST_DATA_SET_INCOMPLETE", "Os três Pedidos fictícios precisam estar presentes para uma limpeza atômica.");
     }
-    const clientOrdersSnapshot = await transaction.get(db.collection("orders").where("clientId", "==", data.clientId));
-    if (!clientOrdersSnapshot.docs.every((document) => isTestOrderData(document.id, document.data() as Record<string, unknown>, fixtures))) {
+    const orders = orderSnapshots.map((snapshot, index) => ({
+      id: fixtures[index]!.id,
+      data: snapshot.data() as Record<string, unknown>,
+    }));
+    const activeOrder = orders.find(({ data }) => data.orderStatus !== "cancelled");
+    if (activeOrder) {
+      blocked("TEST_DATA_NOT_CANCELLED", "A limpeza do conjunto exige que os três Pedidos estejam cancelados.");
+    }
+    if (orders.some(({ id, data }) => !isTestOrderData(id, data, fixtures))) {
+      blocked("NOT_CONFIRMED_TEST_DATA", "Os IDs e valores atuais não correspondem ao conjunto de dados fictícios confirmado.");
+    }
+    const clientId = orders[0]!.data.clientId as string;
+    if (orders.some(({ data }) => data.clientId !== clientId)) {
+      blocked("TEST_CLIENT_MISMATCH", "Os três Pedidos não pertencem ao mesmo Cliente Teste.");
+    }
+    const clientOrdersSnapshot = await transaction.get(db.collection("orders").where("clientId", "==", clientId));
+    if (clientOrdersSnapshot.size !== fixtures.length
+      || !clientOrdersSnapshot.docs.every((document) => fixtureIds.has(document.id))) {
       blocked("TEST_CLIENT_HAS_OTHER_ORDERS", "O Cliente possui Pedidos fora do conjunto de dados de teste confirmado.");
     }
-    const clientRef = db.collection("clients").doc(data.clientId as string);
+    const clientRef = db.collection("clients").doc(clientId);
+    const aggregatorRef = db.collection("clientFinancial").doc(clientId);
     const [clientSnapshot, aggregatorSnapshot] = await Promise.all([
       transaction.get(clientRef),
-      transaction.get(db.collection("clientFinancial").doc(data.clientId as string)),
+      transaction.get(aggregatorRef),
     ]);
     if (!clientSnapshot.exists || clientSnapshot.data()?.name !== "Cliente Teste") {
       blocked("TEST_CLIENT_MISMATCH", "O Cliente associado não corresponde ao Cliente Teste confirmado.");
     }
+
+    const orderSubcollections = await Promise.all(orderRefs.map((ref) => ref.listCollections()));
+    const pendingDeletions: PendingDeletion[] = [];
+    const orderSubcollectionReads: Array<Promise<FirebaseFirestore.QuerySnapshot>> = [];
+    for (const collections of orderSubcollections) {
+      for (const collection of collections) {
+        if (collection.id !== "cancellationOperations" && collection.id !== "transferOperations") {
+          blocked("TEST_DATA_DEPENDENCY_UNATTRIBUTABLE", "Há dependências de Pedido cuja origem não pode ser atribuída ao conjunto fictício.");
+        }
+        orderSubcollectionReads.push(transaction.get(collection.limit(501)).then((snapshot) => {
+          if (snapshot.size > 500 || snapshot.docs.some((document) => !isOrderOperationDocument(document.data()))) {
+            blocked("TEST_DATA_DEPENDENCY_UNATTRIBUTABLE", "Há operações de Pedido que não podem ser atribuídas ao conjunto fictício.");
+          }
+          pendingDeletions.push(...snapshot.docs.map((document) => ({ ref: document.ref })));
+          return snapshot;
+        }));
+      }
+    }
+    const aggregatorSubcollections = aggregatorSnapshot.exists ? await aggregatorRef.listCollections() : [];
+    let financialOperationRead: Promise<FirebaseFirestore.QuerySnapshot> | null = null;
+    if (aggregatorSubcollections.some((collection) => collection.id !== "operations")) {
+      blocked("TEST_DATA_FINANCIAL_STATE_UNATTRIBUTABLE", "A projeção financeira possui dependências cuja origem não pode ser atribuída ao conjunto fictício.");
+    }
+    const operationsCollection = aggregatorSubcollections.find((collection) => collection.id === "operations");
+    if (operationsCollection) {
+      financialOperationRead = transaction.get(operationsCollection.limit(501)).then((snapshot) => {
+        if (snapshot.size > 500 || snapshot.docs.some((document) => !isClientFinancialOperationDocument(
+          document.id,
+          document.data(),
+          clientId,
+          fixtureIds,
+        ))) {
+          blocked("TEST_DATA_FINANCIAL_STATE_UNATTRIBUTABLE", "Há movimentações do agregador que não podem ser atribuídas ao conjunto fictício.");
+        }
+        pendingDeletions.push(...snapshot.docs.map((document) => ({ ref: document.ref })));
+        return snapshot;
+      });
+    }
+    await Promise.all([...orderSubcollectionReads, ...(financialOperationRead ? [financialOperationRead] : [])]);
+    const nestedSubcollections = await Promise.all(pendingDeletions.map(({ ref }) => ref.listCollections()));
+    if (nestedSubcollections.some((collections) => collections.length > 0)) {
+      blocked("TEST_DATA_DEPENDENCY_UNATTRIBUTABLE", "Uma dependência possui subcoleções que não podem ser removidas com segurança.");
+    }
+
     if (aggregatorSnapshot.exists) {
       const aggregator = aggregatorSnapshot.data();
-      if (aggregator?.state !== "ready" || aggregator.availableCreditCents !== 0
-        || !Number.isSafeInteger(aggregator.revision) || aggregator.revision < 0) {
-        blocked("CLIENT_FINANCIAL_STATE_UNKNOWN", "O saldo financeiro do Cliente Teste não pode ser confirmado como zero.");
+      if (!aggregator || !hasOnlyKeys(aggregator, ["state", "availableCreditCents", "revision", "updatedAt"])
+        || aggregator.state !== "ready"
+        || !Number.isSafeInteger(aggregator.availableCreditCents) || (aggregator.availableCreditCents as number) < 0
+        || !Number.isSafeInteger(aggregator.revision) || (aggregator.revision as number) < 0
+        || (aggregator.updatedAt !== undefined && !(aggregator.updatedAt instanceof Timestamp))) {
+        blocked("TEST_DATA_FINANCIAL_STATE_UNATTRIBUTABLE", "O estado do agregador financeiro não pode ser atribuído ao conjunto fictício.");
+      }
+      const rawNet = orders.reduce((sum, order) => sum + testOrderNetCreditCents(
+        order.data,
+        fixtures.find((fixture) => fixture.id === order.id)!,
+      ), 0);
+      const reconciled = reconcileFinancialDocuments(orders.map((order) => ({ id: order.id, ...order.data } as ReconciliationOrderDocument)));
+      const reconciledBalance = reconciled.clients.find((client) => client.clientId === clientId)?.availableCreditCents;
+      const attributableBalances = new Set([0, rawNet]);
+      if (reconciled.clients.find((client) => client.clientId === clientId)?.conclusive
+        && typeof reconciledBalance === "number") attributableBalances.add(reconciledBalance);
+      if (!attributableBalances.has(aggregator.availableCreditCents as number)) {
+        blocked("TEST_DATA_FINANCIAL_STATE_UNATTRIBUTABLE", "O saldo do agregador não corresponde a uma projeção possível dos três Pedidos fictícios.");
       }
     }
-    const subcollections = await orderRef.listCollections();
-    if (subcollections.some((collection) => collection.id !== "cancellationOperations")) {
-      blocked("ORDER_HAS_DEPENDENCIES", "O Pedido possui registros dependentes que precisam ser preservados.");
+
+    if (pendingDeletions.length + orderRefs.length + Number(aggregatorSnapshot.exists) > 500) {
+      blocked("TEST_DATA_CLEANUP_TOO_LARGE", "O conjunto possui dependências demais para uma exclusão atômica segura.");
     }
-    for (const collection of subcollections) {
-      const operationDocuments = await transaction.get(collection.limit(500));
-      if (operationDocuments.size === 500) {
-        blocked("ORDER_HAS_DEPENDENCIES", "O Pedido possui registros dependentes demais para uma exclusão segura.");
-      }
-      operationDocuments.docs.forEach((document) => transaction.delete(document.ref));
-    }
-    transaction.delete(orderRef);
+    pendingDeletions.forEach(({ ref }) => transaction.delete(ref));
+    orderRefs.forEach((ref) => transaction.delete(ref));
+    if (aggregatorSnapshot.exists) transaction.delete(aggregatorRef);
   });
 }

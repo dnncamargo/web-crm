@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { getFinancialAdminDb } from "../api/_financial/admin";
 import { FinancialApiError } from "../api/_financial/errors";
-import { deleteCancelledOrder, deleteConfirmedTestOrder, deleteInactiveClient } from "../api/_deletion/eligibility";
+import { deleteCancelledOrder, deleteConfirmedTestOrderSet, deleteInactiveClient } from "../api/_deletion/eligibility";
 import type { ConfirmedTestOrderDeletionFixture } from "../src/features/orders/testOrderDeletion";
 import { testOrderDeletionConfirmation } from "../src/features/orders/testOrderDeletion";
 
@@ -153,7 +153,7 @@ describe("safe deletion transactions", () => {
     expect((await db.doc(`clients/${clientId}`).get()).exists).toBe(true);
   });
 
-  it("deletes synthetic test fixtures only with explicit confirmation and exact ID/value matches", async () => {
+  it("blocks an active member of the confirmed test set without deleting any member", async () => {
     const fixtures: ConfirmedTestOrderDeletionFixture[] = [
       { id: `test-${randomUUID()}`, totalCents: 3200, cashPaidCents: 2000 },
       { id: `test-${randomUUID()}`, totalCents: 8000, cashPaidCents: 12000 },
@@ -180,30 +180,43 @@ describe("safe deletion transactions", () => {
         creditGenerated: Math.max(cashPaid - total, 0),
       });
     }
+    await expectCode(deleteConfirmedTestOrderSet(db, fixtures[0]!.id, "", fixtures), "TEST_DATA_CONFIRMATION_REQUIRED");
+    await expectCode(deleteConfirmedTestOrderSet(db, fixtures[0]!.id, testOrderDeletionConfirmation, fixtures), "TEST_DATA_NOT_CANCELLED");
+    expect((await db.collection("orders").where("clientId", "==", clientId).get()).size).toBe(3);
+    for (const fixture of fixtures) expect((await db.doc(`orders/${fixture.id}`).get()).exists).toBe(true);
+
+    await db.doc(`orders/${fixtures[1]!.id}`).update({ orderStatus: "cancelled" });
     const testOperationRef = db.doc(`orders/${fixtures[0]!.id}/cancellationOperations/test-operation`);
-    await testOperationRef.set({ fingerprint: "synthetic test fixture" });
-    await expectCode(deleteConfirmedTestOrder(db, fixtures[0]!.id, "", fixtures), "TEST_DATA_CONFIRMATION_REQUIRED");
-    await expect(deleteConfirmedTestOrder(db, fixtures[0]!.id, testOrderDeletionConfirmation, fixtures)).resolves.toBeUndefined();
-    expect((await db.doc(`orders/${fixtures[0]!.id}`).get()).exists).toBe(false);
-    expect((await testOperationRef.get()).exists).toBe(false);
-    await expect(deleteConfirmedTestOrder(db, fixtures[1]!.id, testOrderDeletionConfirmation, fixtures)).resolves.toBeUndefined();
-    await expect(deleteConfirmedTestOrder(db, fixtures[2]!.id, testOrderDeletionConfirmation, fixtures)).resolves.toBeUndefined();
+    await testOperationRef.set({ fingerprint: "a".repeat(64) });
+    await expect(deleteConfirmedTestOrderSet(db, fixtures[0]!.id, testOrderDeletionConfirmation, fixtures)).resolves.toBeUndefined();
     expect((await db.collection("orders").where("clientId", "==", clientId).get()).empty).toBe(true);
+    expect((await testOperationRef.get()).exists).toBe(false);
   });
 
   it("rejects a whitelisted test ID when its financial values have changed", async () => {
-    const fixtureId = `test-${randomUUID()}`;
     const clientId = `client-${randomUUID()}`;
     clientIds.push(clientId);
-    orderIds.push(fixtureId);
-    const fixture = { id: fixtureId, totalCents: 3200, cashPaidCents: 2000 };
+    const fixtures: ConfirmedTestOrderDeletionFixture[] = [
+      { id: `test-${randomUUID()}`, totalCents: 3200, cashPaidCents: 2000 },
+      { id: `test-${randomUUID()}`, totalCents: 8000, cashPaidCents: 12000 },
+      { id: `test-${randomUUID()}`, totalCents: 4000, cashPaidCents: 0 },
+    ];
     await db.doc(`clients/${clientId}`).set({ name: "Cliente Teste", active: true });
-    await db.doc(`orders/${fixtureId}`).set({
-      clientId, clientName: "Cliente Teste", orderStatus: "cancelled", total: 32, amountPaid: 19,
-      payments: [{ id: "payment-123", amount: 19, receivedAt: "2026-10-01T10:00:00Z" }],
-      creditApplied: 0, creditGenerated: 0,
-    });
-    await expectCode(deleteConfirmedTestOrder(db, fixtureId, testOrderDeletionConfirmation, [fixture]), "NOT_CONFIRMED_TEST_DATA");
-    expect((await db.doc(`orders/${fixtureId}`).get()).exists).toBe(true);
+    for (const [index, fixture] of fixtures.entries()) {
+      orderIds.push(fixture.id);
+      const amountPaid = (fixture.cashPaidCents - (index === 0 ? 100 : 0)) / 100;
+      await db.doc(`orders/${fixture.id}`).set({
+        clientId,
+        clientName: "Cliente Teste",
+        orderStatus: "cancelled",
+        total: fixture.totalCents / 100,
+        amountPaid,
+        payments: amountPaid > 0 ? [{ id: `payment-${index}-123`, amount: amountPaid, receivedAt: "2026-10-01T10:00:00Z" }] : [],
+        creditApplied: 0,
+        creditGenerated: Math.max(amountPaid - fixture.totalCents / 100, 0),
+      });
+    }
+    await expectCode(deleteConfirmedTestOrderSet(db, fixtures[0]!.id, testOrderDeletionConfirmation, fixtures), "NOT_CONFIRMED_TEST_DATA");
+    for (const fixture of fixtures) expect((await db.doc(`orders/${fixture.id}`).get()).exists).toBe(true);
   });
 });

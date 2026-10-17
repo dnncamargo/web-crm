@@ -48,7 +48,9 @@ describe("OrderDetailsPanelContent deletion actions", () => {
   });
 
   it("shows a separate explicit test-data action only when the order ID is allowlisted", () => {
-    expect(renderDetails(cancelledOrder, { testData: true })).toContain("Excluir dado de teste");
-    expect(renderDetails(cancelledOrder, { testData: false })).not.toContain("Excluir dado de teste");
+    expect(renderDetails(cancelledOrder, { testData: true })).toContain("Limpar conjunto fictício");
+    expect(renderDetails(cancelledOrder, { testData: false })).not.toContain("Limpar conjunto fictício");
+    expect(renderDetails({ ...cancelledOrder, orderStatus: "active" }, { testData: true })).not.toContain("Limpar conjunto fictício");
+    expect(renderDetails({ ...cancelledOrder, orderStatus: "completed" }, { testData: true })).not.toContain("Limpar conjunto fictício");
   });
 });

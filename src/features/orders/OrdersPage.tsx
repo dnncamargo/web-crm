@@ -26,9 +26,9 @@ import { useOrders } from "./useOrders";
 import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent";
 import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
 import { formatCurrencyBR } from "../../utils/money";
-import { formatDateTimeBR, getOrderCashPaid } from "./orderUtils";
+import { formatDateTimeBR, getOrderCashPaid, getOrderStatusLabel } from "./orderUtils";
 import { getCancelledOrderDeletionBlockReason } from "./orderDeletionEligibility";
-import { isConfirmedTestOrderId, testOrderDeletionConfirmation } from "./testOrderDeletion";
+import { confirmedTestOrderDeletionFixtures, isConfirmedTestOrderId, testOrderDeletionConfirmation } from "./testOrderDeletion";
 
 type OrderPanelState = { type: "create-order" } | { type: "edit-order"; order: Order } | { type: "view-order"; order: Order } | null;
 
@@ -230,9 +230,14 @@ export function OrdersPage() {
   }
 
   async function handleDeleteTestOrder(order: Order) {
-    if (!isConfirmedTestOrderId(order.id)) return;
+    if (order.orderStatus !== "cancelled" || !isConfirmedTestOrderId(order.id)) return;
+    const fixtureList = confirmedTestOrderDeletionFixtures.map((fixture) => {
+      const currentOrder = orders.find((candidate) => candidate.id === fixture.id);
+      const status = currentOrder ? getOrderStatusLabel(currentOrder.orderStatus) : "não encontrado";
+      return `${fixture.id} · ${status} · total ${formatCurrencyBR(fixture.totalCents / 100)} · recebido ${formatCurrencyBR(fixture.cashPaidCents / 100)}`;
+    }).join("\n");
     const confirmation = window.prompt(
-      `Confirme a exclusão deste dado fictício de teste. Confira o registro:\n\n${order.clientName}\nID: ${order.id}\nEntrega: ${formatDateTimeBR(order.deliveryDateTime)}\nStatus: ${order.orderStatus}\nTotal: ${formatCurrencyBR(order.total)}\nRecebido: ${formatCurrencyBR(getOrderCashPaid(order))}\n\nDigite ${testOrderDeletionConfirmation} para confirmar a exclusão permanente.`,
+      `Esta ação tentará excluir os três Pedidos fictícios em uma única operação atômica. Se qualquer ID, valor, status, dependência ou estado financeiro não puder ser confirmado, nenhum será removido.\n\n${fixtureList}\n\nPedido selecionado: ${order.clientName} · ${order.id} · entrega ${formatDateTimeBR(order.deliveryDateTime)}\n\nDigite ${testOrderDeletionConfirmation} para confirmar a limpeza do conjunto.`,
     );
     if (confirmation !== testOrderDeletionConfirmation) return;
     setDeletionError("");
@@ -413,7 +418,8 @@ export function OrdersPage() {
             deletionBlockReason={getCancelledOrderDeletionBlockReason(selectedOrder ?? panel.order, orders)}
             deletionError={deletionError}
             onDeleteTestData={() => void handleDeleteTestOrder(selectedOrder ?? panel.order)}
-            canDeleteConfirmedTestData={isConfirmedTestOrderId((selectedOrder ?? panel.order).id)}
+            canDeleteConfirmedTestData={(selectedOrder ?? panel.order).orderStatus === "cancelled"
+              && isConfirmedTestOrderId((selectedOrder ?? panel.order).id)}
           />
         )}
         {panel?.type === "create-order" && (

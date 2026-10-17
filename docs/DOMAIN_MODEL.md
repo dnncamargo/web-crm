@@ -402,11 +402,19 @@ de `total` não comprova movimentação financeira. Se os fatos ou a reconcilia�
 forem inconclusivos, o Pedido permanece preservado. As Rules negam exclusão
 direta de documentos de Pedido e de suas subcoleções.
 
-Os três IDs de Pedido confirmados pelo produto como dados fictícios têm um
-caminho separado que exige a frase explícita `EXCLUIR DADOS DE TESTE`. A rota
-confere o ID e os valores monetários esperados, o vínculo ao Cliente Teste e a
-ausência de Pedidos externos ao conjunto confirmado. Esse caminho não altera
-totais, pagamentos ou créditos antes da remoção.
+Os três IDs de Pedido confirmados pelo produto como dados fictícios têm uma
+limpeza de conjunto atômica, iniciada por qualquer um dos três IDs e confirmada
+pela frase explícita `EXCLUIR CONJUNTO DE TESTE`. O servidor confere os três
+IDs e valores monetários, que os três Pedidos estejam cancelados, o vínculo ao
+mesmo documento Cliente Teste, a ausência de Pedidos externos e as
+dependências/subcoleções. Nenhum status, total, pagamento ou crédito é alterado
+para habilitar a limpeza.
+
+Se houver `clientFinancial`, a limpeza só remove a projeção quando ela está
+`ready`, seu saldo corresponde a uma projeção possível do conjunto confirmado,
+e todas as operações registradas no agregador apontam a um dos três IDs.
+Subcoleções ou saldos que não possam ser atribuídos ao conjunto bloqueiam toda
+a transação; nenhuma parte dos Pedidos é removida.
 
 `getOrderCashPaid` em `orderUtils.ts` é a fonte canônica para consumidores
 financeiros: soma `payments` quando presente e usa `amountPaid` apenas como

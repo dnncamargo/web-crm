@@ -241,15 +241,19 @@ export function OrderDetailsPanelContent({ order, products, tagLabelsById, onEdi
               Excluir pedido
             </Button>
           )}
-          {canDeleteConfirmedTestData && (
+          {canDeleteConfirmedTestData && order.orderStatus === "cancelled" && (
             <Button type="button" variant="ghost" onClick={onDeleteTestData}>
-              Excluir dado de teste
+              Limpar conjunto fictício
             </Button>
           )}
         </div>
       </div>
       {order.orderStatus === "cancelled" && deletionBlockReason && (
-        <p className="muted-text" role="note">Exclusão indisponível: {deletionBlockReason}</p>
+        <p className="muted-text" role="note">
+          {canDeleteConfirmedTestData
+            ? `Exclusão normal indisponível: ${deletionBlockReason} A limpeza fictícia verifica os três registros e só prossegue se o conjunto inteiro puder ser removido com segurança.`
+            : `Exclusão normal indisponível: ${deletionBlockReason}`}
+        </p>
       )}
       {deletionError && <p className="error-text" role="alert">{deletionError}</p>}
     </div>

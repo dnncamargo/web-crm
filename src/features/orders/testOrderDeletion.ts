@@ -1,4 +1,4 @@
-export const testOrderDeletionConfirmation = "EXCLUIR DADOS DE TESTE";
+export const testOrderDeletionConfirmation = "EXCLUIR CONJUNTO DE TESTE";
 
 export const confirmedTestOrderDeletionFixtures = [
   { id: "Kw3hWUWO6FxsbHCImN3A", totalCents: 3200, cashPaidCents: 2000 },
