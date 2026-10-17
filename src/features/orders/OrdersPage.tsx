@@ -19,7 +19,7 @@ import { OrderPaymentForm } from "./components/OrderPaymentForm";
 import { OrderPaymentCorrectionForm } from "./components/OrderPaymentCorrectionForm";
 import { OrderListView } from "./components/OrderListView";
 import type { NewOrderData, Order, OrderPayment } from "./orderTypes";
-import { isLocalPaymentCorrectionApiReady } from "./ordersService";
+import { isPaymentCorrectionApiReady } from "./ordersService";
 import type { CorrectOrderPaymentInput, RegisterOrderPaymentInput } from "./ordersService";
 import { compareOrderCreationDesc, getPaymentStatus, isOrderPaymentCorrectable } from "./orderUtils";
 import { isLocalFinancialPaymentCorrectionEnabled } from "./financialPaymentCorrectionEnvironment";
@@ -59,7 +59,7 @@ export function OrdersPage() {
 
   useEffect(() => {
     let active = true;
-    void isLocalPaymentCorrectionApiReady().then((ready) => {
+    void isPaymentCorrectionApiReady().then((ready) => {
       if (active) setCorrectionApiReady(ready);
     });
     return () => { active = false; };

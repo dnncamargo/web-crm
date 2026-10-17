@@ -1,0 +1,47 @@
+name: Financial payment correction
+
+on:
+  pull_request:
+    paths:
+      - "api/**"
+      - "src/features/financial/**"
+      - "src/features/orders/**"
+      - "tests/financial-api/**"
+      - ".github/workflows/financial-payment-correction.yml"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Set up Java for Firebase Emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Install dependencies
+        run: npm ci
+      - name: Run application tests
+        run: npm test
+      - name: Run financial API and Emulator integration tests
+        run: npm run test:financial-api
+      - name: Build
+        run: npm run build
+      - name: Lint
+        run: npm run lint
+      - name: Check unused CSS
+        run: npm run css:unused
+      - name: Check whitespace
+        run: git diff --check "${{ github.event.pull_request.base.sha }}...${{ github.sha }}"

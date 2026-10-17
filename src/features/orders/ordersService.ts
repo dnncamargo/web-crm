@@ -102,6 +102,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getPaymentCorrectionError(code: unknown) {
   if (code === "AGGREGATOR_UNAVAILABLE") return "O saldo financeiro ainda não está disponível no ambiente local.";
+  if (code === "CLIENT_FINANCIAL_STATE_INCONCLUSIVE") return "Os dados financeiros deste cliente têm divergências ou casos pendentes. A correção foi bloqueada para proteger o saldo.";
+  if (code === "CLIENT_ORDER_LIMIT_EXCEEDED") return "Este cliente tem muitos Pedidos para validar a correção automaticamente. É necessária revisão financeira.";
+  if (code === "PRODUCTION_CREDIT_REDUCTION_REQUIRES_CUTOVER") return "Essa correção reduziria o crédito disponível do cliente. Esse ajuste exige a migração coordenada da autoridade financeira.";
   if (code === "AGGREGATOR_REVISION_CHANGED" || code === "CREDIT_BALANCE_CHANGED") return "O saldo ou a revisão financeira mudou. Reabra a correção para conferir os dados atuais.";
   if (code === "PAYMENT_PRECONDITION_CHANGED") return "Este recebimento foi alterado por outra operação. Reabra a correção para conferir os dados atuais.";
   if (code === "ORDER_CANCELLED") return "Pedidos cancelados não aceitam correção de recebimentos.";
@@ -110,13 +113,12 @@ function getPaymentCorrectionError(code: unknown) {
   if (code === "RETROACTIVE_CREDIT_REDUCTION_NOT_COVERED") return "A correção reduziria um crédito que já foi usado. O saldo atual não cobre essa redução.";
   if (code === "INVALID_FINANCIAL_STATE") return "Os dados financeiros do Pedido estão inconsistentes e precisam ser revisados.";
   if (code === "ORDER_NOT_FOUND" || code === "CLIENT_MISMATCH") return "O Pedido ou o vínculo financeiro mudou. Reabra os detalhes e confira os dados.";
-  if (code === "FINANCIAL_OPERATION_DISABLED") return "A correção só está disponível com a API financeira conectada aos Emulators locais.";
-  if (code === "UNAUTHENTICATED" || code === "FORBIDDEN") return "A sessão local não está autenticada ou não está autorizada para a operação.";
+  if (code === "FINANCIAL_OPERATION_DISABLED") return "A correção de recebimentos não está habilitada neste ambiente.";
+  if (code === "UNAUTHENTICATED" || code === "FORBIDDEN") return "A sessão não está autenticada ou não está autorizada para a operação.";
   return "Não foi possível corrigir o recebimento. Tente novamente mais tarde.";
 }
 
-export async function isLocalPaymentCorrectionApiReady() {
-  if (!isLocalFinancialPaymentCorrectionEnabled()) return false;
+export async function isPaymentCorrectionApiReady() {
   try {
     const response = await fetch("/api/financial/correct-payment");
     return response.status === 204;
@@ -130,9 +132,6 @@ export async function correctOrderPayment(
   payment: OrderPayment,
   input: CorrectOrderPaymentInput,
 ) {
-  if (!isLocalFinancialPaymentCorrectionEnabled()) {
-    throw new Error("A correção de recebimentos está disponível somente no ambiente Emulator local autorizado.");
-  }
   if (order.orderStatus === "cancelled") {
     throw new Error("Pedidos cancelados não aceitam correção de recebimentos.");
   }
@@ -141,23 +140,34 @@ export async function correctOrderPayment(
   }
 
   const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error("Entre novamente no ambiente local autorizado para corrigir recebimentos.");
+  if (!currentUser) throw new Error("Entre novamente para corrigir recebimentos.");
 
-  const aggregatorSnapshot = await getDoc(doc(db, "clientFinancial", order.clientId));
-  const aggregator: unknown = aggregatorSnapshot.data();
-  if (!aggregatorSnapshot.exists() || !isRecord(aggregator) || aggregator.state !== "ready"
-    || !Number.isSafeInteger(aggregator.availableCreditCents)
-    || (aggregator.availableCreditCents as number) < 0
-    || !Number.isSafeInteger(aggregator.revision)
-    || (aggregator.revision as number) < 0) {
-    throw new Error("O agregador financeiro local não está pronto. Nenhuma correção foi enviada.");
+  let presentedFinancialState: {
+    presentedAvailableCreditCents: number;
+    presentedRevision: number;
+  } | null = null;
+
+  if (isLocalFinancialPaymentCorrectionEnabled()) {
+    const aggregatorSnapshot = await getDoc(doc(db, "clientFinancial", order.clientId));
+    const aggregator: unknown = aggregatorSnapshot.data();
+    if (!aggregatorSnapshot.exists() || !isRecord(aggregator) || aggregator.state !== "ready"
+      || !Number.isSafeInteger(aggregator.availableCreditCents)
+      || (aggregator.availableCreditCents as number) < 0
+      || !Number.isSafeInteger(aggregator.revision)
+      || (aggregator.revision as number) < 0) {
+      throw new Error("O agregador financeiro local não está pronto. Nenhuma correção foi enviada.");
+    }
+    presentedFinancialState = {
+      presentedAvailableCreditCents: aggregator.availableCreditCents as number,
+      presentedRevision: aggregator.revision as number,
+    };
   }
 
   const token = await currentUser.getIdToken();
   const response = await fetch("/api/financial/correct-payment", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: \`Bearer \${token}\`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -168,13 +178,12 @@ export async function correctOrderPayment(
       expectedReceivedAt: payment.receivedAt,
       amountCents: legacyReaisToMoneyCents(input.amount, "Novo valor do recebimento"),
       receivedAt: input.receivedAt,
-      presentedAvailableCreditCents: aggregator.availableCreditCents,
-      presentedRevision: aggregator.revision,
+      ...(presentedFinancialState ?? {}),
     }),
   });
 
   if (!response.ok) {
-    if (response.status === 404) throw new Error("A API financeira local não foi encontrada. Inicie o servidor local que atende /api antes de corrigir.");
+    if (response.status === 404) throw new Error("A API financeira não foi encontrada. Atualize a aplicação e tente novamente.");
     const body = await response.json().catch((): FinancialApiErrorResponse => ({}));
     throw new Error(getPaymentCorrectionError(isRecord(body) && isRecord(body.error) ? body.error.code : undefined));
   }

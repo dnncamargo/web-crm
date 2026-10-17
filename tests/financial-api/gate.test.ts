@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { isFinancialApiError } from "../../api/_financial/errors";
-import { assertFinancialWriteTestGate } from "../../api/_financial/gate";
+import {
+  assertFinancialWriteTestGate,
+  assertPaymentCorrectionWriteGate,
+} from "../../api/_financial/gate";
 
 const enabledEnvironment: NodeJS.ProcessEnv = {
   FINANCIAL_TEST_MODE: "enabled",
@@ -18,6 +21,17 @@ describe("financial write test gate", () => {
       ...enabledEnvironment,
       FIRESTORE_EMULATOR_HOST: "[::1]:8080",
     })).not.toThrow();
+  });
+
+  it("allows the correction exception only in Vercel Production, not other financial writes", () => {
+    const production = { VERCEL: "1", VERCEL_ENV: "production" };
+    expect(assertPaymentCorrectionWriteGate(production)).toBe("production");
+    expect(() => assertFinancialWriteTestGate(production)).toThrow();
+  });
+
+  it("keeps the correction API disabled in Preview and outside the authorized Emulator", () => {
+    expect(() => assertPaymentCorrectionWriteGate({ VERCEL: "1", VERCEL_ENV: "preview" })).toThrow();
+    expect(assertPaymentCorrectionWriteGate(enabledEnvironment)).toBe("emulator");
   });
 
   it.each([

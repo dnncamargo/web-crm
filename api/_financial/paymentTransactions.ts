@@ -11,11 +11,19 @@ import {
   sumMoneyCents,
 } from "../../src/features/financial/money.js";
 import { validateRetroactiveCreditReduction } from "../../src/features/financial/credit.js";
+import {
+  reconcileFinancialDocuments,
+  type ReconciliationOrderDocument,
+} from "../../src/features/financial/reconciliation.js";
 import type { MoneyCents } from "../../src/features/financial/money.js";
 import type { OrderStatus } from "../../src/features/orders/orderTypes.js";
 
 import { FinancialApiError } from "./errors.js";
-import type { CorrectPaymentCommand, RecordPaymentCommand } from "./validation.js";
+import type {
+  CorrectPaymentCommand,
+  ProductionCorrectPaymentCommand,
+  RecordPaymentCommand,
+} from "./validation.js";
 
 interface StoredPayment {
   id: string;
@@ -338,4 +346,206 @@ export async function correctPaymentTransaction(db: Firestore, command: CorrectP
     if (error instanceof FinancialDomainError) throw domainFailure(error);
     throw error;
   }
+}
+
+const MAX_PRODUCTION_CLIENT_ORDERS_FOR_CORRECTION = 500;
+
+export interface ProductionPaymentCorrectionResult {
+  paymentId: string;
+  currentAmountPaidCents: number;
+  currentCreditGeneratedCents: number;
+  currentAvailableCreditCents: number;
+  replayed: boolean;
+}
+
+function toReconciliationOrderDocument(id: string, data: DocumentData): ReconciliationOrderDocument {
+  const order: ReconciliationOrderDocument = {
+    id,
+    clientId: data.clientId,
+    orderStatus: data.orderStatus,
+    amountPaid: data.amountPaid,
+    total: data.total,
+  };
+  if (data.payments !== undefined) order.payments = data.payments;
+  if (data.refunds !== undefined) order.refunds = data.refunds;
+  if (data.cancellationAgreement !== undefined) order.cancellationAgreement = data.cancellationAgreement;
+  if (data.creditApplied !== undefined) order.creditApplied = data.creditApplied;
+  if (data.creditGenerated !== undefined) order.creditGenerated = data.creditGenerated;
+  if (data.subtotal !== undefined) order.subtotal = data.subtotal;
+  if (data.deliveryFee !== undefined) order.deliveryFee = data.deliveryFee;
+  if (data.items !== undefined) order.items = data.items;
+  return order;
+}
+
+function requireConclusiveProductionClientCredit(
+  orders: readonly ReconciliationOrderDocument[],
+  clientId: string,
+): MoneyCents {
+  const client = reconcileFinancialDocuments(orders).clients.find((candidate) => candidate.clientId === clientId);
+  if (!client?.conclusive
+    || client.availableCreditCents === null
+    || !Number.isSafeInteger(client.availableCreditCents)
+    || client.availableCreditCents < 0) {
+    throw new FinancialApiError(
+      409,
+      "CLIENT_FINANCIAL_STATE_INCONCLUSIVE",
+      "Os dados financeiros deste cliente não permitem confirmar o saldo com segurança.",
+    );
+  }
+  return client.availableCreditCents as MoneyCents;
+}
+
+/**
+ * Production-only correction path for the current data model, which has no
+ * production clientFinancial writer/aggregator. It reconstructs all orders for
+ * the client transactionally, then overwrites the existing payment. Credit
+ * reductions are blocked until all production financial writers participate
+ * in the same authority/cutover protocol.
+ */
+export async function correctPaymentProductionTransaction(
+  db: Firestore,
+  command: ProductionCorrectPaymentCommand,
+): Promise<ProductionPaymentCorrectionResult> {
+  const orderRef = db.collection("orders").doc(command.orderId);
+  const clientOrdersQuery = db.collection("orders")
+    .where("clientId", "==", command.clientId)
+    .limit(MAX_PRODUCTION_CLIENT_ORDERS_FOR_CORRECTION + 1);
+
+  return db.runTransaction(async (transaction) => {
+    const [orderSnapshot, clientOrdersSnapshot] = await Promise.all([
+      transaction.get(orderRef),
+      transaction.get(clientOrdersQuery),
+    ]);
+
+    if (!orderSnapshot.exists) {
+      throw new FinancialApiError(409, "ORDER_NOT_FOUND", "Pedido não encontrado.");
+    }
+    const orderData = orderSnapshot.data();
+    if (!orderData) throw financialStateError();
+    if (orderData.clientId !== command.clientId) {
+      throw new FinancialApiError(409, "CLIENT_MISMATCH", "Pedido e Cliente não correspondem.");
+    }
+    if (clientOrdersSnapshot.size > MAX_PRODUCTION_CLIENT_ORDERS_FOR_CORRECTION) {
+      throw new FinancialApiError(
+        409,
+        "CLIENT_ORDER_LIMIT_EXCEEDED",
+        "Há muitos Pedidos para validar esta correção com segurança.",
+      );
+    }
+
+    const matchingOrderSnapshot = clientOrdersSnapshot.docs.find((document) => document.id === command.orderId);
+    if (!matchingOrderSnapshot) {
+      throw new FinancialApiError(409, "CLIENT_MISMATCH", "Pedido e Cliente não correspondem.");
+    }
+
+    const order = parseOrder(orderData);
+    if (order.orderStatus === "cancelled") {
+      throw new FinancialApiError(409, "ORDER_CANCELLED", "Pedido cancelado não aceita correção nesta etapa.");
+    }
+    if (order.payments === undefined) {
+      throw new FinancialApiError(
+        409,
+        "LEGACY_PAYMENT_CORRECTION_REQUIRES_DECISION",
+        "Correção de pagamento legado requer uma decisão aprovada.",
+      );
+    }
+
+    const current = order.payments.find((payment) => payment.id === command.paymentId);
+    if (!current) {
+      throw new FinancialApiError(409, "PAYMENT_NOT_FOUND", "Pagamento não encontrado.");
+    }
+
+    const documentsBefore = clientOrdersSnapshot.docs.map((document) => (
+      toReconciliationOrderDocument(document.id, document.data())
+    ));
+    const availableCreditBefore = requireConclusiveProductionClientCredit(documentsBefore, command.clientId);
+
+    if (current.amountCents === command.amountCents && current.receivedAt === command.receivedAt) {
+      return {
+        paymentId: command.paymentId,
+        currentAmountPaidCents: order.cashPaidCents,
+        currentCreditGeneratedCents: order.creditGeneratedCents,
+        currentAvailableCreditCents: availableCreditBefore,
+        replayed: true,
+      };
+    }
+
+    if (current.amountCents !== command.expectedAmountCents
+      || current.receivedAt !== command.expectedReceivedAt) {
+      throw new FinancialApiError(
+        409,
+        "PAYMENT_PRECONDITION_CHANGED",
+        "O pagamento mudou; confirme novamente.",
+      );
+    }
+    if (current.receivedAt !== null && command.receivedAt === null) {
+      throw new FinancialApiError(
+        409,
+        "RECEIVED_AT_REMOVAL_REQUIRES_DECISION",
+        "A remoção de uma data de recebimento conhecida não é permitida.",
+      );
+    }
+
+    const nextPayments = order.payments.map((payment) => (
+      payment.id === command.paymentId
+        ? {
+            id: payment.id,
+            amountCents: command.amountCents as MoneyCents,
+            receivedAt: command.receivedAt,
+          }
+        : payment
+    ));
+    const nextCashPaidCents = sumMoneyCents(nextPayments.map((payment) => payment.amountCents));
+    const nextCreditGeneratedCents = calculateGeneratedCreditCents(
+      order.totalCents,
+      nextCashPaidCents,
+      order.creditAppliedCents,
+    );
+    const storedNextPayments = nextPayments.map((payment) => ({
+      id: payment.id,
+      amount: moneyCentsToLegacyReais(payment.amountCents),
+      receivedAt: payment.receivedAt,
+    }));
+    const nextOrderData: DocumentData = {
+      ...orderData,
+      payments: storedNextPayments,
+      amountPaid: moneyCentsToLegacyReais(nextCashPaidCents),
+    };
+    if (nextCreditGeneratedCents > 0) {
+      nextOrderData.creditGenerated = moneyCentsToLegacyReais(nextCreditGeneratedCents);
+    } else {
+      delete nextOrderData.creditGenerated;
+    }
+
+    const documentsAfter = clientOrdersSnapshot.docs.map((document) => (
+      document.id === command.orderId
+        ? toReconciliationOrderDocument(document.id, nextOrderData)
+        : toReconciliationOrderDocument(document.id, document.data())
+    ));
+    const availableCreditAfter = requireConclusiveProductionClientCredit(documentsAfter, command.clientId);
+    if (availableCreditAfter < availableCreditBefore) {
+      throw new FinancialApiError(
+        409,
+        "PRODUCTION_CREDIT_REDUCTION_REQUIRES_CUTOVER",
+        "A correção reduziria o crédito disponível. Esse ajuste depende da migração coordenada da autoridade financeira.",
+      );
+    }
+
+    transaction.update(orderRef, {
+      payments: storedNextPayments,
+      amountPaid: moneyCentsToLegacyReais(nextCashPaidCents),
+      ...(nextCreditGeneratedCents > 0
+        ? { creditGenerated: moneyCentsToLegacyReais(nextCreditGeneratedCents) }
+        : { creditGenerated: FieldValue.delete() }),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return {
+      paymentId: command.paymentId,
+      currentAmountPaidCents: nextCashPaidCents,
+      currentCreditGeneratedCents: nextCreditGeneratedCents,
+      currentAvailableCreditCents: availableCreditAfter,
+      replayed: false,
+    };
+  });
 }
