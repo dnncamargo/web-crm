@@ -173,6 +173,19 @@ trocar uma data conhecida por outra válida. A remoção de uma data conhecida
 para `null` é bloqueada explicitamente; a operação nunca a substitui pelo
 momento técnico da correção.
 
+**IMPLEMENTED — correção limitada em Production**
+
+O mesmo endpoint só entra no caminho produtivo quando executado em Vercel
+Production; Preview permanece bloqueado. O Admin autentica o usuário Google
+admitido e a transação lê os Pedidos do Cliente (limite conservador de 500),
+reconstrói o crédito com `reconcileFinancialDocuments` antes e depois e
+sobrescreve o lançamento identificado mantendo `payment.id`. Não cria
+agregador nem trilha técnica. Se os dados do Cliente forem inconclusivos,
+inconsistentes, excederem o limite, ou se a correção reduzir o crédito
+disponível, a operação falha sem escrita. A redução de crédito fica bloqueada
+porque os demais escritores produtivos ainda usam o SDK e não participam de
+um lock financeiro comum; liberá-la exige o cutover coordenado documentado.
+
 ## 3. Crédito por cliente
 
 ### 3.1 Agregador reconciliável
@@ -874,7 +887,7 @@ alterar Rules nesta etapa documental.
 | Tema | CURRENT | Destino do contrato |
 | --- | --- | --- |
 | Recebimentos | payments[] já é canônico para novos pedidos; criação local usa ID aleatório | API usa identidade estável e idempotência |
-| Correção | fluxo produtivo append-only; ação experimental da UI só no Emulator local (Checkpoint 8) | editar lançamento mantendo ID, sem auditoria técnica |
+| Correção | Production permite substituir o lançamento identificado somente com reconstrução conclusiva e sem reduzir crédito; demais escritores continuam no SDK | edição no mesmo ID, sem auditoria técnica, com cutover completo ainda pendente |
 | Cancelamento | serviço/UI produtivos ainda usam SDK; comandos 7C.1/7C.2 estão isolados no Emulator | negociação, movimentos efetivos e decisão explícita de crédito |
 | Crédito | calculado de pedidos e exclui cancelados | agregador transacional reconciliável; 7C.2 aplica R/M e rejeita saldo final negativo |
 | Hoje | pendências de pagamento apenas para active | seção independente de acertos pendentes |

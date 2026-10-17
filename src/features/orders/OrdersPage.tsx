@@ -19,10 +19,9 @@ import { OrderPaymentForm } from "./components/OrderPaymentForm";
 import { OrderPaymentCorrectionForm } from "./components/OrderPaymentCorrectionForm";
 import { OrderListView } from "./components/OrderListView";
 import type { NewOrderData, Order, OrderPayment } from "./orderTypes";
-import { isLocalPaymentCorrectionApiReady } from "./ordersService";
+import { isPaymentCorrectionApiReady } from "./ordersService";
 import type { CorrectOrderPaymentInput, RegisterOrderPaymentInput } from "./ordersService";
 import { compareOrderCreationDesc, getPaymentStatus, isOrderPaymentCorrectable } from "./orderUtils";
-import { isLocalFinancialPaymentCorrectionEnabled } from "./financialPaymentCorrectionEnvironment";
 import { useOrders } from "./useOrders";
 import { OrderDetailsPanelContent } from "./components/OrderDetailsPanelContent";
 import { useOpenEntityFromNavigation } from "../../navigation/useOpenEntityFromNavigation";
@@ -59,7 +58,7 @@ export function OrdersPage() {
 
   useEffect(() => {
     let active = true;
-    void isLocalPaymentCorrectionApiReady().then((ready) => {
+    void isPaymentCorrectionApiReady().then((ready) => {
       if (active) setCorrectionApiReady(ready);
     });
     return () => { active = false; };
@@ -376,7 +375,7 @@ export function OrdersPage() {
             onEdit={() => openStackedEditOrder(selectedOrder ?? panel.order)}
             onPrint={() => openOrderReceipt(selectedOrder ?? panel.order)}
             onRegisterPayment={() => openStackedPaymentOrder(selectedOrder ?? panel.order)}
-            canCorrectPayments={correctionApiReady && isLocalFinancialPaymentCorrectionEnabled()}
+            canCorrectPayments={correctionApiReady}
             onCorrectPayment={(paymentId) => openStackedPaymentCorrection(selectedOrder ?? panel.order, paymentId)}
           />
         )}

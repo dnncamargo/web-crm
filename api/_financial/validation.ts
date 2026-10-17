@@ -20,7 +20,7 @@ export interface RecordPaymentCommand {
   presentedRevision: number;
 }
 
-export interface CorrectPaymentCommand {
+export interface ProductionCorrectPaymentCommand {
   orderId: string;
   clientId: string;
   paymentId: string;
@@ -28,6 +28,9 @@ export interface CorrectPaymentCommand {
   expectedReceivedAt: string | null;
   amountCents: number;
   receivedAt: string | null;
+}
+
+export interface CorrectPaymentCommand extends ProductionCorrectPaymentCommand {
   presentedAvailableCreditCents: number;
   presentedRevision: number;
 }
@@ -174,7 +177,7 @@ const RECORD_PAYMENT_FIELDS = new Set([
   "presentedRevision",
 ]);
 
-const CORRECT_PAYMENT_FIELDS = new Set([
+const CORRECT_PAYMENT_BASE_FIELDS = new Set([
   "orderId",
   "clientId",
   "paymentId",
@@ -182,6 +185,9 @@ const CORRECT_PAYMENT_FIELDS = new Set([
   "expectedReceivedAt",
   "amountCents",
   "receivedAt",
+]);
+const CORRECT_PAYMENT_FIELDS = new Set([
+  ...CORRECT_PAYMENT_BASE_FIELDS,
   "presentedAvailableCreditCents",
   "presentedRevision",
 ]);
@@ -712,11 +718,7 @@ export async function parseRecordPaymentCommand(request: Request): Promise<Recor
   };
 }
 
-export async function parseCorrectPaymentCommand(request: Request): Promise<CorrectPaymentCommand> {
-  const body = await parseBody(request);
-  if (Object.keys(body).some((key) => !CORRECT_PAYMENT_FIELDS.has(key))) {
-    throw new FinancialApiError(400, "INVALID_PAYLOAD", "Payload inválido.");
-  }
+function parseProductionCorrectPaymentPayload(body: Record<string, unknown>): ProductionCorrectPaymentCommand {
   assertIdentifier(body.orderId, "orderId");
   assertIdentifier(body.clientId, "clientId");
   assertIdentifier(body.paymentId, "paymentId", 8);
@@ -724,8 +726,6 @@ export async function parseCorrectPaymentCommand(request: Request): Promise<Corr
   assertReceivedAt(body.expectedReceivedAt, "expectedReceivedAt", true);
   assertPositiveSafeInteger(body.amountCents, "amountCents");
   assertReceivedAt(body.receivedAt, "receivedAt", true);
-  assertNonNegativeSafeInteger(body.presentedAvailableCreditCents, "presentedAvailableCreditCents");
-  assertNonNegativeSafeInteger(body.presentedRevision, "presentedRevision");
 
   return {
     orderId: body.orderId,
@@ -735,6 +735,28 @@ export async function parseCorrectPaymentCommand(request: Request): Promise<Corr
     expectedReceivedAt: body.expectedReceivedAt,
     amountCents: body.amountCents,
     receivedAt: body.receivedAt,
+  };
+}
+
+export async function parseProductionCorrectPaymentCommand(request: Request): Promise<ProductionCorrectPaymentCommand> {
+  const body = await parseBody(request);
+  if (Object.keys(body).some((key) => !CORRECT_PAYMENT_BASE_FIELDS.has(key))) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "Payload inválido.");
+  }
+  return parseProductionCorrectPaymentPayload(body);
+}
+
+export async function parseCorrectPaymentCommand(request: Request): Promise<CorrectPaymentCommand> {
+  const body = await parseBody(request);
+  if (Object.keys(body).some((key) => !CORRECT_PAYMENT_FIELDS.has(key))) {
+    throw new FinancialApiError(400, "INVALID_PAYLOAD", "Payload inválido.");
+  }
+  const base = parseProductionCorrectPaymentPayload(body);
+  assertNonNegativeSafeInteger(body.presentedAvailableCreditCents, "presentedAvailableCreditCents");
+  assertNonNegativeSafeInteger(body.presentedRevision, "presentedRevision");
+
+  return {
+    ...base,
     presentedAvailableCreditCents: body.presentedAvailableCreditCents,
     presentedRevision: body.presentedRevision,
   };

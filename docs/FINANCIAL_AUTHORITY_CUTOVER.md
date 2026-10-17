@@ -1,8 +1,11 @@
 # Autoridade financeira única — preparação de cutover
 
 Este documento registra a auditoria e o plano do Incremento 5 e os checkpoints
-experimentais posteriores. Ele não autoriza cutover, publicação de Rules,
-criação de agregadores ou reconciliação produtiva. As classificações **CURRENT**, **DECIDED**,
+experimentais posteriores. Ele não autoriza o cutover financeiro geral,
+publicação de Rules ou inicialização em lote de agregadores. O Checkpoint 10,
+descrito ao final, é uma exceção restrita: correção produtiva de um lançamento
+identificado quando a reconstrução transacional do Cliente for conclusiva e o
+crédito disponível não diminuir. As classificações **CURRENT**, **DECIDED**,
 **PROPOSED**, **IMPLEMENTED** e **OPEN** de
 [FINANCIAL_ARCHITECTURE.md](FINANCIAL_ARCHITECTURE.md) continuam válidas.
 
@@ -458,8 +461,35 @@ configuração. No processo da API, o gate requer `FINANCIAL_TEST_MODE=enabled`,
 `GCLOUD_PROJECT` iguais ao projeto demo, além do Firestore Emulator loopback;
 Auth Emulator usa `FIREBASE_AUTH_EMULATOR_HOST`. Sem esses serviços, allowlist
 e agregador de teste prontos, a correção permanece indisponível e nenhum saldo
-é inventado. A API financeira continua desligada em Preview e Production.
+é inventado. As APIs financeiras gerais continuam desligadas em Preview e Production.
+A exceção é somente `correct-payment` em Vercel Production, conforme
+Checkpoint 10; os demais endpoints permanecem Emulator-only.
 
 A aceitação manual em localhost com Auth/Firestore Emulators depende de um
 usuário Google admitido e de um agregador `ready` de fixture; não foi executada
 neste checkpoint. A UI usa os painéis e classes existentes, sem CSS novo.
+
+## Checkpoint 10 — correção restrita de recebimentos em Production
+
+**IMPLEMENTED — endpoint único, sem cutover financeiro geral.** Em Vercel
+Production, `GET /api/financial/correct-payment` anuncia disponibilidade
+somente se o gate de ambiente passar e a configuração de admissão no Firestore
+estiver acessível. O `POST` mantém Auth Google/allowlist e substitui o evento
+existente, sem trocar `payment.id`, criar evento compensatório ou escrever
+auditoria técnica. Preview continua bloqueado e os demais endpoints não mudam
+de gate.
+
+Como a produção ainda tem escritores financeiros diretos pelo SDK e não há
+agregador produtivo coordenado, a operação reconstrói todos os Pedidos atuais do
+Cliente dentro da transação e exige resultado conclusivo antes e depois. O
+escopo é limitado a 500 Pedidos do Cliente. Correções que diminuiriam o crédito
+disponível são bloqueadas; correções de data/hora ou valor que mantenham ou
+aumentem o crédito podem prosseguir. Isso evita que esta operação retire
+silenciosamente crédito consumível enquanto os demais escritores ainda não
+participam do mesmo protocolo transacional.
+
+A correção de pagamentos legados sem `payments[]`, Pedidos cancelados e
+clientes com fatos financeiros inconsistentes/inconclusivos continua bloqueada.
+O Checkpoint 10 não habilita registro de pagamento, aplicação de crédito,
+edição comercial, criação de Pedidos pelo Admin API nem implantação de Rules.
+Esses fluxos exigem o cutover coordenado das fases acima.
