@@ -24,7 +24,7 @@ function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function isEmail(value: string): boolean {
+export function isFinancialAdmissionEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
@@ -75,7 +75,7 @@ export function authorizeFinancialIdentity(identity: FinancialIdentity, admissio
   const admitted = Array.isArray(admission)
     && admission.some((candidate) => typeof candidate === "string" && normalizeEmail(candidate) === email);
 
-  if (!identity.email_verified || provider !== "google.com" || !isEmail(email) || !admitted) {
+  if (!identity.email_verified || provider !== "google.com" || !isFinancialAdmissionEmail(email) || !admitted) {
     throw new FinancialApiError(403, "FORBIDDEN", "Acesso não autorizado.");
   }
 
